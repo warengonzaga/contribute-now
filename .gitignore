@@ -1,5 +1,7 @@
 node_modules/
 dist/
+www/node_modules/
+www/dist/
 .claude/
 .contributerc.json
 *.tgz
