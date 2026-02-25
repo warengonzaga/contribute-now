@@ -17,7 +17,10 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "www:dev": "bun run --cwd www dev",
+    "www:build": "bun run --cwd www build",
+    "www:preview": "bun run --cwd www preview"
   },
   "engines": {
     "node": ">=18",
