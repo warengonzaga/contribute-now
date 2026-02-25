@@ -1,0 +1,185 @@
+import { CopilotClient } from '@github/copilot-sdk';
+
+const CLEAN_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Clean Commit message following this exact format:
+<emoji> <type>[!][(<scope>)]: <description>
+
+Emoji and type table:
+📦 new      – new features, files, or capabilities
+🔧 update   – changes, refactoring, improvements
+🗑️ remove   – removing code, files, or dependencies
+🔒 security – security fixes or patches
+⚙️ setup    – configs, CI/CD, tooling, build systems
+☕ chore    – maintenance, dependency updates
+🧪 test     – adding or updating tests
+📖 docs     – documentation changes
+🚀 release  – version releases
+
+Rules:
+- Breaking change (!) only for: new, update, remove, security
+- Description: concise, imperative mood, max 72 chars
+- Scope: optional, camelCase or kebab-case component name
+- Return ONLY the commit message line, nothing else
+
+Examples:
+📦 new: user authentication system
+🔧 update (api): improve error handling
+⚙️ setup (ci): configure github actions workflow
+📦 new!: completely redesign authentication system`;
+
+const BRANCH_NAME_SYSTEM_PROMPT = `You are a git branch name generator. Convert natural language descriptions into proper git branch names.
+
+Format: <prefix>/<kebab-case-name>
+Prefixes: feature, fix, docs, chore, test, refactor
+
+Rules:
+- Use lowercase kebab-case for the name part
+- Keep it short and descriptive (2-5 words max)
+- Return ONLY the branch name, nothing else
+
+Examples:
+Input: "fix the login timeout bug" → fix/login-timeout
+Input: "add user profile page" → feature/user-profile-page
+Input: "update readme documentation" → docs/update-readme`;
+
+const PR_DESCRIPTION_SYSTEM_PROMPT = `You are a GitHub pull request description generator. Create a clear, structured PR description.
+
+Return a JSON object with this exact structure:
+{
+  "title": "Brief PR title (50 chars max)",
+  "body": "## Summary\\n...\\n\\n## Changes\\n...\\n\\n## Test Plan\\n..."
+}
+
+Rules:
+- title: concise, present tense, describes what the PR does
+- body: markdown with Summary, Changes (bullet list), and Test Plan sections
+- Return ONLY the JSON object, no markdown fences, no extra text`;
+
+const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a git merge conflict resolution advisor. Analyze the conflict markers and provide guidance.
+
+Rules:
+- Explain what each side of the conflict contains
+- Suggest the most likely correct resolution strategy
+- Never auto-resolve — provide guidance only
+- Be concise and actionable`;
+
+export async function checkCopilotAvailable(): Promise<string | null> {
+  let client: InstanceType<typeof CopilotClient> | null = null;
+  try {
+    client = new CopilotClient();
+    await client.start();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('ENOENT') || msg.includes('not found')) {
+      return 'Copilot CLI binary not found. Ensure GitHub Copilot is installed and your gh CLI is up to date.';
+    }
+    return `Failed to start Copilot service: ${msg}`;
+  }
+  try {
+    await client.ping();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      msg.includes('auth') ||
+      msg.includes('token') ||
+      msg.includes('401') ||
+      msg.includes('403')
+    ) {
+      return 'Copilot authentication failed. Run `gh auth login` to refresh your token.';
+    }
+    if (msg.includes('ECONNREFUSED') || msg.includes('timeout') || msg.includes('network')) {
+      return 'Could not reach GitHub Copilot service. Check your internet connection.';
+    }
+    return `Copilot health check failed: ${msg}`;
+  } finally {
+    try {
+      await client.stop();
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+  return null;
+}
+
+async function callCopilot(
+  systemMessage: string,
+  userMessage: string,
+  model?: string,
+): Promise<string | null> {
+  const client = new CopilotClient();
+  await client.start();
+  try {
+    const sessionConfig: Record<string, unknown> = {
+      systemMessage: { content: systemMessage },
+    };
+    if (model) sessionConfig.model = model;
+    const session = await client.createSession(sessionConfig);
+    try {
+      const response = await session.sendAndWait({ content: userMessage });
+      if (!response?.data?.content) return null;
+      return response.data.content;
+    } finally {
+      await session.destroy();
+    }
+  } finally {
+    await client.stop();
+  }
+}
+
+export async function generateCommitMessage(
+  diff: string,
+  stagedFiles: string[],
+  model?: string,
+): Promise<string | null> {
+  try {
+    const userMessage = `Generate a commit message for these staged changes:\n\nFiles: ${stagedFiles.join(', ')}\n\nDiff:\n${diff.slice(0, 4000)}`;
+    const result = await callCopilot(CLEAN_COMMIT_SYSTEM_PROMPT, userMessage, model);
+    return result?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generatePRDescription(
+  commits: string[],
+  diff: string,
+  model?: string,
+): Promise<{ title: string; body: string } | null> {
+  try {
+    const userMessage = `Generate a PR description for these changes:\n\nCommits:\n${commits.join('\n')}\n\nDiff (truncated):\n${diff.slice(0, 4000)}`;
+    const result = await callCopilot(PR_DESCRIPTION_SYSTEM_PROMPT, userMessage, model);
+    if (!result) return null;
+    const cleaned = result
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    return JSON.parse(cleaned) as { title: string; body: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function suggestBranchName(
+  description: string,
+  model?: string,
+): Promise<string | null> {
+  try {
+    const result = await callCopilot(BRANCH_NAME_SYSTEM_PROMPT, description, model);
+    return result?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function suggestConflictResolution(
+  conflictDiff: string,
+  model?: string,
+): Promise<string | null> {
+  try {
+    const userMessage = `Help me resolve this merge conflict:\n\n${conflictDiff.slice(0, 4000)}`;
+    const result = await callCopilot(CONFLICT_RESOLUTION_SYSTEM_PROMPT, userMessage, model);
+    return result?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
