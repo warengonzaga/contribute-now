@@ -1,0 +1,57 @@
+{
+  "name": "contribute-now",
+  "version": "0.1.0",
+  "description": "Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main after squash merges.",
+  "type": "module",
+  "bin": {
+    "contrib": "dist/index.js",
+    "contribute": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --packages external",
+    "dev": "bun src/index.ts",
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "prepare": "husky || true"
+  },
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0"
+  },
+  "keywords": [
+    "git",
+    "workflow",
+    "squash-merge",
+    "sync",
+    "cli",
+    "contribute",
+    "fork",
+    "dev-branch",
+    "clean-commit"
+  ],
+  "author": "Waren Gonzaga",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/warengonzaga/contribute-now.git"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "^0.1.25",
+    "@wgtechlabs/log-engine": "^2.3.1",
+    "citty": "^0.1.6",
+    "figlet": "^1.10.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@types/bun": "latest",
+    "@types/figlet": "^1.7.0",
+    "husky": "^9.1.7",
+    "typescript": "^5.7.0"
+  }
+}
