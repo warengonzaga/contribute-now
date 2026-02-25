@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="contribute-now — Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main." />
+    <meta property="og:title" content="contribute-now" />
+    <meta property="og:description" content="Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🔄%3C/text%3E%3C/svg%3E" />
+    <title>contribute-now — Git workflow CLI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400;500;600;700&family=Sour+Gummy:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- Nav -->
+    <nav class="nav" id="nav">
+      <div class="nav-inner">
+        <a href="#" class="nav-logo">
+          <span class="nav-logo-icon">🔄</span>
+          <span class="nav-logo-text">contribute-now</span>
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#quickstart">Quick Start</a>
+          <a href="#ai">AI Features</a>
+          <a href="https://github.com/warengonzaga/contribute-now" target="_blank" rel="noopener" class="nav-cta">GitHub →</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <div class="hero-bg">
+        <div class="hero-grid"></div>
+        <div class="hero-glow hero-glow-1"></div>
+        <div class="hero-glow hero-glow-2"></div>
+      </div>
+      <div class="container">
+        <div class="badge">
+          <span class="badge-dot"></span>
+          <span>Git workflow automation for squash-merge models</span>
+        </div>
+        <h1 class="hero-title">
+          Stop fighting your<br />
+          <span class="gradient-text">git branches.</span>
+        </h1>
+        <p class="hero-sub">
+          <strong>contribute-now</strong> automates the messy sync flows of squash-merge
+          two-branch repos — so you can focus on shipping, not untangling commit histories.
+        </p>
+        <div class="hero-actions">
+          <div class="terminal-snippet">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-cmd" id="heroCmd">npx contribute-now setup</span>
+            <button class="copy-btn" id="copyHero" title="Copy to clipboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <a href="https://github.com/warengonzaga/contribute-now" target="_blank" rel="noopener" class="btn btn-secondary">
+            View on GitHub
+          </a>
+        </div>
+        <div class="hero-badges">
+          <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square" alt="License: GPL-3.0" />
+          <img src="https://img.shields.io/npm/v/contribute-now.svg?style=flat-square&color=cb3837" alt="npm version" />
+          <img src="https://img.shields.io/badge/runtime-bun%20%7C%20node-F9F1E1?style=flat-square" alt="runtime" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Problem -->
+    <section class="problem" id="problem">
+      <div class="container">
+        <div class="section-label">The Problem</div>
+        <h2 class="section-title">Squash merges break branch history</h2>
+        <p class="section-sub">
+          Squash-merging <code>dev → main</code> is clean for release history —<br class="br-lg" />
+          but it silently breaks your branch relationship every time.
+        </p>
+        <div class="problem-cards">
+          <div class="problem-card">
+            <div class="problem-icon">📜</div>
+            <h3>Messy dev history</h3>
+            <p>After squash merge, <code>dev</code> still has old individual commits that already exist in <code>main</code>'s squash commit, causing an ever-growing divergence.</p>
+          </div>
+          <div class="problem-card">
+            <div class="problem-icon">🔀</div>
+            <h3>Duplicate PR commits</h3>
+            <p>New PRs from <code>dev</code> to <code>main</code> show stale or duplicate commits, making reviews confusing and diff comparison unreliable.</p>
+          </div>
+          <div class="problem-card">
+            <div class="problem-icon">🍴</div>
+            <h3>Fork sync nightmare</h3>
+            <p>Contributors with forks struggle to keep <code>dev</code> in sync with upstream after every release. The process is tedious and error-prone.</p>
+          </div>
+        </div>
+        <div class="solution-callout">
+          <span class="solution-emoji">✨</span>
+          <span><strong>contribute-now</strong> fixes all of this with a single command: <code>contrib sync</code></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+      <div class="container">
+        <div class="section-label">Commands</div>
+        <h2 class="section-title">Everything you need,<br /><span class="gradient-text">nothing you don't</span></h2>
+        <div class="features-grid">
+          <div class="feature-card feature-card--highlight">
+            <div class="feature-header">
+              <span class="feature-emoji">🔄</span>
+              <code class="feature-cmd">contrib sync</code>
+            </div>
+            <p>Resets <code>dev</code> to match <code>origin/main</code> (maintainer) or <code>upstream/dev</code> (contributor) using safe <code>--force-with-lease</code>. Never bare <code>--force</code>.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">⚙️</span>
+              <code class="feature-cmd">contrib setup</code>
+            </div>
+            <p>Auto-detects your role as <strong>maintainer</strong> or <strong>contributor</strong> via gh CLI, remote heuristics, or interactive prompt. Writes <code>.contributerc.json</code>.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">🌿</span>
+              <code class="feature-cmd">contrib start</code>
+            </div>
+            <p>Creates feature branches from latest dev. Pass natural language — AI suggests a proper branch name for you.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">💾</span>
+              <code class="feature-cmd">contrib commit</code>
+            </div>
+            <p>Generates <a href="https://github.com/wgtechlabs/clean-commit" target="_blank" rel="noopener">Clean Commit</a> messages from your staged diff using GitHub Copilot AI.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">🔃</span>
+              <code class="feature-cmd">contrib update</code>
+            </div>
+            <p>Rebases your branch onto latest dev, with AI conflict resolution guidance shown alongside standard rebase instructions.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">🚀</span>
+              <code class="feature-cmd">contrib submit</code>
+            </div>
+            <p>Pushes your branch and creates a PR with an AI-generated title and description. Supports <code>--draft</code>.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">🧹</span>
+              <code class="feature-cmd">contrib clean</code>
+            </div>
+            <p>Deletes merged branches and prunes remote refs. Shows candidates and asks to confirm before deleting anything.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-header">
+              <span class="feature-emoji">📊</span>
+              <code class="feature-cmd">contrib status</code>
+            </div>
+            <p>Dashboard showing sync state for <code>main</code>, <code>dev</code>, and your current feature branch at a glance.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="quickstart" id="quickstart">
+      <div class="container">
+        <div class="section-label">Quick Start</div>
+        <h2 class="section-title">Up and running in<br /><span class="gradient-text">30 seconds</span></h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h3>Run setup in your repo</h3>
+              <div class="code-block">
+                <div class="code-header">
+                  <span class="code-lang">bash</span>
+                  <button class="copy-btn copy-code" data-code="npx contribute-now setup">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+                <pre><code><span class="c-dim"># no install needed</span>
+npx contribute-now setup
+
+<span class="c-dim"># or install globally</span>
+npm install -g contribute-now
+contrib setup</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h3>Sync after every squash merge</h3>
+              <div class="code-block">
+                <div class="code-header">
+                  <span class="code-lang">bash</span>
+                  <button class="copy-btn copy-code" data-code="contrib sync">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+                <pre><code>contrib sync
+<span class="c-dim"># ✓ dev reset to origin/main (maintainer)
+# ✓ dev reset to upstream/dev (contributor)</span></code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h3>Use the full workflow</h3>
+              <div class="code-block">
+                <div class="code-header">
+                  <span class="code-lang">bash</span>
+                </div>
+                <pre><code>contrib start <span class="c-green">"fix login timeout"</span>   <span class="c-dim"># AI names the branch</span>
+contrib commit                       <span class="c-dim"># AI writes the message</span>
+contrib update                       <span class="c-dim"># rebase onto latest dev</span>
+contrib submit                       <span class="c-dim"># push + open PR</span></code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Features -->
+    <section class="ai-section" id="ai">
+      <div class="container">
+        <div class="section-label">AI-Powered</div>
+        <h2 class="section-title">GitHub Copilot, built right in</h2>
+        <p class="section-sub">
+          All AI features use <strong>GitHub Copilot</strong> via <code>@github/copilot-sdk</code>.<br class="br-lg" />
+          Entirely optional — graceful degradation if Copilot is unavailable.
+        </p>
+        <div class="ai-table-wrap">
+          <table class="ai-table">
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>AI Feature</th>
+                <th>Fallback</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>commit</code></td>
+                <td>Generate Clean Commit message from staged diff</td>
+                <td>Type message manually</td>
+              </tr>
+              <tr>
+                <td><code>start</code></td>
+                <td>Suggest branch name from natural language</td>
+                <td>Prefix picker + manual name</td>
+              </tr>
+              <tr>
+                <td><code>update</code></td>
+                <td>Conflict resolution guidance</td>
+                <td>Standard rebase instructions</td>
+              </tr>
+              <tr>
+                <td><code>submit</code></td>
+                <td>Generate PR title + body from commits + diff</td>
+                <td><code>gh pr create --fill</code> or manual</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="ai-note">
+          Use <code>--model &lt;model&gt;</code> on any AI command to select a specific Copilot model
+          (e.g., <code>gpt-4.1</code>, <code>claude-sonnet-4</code>). Use <code>--no-ai</code> to skip AI entirely.
+        </p>
+      </div>
+    </section>
+
+    <!-- Prerequisites -->
+    <section class="prereqs" id="prereqs">
+      <div class="container">
+        <div class="section-label">Requirements</div>
+        <h2 class="section-title">Minimal dependencies</h2>
+        <div class="prereq-cards">
+          <div class="prereq-card prereq-card--required">
+            <div class="prereq-badge">required</div>
+            <div class="prereq-icon">🔧</div>
+            <h3>Git</h3>
+            <p>Core git commands under the hood. Any recent version works.</p>
+            <a href="https://git-scm.com/" target="_blank" rel="noopener">git-scm.com →</a>
+          </div>
+          <div class="prereq-card prereq-card--optional">
+            <div class="prereq-badge">optional</div>
+            <div class="prereq-icon">🐙</div>
+            <h3>GitHub CLI</h3>
+            <p>Enables role auto-detection and PR creation via <code>gh pr create</code>.</p>
+            <a href="https://cli.github.com" target="_blank" rel="noopener">cli.github.com →</a>
+          </div>
+          <div class="prereq-card prereq-card--optional">
+            <div class="prereq-badge">optional</div>
+            <div class="prereq-icon">🤖</div>
+            <h3>GitHub Copilot</h3>
+            <p>Unlocks all AI features. Any active Copilot subscription works.</p>
+            <a href="https://github.com/features/copilot" target="_blank" rel="noopener">github.com/features/copilot →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+      <div class="container">
+        <div class="cta-box">
+          <div class="cta-glow"></div>
+          <h2>Ready to fix your git workflow?</h2>
+          <p>Try it in any repo — no install required.</p>
+          <div class="cta-terminal">
+            <span class="terminal-prompt">$</span>
+            <span id="ctaCmd">npx contribute-now setup</span>
+            <button class="copy-btn" id="copyCta" title="Copy to clipboard">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div class="cta-links">
+            <a href="https://github.com/warengonzaga/contribute-now" target="_blank" rel="noopener" class="btn btn-primary">⭐ Star on GitHub</a>
+            <a href="https://www.npmjs.com/package/contribute-now" target="_blank" rel="noopener" class="btn btn-secondary">View on npm →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <span class="nav-logo-icon">🔄</span>
+            <span class="footer-name">contribute-now</span>
+          </div>
+          <p class="footer-copy">
+            💻💖☕ Made with ❤️ by <a href="https://github.com/warengonzaga" target="_blank" rel="noopener">Waren Gonzaga</a>
+            · <a href="https://github.com/warengonzaga/contribute-now/blob/main/LICENSE" target="_blank" rel="noopener">GPL-3.0</a>
+          </p>
+          <div class="footer-links">
+            <a href="https://github.com/warengonzaga/contribute-now" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://www.npmjs.com/package/contribute-now" target="_blank" rel="noopener">npm</a>
+            <a href="https://github.com/warengonzaga/contribute-now/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
