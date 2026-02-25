@@ -1,6 +1,6 @@
 # contribute-now
 
-![GitHub Repo Banner](https://ghrb.waren.build/banner?header=contribute-now+%F0%9F%94%84&subheader=Git+workflow+CLI+for+squash-merge+two-branch+models.+Keeps+dev+in+sync+with+main.&bg=0D1117-21262D&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&support=true)
+![GitHub Repo Banner](https://ghrb.waren.build/banner?header=contribute-now+%F0%9F%94%84&subheader=Squash.+Merge.+Stay+in+sync.&bg=0D1117-21262D&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&support=true)
 <!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
 A lightweight CLI that automates git operations for projects using a **two-branch model** (`main` + `dev`) with squash merges — so maintainers and contributors never have to memorize complex sync flows.

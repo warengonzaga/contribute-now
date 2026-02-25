@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0D1117"/>
+      <stop offset="100%" stop-color="#21262D"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#58A6FF"/>
+      <stop offset="100%" stop-color="#79C0FF"/>
+    </linearGradient>
+    <linearGradient id="glow1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#388BFD" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#388BFD" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur1">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Glow blobs -->
+  <circle cx="200" cy="200" r="300" fill="#388BFD" fill-opacity="0.08" filter="url(#blur1)"/>
+  <circle cx="1050" cy="450" r="250" fill="#388BFD" fill-opacity="0.06" filter="url(#blur1)"/>
+
+  <!-- Subtle grid lines -->
+  <g stroke="#30363D" stroke-width="1" opacity="0.4">
+    <line x1="0" y1="105" x2="1200" y2="105"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="525" x2="1200" y2="525"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Border frame -->
+  <rect x="1" y="1" width="1198" height="628" rx="0" fill="none" stroke="#30363D" stroke-width="2"/>
+
+  <!-- Left accent bar -->
+  <rect x="80" y="210" width="4" height="210" rx="2" fill="url(#accent)"/>
+
+  <!-- Icon: vector refresh/sync arrows -->
+  <g transform="translate(110, 228)">
+    <rect width="56" height="56" rx="10" fill="#21262D" stroke="#30363D" stroke-width="1.5"/>
+    <g transform="translate(28, 28)">
+      <!-- Top-right arrow (clockwise) -->
+      <path d="M2 -16 A16 16 0 0 1 16 0" fill="none" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+      <polygon points="16,-6 16,4 10,0" fill="#58A6FF"/>
+      <!-- Bottom-left arrow (counter-clockwise) -->
+      <path d="M-2 16 A16 16 0 0 1 -16 0" fill="none" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+      <polygon points="-16,6 -16,-4 -10,0" fill="#58A6FF"/>
+    </g>
+  </g>
+
+  <!-- Project name -->
+  <text x="110" y="362" font-size="64" font-weight="700" font-family="'Google Sans Code', 'JetBrains Mono', monospace" fill="#FFFFFF" letter-spacing="-1">contribute-now</text>
+
+  <!-- Tagline -->
+  <text x="110" y="415" font-size="28" font-weight="400" font-family="'Sour Gummy', 'Inter', sans-serif" fill="#8B949E">Squash. Merge. Stay in sync.</text>
+
+  <!-- Divider line -->
+  <line x1="110" y1="448" x2="560" y2="448" stroke="#30363D" stroke-width="1"/>
+
+  <!-- Tags row -->
+  <g font-size="18" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <!-- Tag: Git CLI -->
+    <rect x="110" y="462" width="108" height="34" rx="6" fill="#21262D" stroke="#388BFD" stroke-width="1"/>
+    <text x="130" y="484" fill="#58A6FF">git CLI</text>
+    <!-- Tag: Squash Merge -->
+    <rect x="230" y="462" width="168" height="34" rx="6" fill="#21262D" stroke="#388BFD" stroke-width="1"/>
+    <text x="250" y="484" fill="#58A6FF">squash merge</text>
+    <!-- Tag: AI powered -->
+    <rect x="410" y="462" width="148" height="34" rx="6" fill="#21262D" stroke="#388BFD" stroke-width="1"/>
+    <text x="430" y="484" fill="#58A6FF">AI powered</text>
+  </g>
+
+  <!-- Right side: terminal snippet -->
+  <rect x="720" y="185" width="400" height="260" rx="12" fill="#161B22" stroke="#30363D" stroke-width="1.5"/>
+  <!-- Terminal dots -->
+  <circle cx="748" cy="212" r="6" fill="#FF5F57"/>
+  <circle cx="768" cy="212" r="6" fill="#FEBC2E"/>
+  <circle cx="788" cy="212" r="6" fill="#28C840"/>
+  <!-- Terminal lines -->
+  <text x="748" y="256" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <tspan fill="#8B949E">$ </tspan><tspan fill="#79C0FF">contrib</tspan><tspan fill="#E6EDF3"> sync</tspan>
+  </text>
+  <text x="748" y="284" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <tspan fill="#3FB950">✓</tspan><tspan fill="#8B949E"> dev reset to origin/main</tspan>
+  </text>
+  <text x="748" y="312" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace" fill="#8B949E">
+    <tspan fill="#8B949E">$ </tspan><tspan fill="#79C0FF">contrib</tspan><tspan fill="#E6EDF3"> commit</tspan>
+  </text>
+  <text x="748" y="340" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <tspan fill="#3FB950">✓</tspan><tspan fill="#8B949E"> AI message generated</tspan>
+  </text>
+  <text x="748" y="368" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <tspan fill="#8B949E">$ </tspan><tspan fill="#79C0FF">contrib</tspan><tspan fill="#E6EDF3"> submit</tspan>
+  </text>
+  <text x="748" y="396" font-size="16" font-family="'JetBrains Mono', 'Courier New', monospace">
+    <tspan fill="#3FB950">✓</tspan><tspan fill="#8B949E"> PR created with AI body</tspan>
+  </text>
+
+  <!-- Footer: author -->
+  <text x="110" y="578" font-size="18" font-family="'Inter', sans-serif" fill="#484F58">by Waren Gonzaga · waren.build/contribute-now</text>
+  <text x="1090" y="578" font-size="18" font-family="'Inter', sans-serif" fill="#484F58" text-anchor="end">GPL-3.0</text>
+</svg>
