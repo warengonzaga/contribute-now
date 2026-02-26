@@ -4,9 +4,9 @@ import pkg from '../../package.json';
 
 let LOGO: string;
 try {
-  LOGO = figlet.textSync('contrib', { font: 'ANSI Shadow' });
+  LOGO = figlet.textSync('Contribute\nNow', { font: 'ANSI Shadow' });
 } catch {
-  LOGO = 'contribute-now';
+  LOGO = 'Contribute Now';
 }
 
 export function getVersion(): string {
@@ -17,14 +17,16 @@ export function getAuthor(): string {
   return typeof pkg.author === 'string' ? pkg.author : 'unknown';
 }
 
-export function showBanner(minimal = false): void {
+export function showBanner(showLinks = false): void {
   console.log(pc.cyan(`\n${LOGO}`));
   console.log(
     `  ${pc.dim(`v${getVersion()}`)} ${pc.dim('—')} ${pc.dim(`Built by ${getAuthor()}`)}`,
   );
 
-  if (!minimal) {
-    console.log(`  ${pc.dim(pkg.description)}`);
+  if (showLinks) {
+    console.log(
+      `  ${pc.dim('Git workflow CLI that guides contributors through clean branching, commits, and PRs.')}`,
+    );
     console.log();
     console.log(
       `  ${pc.yellow('Star')}        ${pc.cyan('https://github.com/warengonzaga/contribute-now')}`,
