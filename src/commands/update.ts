@@ -10,7 +10,7 @@ import {
   hasUncommittedChanges,
   isGitRepo,
   rebase,
-  resetHard,
+  updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
@@ -70,9 +70,9 @@ export default defineCommand({
     heading('🔃 contrib update');
     info(`Updating ${pc.bold(currentBranch)} with latest ${pc.bold(baseBranch)}...`);
 
-    // 3. Fetch + update local base branch silently
+    // 3. Fetch + update local base branch ref (without switching to it)
     await fetchRemote(syncSource.remote);
-    await resetHard(syncSource.ref);
+    await updateLocalBranch(baseBranch, syncSource.ref);
 
     // 4. git rebase base branch
     const rebaseResult = await rebase(baseBranch);
