@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: '/contribute-now/',
@@ -6,4 +6,4 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
-})
+});
