@@ -1,8 +1,9 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import type { ContributeConfig, WorkflowMode } from '../types.js';
+import type { CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
 import { getDefaultConfig, isGitignored, writeConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
 import {
   checkGhAuth,
   checkGhInstalled,
@@ -41,6 +42,20 @@ export default defineCommand({
     else if (workflowChoice.startsWith('Git Flow')) workflow = 'git-flow';
 
     info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[workflow])}`);
+
+    // 2b. Select commit convention
+    const conventionChoice = await selectPrompt(
+      'Which commit convention should this project use?',
+      [
+        `${CONVENTION_DESCRIPTIONS['clean-commit']} (recommended)`,
+        CONVENTION_DESCRIPTIONS.conventional,
+        CONVENTION_DESCRIPTIONS.none,
+      ],
+    );
+
+    let commitConvention: CommitConvention = 'clean-commit';
+    if (conventionChoice.includes('Conventional Commits')) commitConvention = 'conventional';
+    else if (conventionChoice.includes('No commit')) commitConvention = 'none';
 
     // 3. Detect remotes
     const remotes = await getRemotes();
@@ -148,6 +163,7 @@ export default defineCommand({
       upstream: upstreamRemote,
       origin: originRemote,
       branchPrefixes: defaultConfig.branchPrefixes,
+      commitConvention,
     };
 
     writeConfig(config);
@@ -161,6 +177,7 @@ export default defineCommand({
 
     console.log();
     info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
+    info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
     info(`Role: ${pc.bold(config.role)}`);
     if (config.devBranch) {
       info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
