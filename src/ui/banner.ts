@@ -24,9 +24,6 @@ export function showBanner(showLinks = false): void {
   );
 
   if (showLinks) {
-    console.log(
-      `  ${pc.dim('Git workflow CLI that guides contributors through clean branching, commits, and PRs.')}`,
-    );
     console.log();
     console.log(
       `  ${pc.yellow('Star')}        ${pc.cyan('https://github.com/warengonzaga/contribute-now')}`,
