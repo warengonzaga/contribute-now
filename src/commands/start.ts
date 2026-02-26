@@ -9,7 +9,7 @@ import {
   fetchRemote,
   hasUncommittedChanges,
   isGitRepo,
-  resetHard,
+  updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success } from '../utils/logger.js';
 import { getBaseBranch, getSyncSource } from '../utils/workflow.js';
@@ -89,10 +89,10 @@ export default defineCommand({
     // Silently sync base branch first
     await fetchRemote(syncSource.remote);
 
-    // Reset base to latest
-    const resetResult = await resetHard(syncSource.ref);
-    if (resetResult.exitCode !== 0) {
-      // Base may not be checked out; just continue from current state
+    // Update local base branch ref to match remote (without switching to it)
+    const updateResult = await updateLocalBranch(baseBranch, syncSource.ref);
+    if (updateResult.exitCode !== 0) {
+      // Base may not exist locally yet; branch will be created from remote ref directly
     }
 
     // Create branch from base
