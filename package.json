@@ -12,12 +12,12 @@
   ],
   "scripts": {
     "build": "bun build src/index.ts --outfile dist/index.js --target node --packages external",
+    "cli": "bun run src/index.ts --",
     "dev": "bun src/index.ts",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "prepare": "husky || true",
     "www:dev": "bun run --cwd www dev",
     "www:build": "bun run --cwd www build",
     "www:preview": "bun run --cwd www preview"
@@ -54,7 +54,6 @@
     "@biomejs/biome": "^2.4.4",
     "@types/bun": "latest",
     "@types/figlet": "^1.7.0",
-    "husky": "^9.1.7",
     "typescript": "^5.7.0"
   }
 }
