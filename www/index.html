@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="contribute-now — Squash. Merge. Stay in sync. Git workflow CLI for squash-merge two-branch models." />
+    <meta name="description" content="contribute-now — Any workflow. Clean commits. Zero friction. Minimalist CLI for automating git workflows." />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://warengonzaga.github.io/contribute-now/" />
     <meta property="og:site_name" content="contribute-now" />
-    <meta property="og:title" content="contribute-now — Git workflow CLI" />
-    <meta property="og:description" content="Automates git operations for squash-merge two-branch repos (main + dev). Keeps dev in sync, generates Clean Commit messages, and creates PRs — all powered by GitHub Copilot AI." />
+    <meta property="og:title" content="contribute-now — Any workflow. Clean commits." />
+    <meta property="og:description" content="Automates git operations for any workflow (Clean Flow, GitHub Flow, Git Flow). Generates clean commit messages and creates PRs — all powered by AI." />
     <meta property="og:image" content="https://waren.build/contribute-now/og-image.png" />
-    <meta property="og:image:alt" content="contribute-now — Git workflow CLI for squash-merge two-branch models" />
+    <meta property="og:image:alt" content="contribute-now — Any workflow. Clean commits. Zero friction." />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
 
@@ -20,12 +20,12 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@warengonzaga" />
     <meta name="twitter:creator" content="@warengonzaga" />
-    <meta name="twitter:title" content="contribute-now — Git workflow CLI" />
-    <meta name="twitter:description" content="Automates git operations for squash-merge two-branch repos (main + dev). Keeps dev in sync, generates Clean Commit messages, and creates PRs — all powered by GitHub Copilot AI." />
+    <meta name="twitter:title" content="contribute-now — Any workflow. Clean commits." />
+    <meta name="twitter:description" content="Automates git operations for any workflow (Clean Flow, GitHub Flow, Git Flow). Generates clean commit messages and creates PRs — all powered by AI." />
     <meta name="twitter:image" content="https://waren.build/contribute-now/og-image.png" />
-    <meta name="twitter:image:alt" content="contribute-now — Git workflow CLI for squash-merge two-branch models" />
+    <meta name="twitter:image:alt" content="contribute-now — Any workflow. Clean commits. Zero friction." />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🔄%3C/text%3E%3C/svg%3E" />
-    <title>contribute-now — Git workflow CLI</title>
+    <title>contribute-now — Any workflow. Clean commits.</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400;500;600;700&family=Sour+Gummy:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -58,15 +58,15 @@
       <div class="container">
         <div class="badge">
           <span class="badge-dot"></span>
-          <span>Git workflow automation for squash-merge models</span>
+          <span>Any workflow. Clean commits. Zero friction.</span>
         </div>
         <h1 class="hero-title">
-          Stop fighting your<br />
-          <span class="gradient-text">git branches.</span>
+          Stop memorizing<br />
+          <span class="gradient-text">git commands.</span>
         </h1>
         <p class="hero-sub">
-          <strong>contribute-now</strong> automates the messy sync flows of squash-merge
-          two-branch repos — so you can focus on shipping, not untangling commit histories.
+          <strong>contribute-now</strong> automates your entire workflow — branching, syncing, committing, and PRs.
+          Supports Clean Flow, GitHub Flow, and Git Flow with <span class="copilot-logo-text">GitHub Copilot <svg width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor"><path d="M7.998 15.035c-3.968 0-7.308-3.32-7.308-7.423S4.03 2.5 7.998 2.5s7.308 3.012 7.308 7.112-3.34 7.423-7.308 7.423Zm4.77-9.356a3.81 3.81 0 0 0-1.87-.245c-.326-.496-.64-1.026-.858-1.57-.33-.826-.145-1.928-.145-1.928a.56.56 0 0 0-.256-.475.48.48 0 0 0-.584.053s-.925.862-1.284 1.764c-.208.522-.38.98-.49 1.344a10.875 10.875 0 0 0-3.398 2.222.483.483 0 0 0 .044.72c.983.743 1.832 1.258 2.768 1.542.115 1.055.452 1.812.872 2.188.47.42 1.04.596 1.5.596.883 0 1.58-.636 1.786-1.745.83-.39 1.458-.888 2.05-1.602a.488.488 0 0 0-.135-.863ZM5.94 8.24a.8.8 0 1 1-.002-1.6.8.8 0 0 1 .002 1.6Zm4.116 0a.801.801 0 0 1 0-1.598.8.8 0 0 1 0 1.598Z"/></svg></span> assistance.
         </p>
         <div class="hero-actions">
           <div class="terminal-snippet">
@@ -88,100 +88,167 @@
       </div>
     </section>
 
-    <!-- Problem -->
-    <section class="problem" id="problem">
-      <div class="container">
-        <div class="section-label">The Problem</div>
-        <h2 class="section-title">Squash merges break branch history</h2>
-        <p class="section-sub">
-          Squash-merging <code>dev → main</code> is clean for release history —<br class="br-lg" />
-          but it silently breaks your branch relationship every time.
-        </p>
-        <div class="problem-cards">
-          <div class="problem-card">
-            <div class="problem-icon">📜</div>
-            <h3>Messy dev history</h3>
-            <p>After squash merge, <code>dev</code> still has old individual commits that already exist in <code>main</code>'s squash commit, causing an ever-growing divergence.</p>
-          </div>
-          <div class="problem-card">
-            <div class="problem-icon">🔀</div>
-            <h3>Duplicate PR commits</h3>
-            <p>New PRs from <code>dev</code> to <code>main</code> show stale or duplicate commits, making reviews confusing and diff comparison unreliable.</p>
-          </div>
-          <div class="problem-card">
-            <div class="problem-icon">🍴</div>
-            <h3>Fork sync nightmare</h3>
-            <p>Contributors with forks struggle to keep <code>dev</code> in sync with upstream after every release. The process is tedious and error-prone.</p>
+    <!-- Showcase 1: Clean Flow -->
+    <section class="showcase-section" id="clean-flow">
+      <div class="showcase-container">
+        <div class="showcase-content">
+          <div class="showcase-badge">Recommended Workflow</div>
+          <h2 class="showcase-title">The Ultimate Squash-Merge Workflow</h2>
+          <p class="showcase-desc">
+            Keep a completely linear history on <code>main</code> while maintaining a stable <code>dev</code> branch for integration. No more messy merges or broken histories.
+          </p>
+          <div class="showcase-list">
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span><strong>Squash features → dev → main</strong> structure</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Smart <strong>upstream</strong> and <strong>origin</strong> synchronization</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Automated role detection (maintainer vs. contributor)</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Supports <strong>GitHub Flow</strong> and <strong>Git Flow</strong> too</span>
+            </div>
           </div>
         </div>
-        <div class="solution-callout">
-          <span class="solution-emoji">✨</span>
-          <span><strong>contribute-now</strong> fixes all of this with a single command: <code>contrib sync</code></span>
+        <div class="showcase-visual">
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <div class="terminal-dot dot-red"></div>
+              <div class="terminal-dot dot-yellow"></div>
+              <div class="terminal-dot dot-green"></div>
+              <div class="terminal-title">contrib sync</div>
+            </div>
+            <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">contrib sync</span>
+
+<span class="t-blue">ℹ</span> <span class="t-dim">Detecting workflow...</span> <span class="t-cmd">Clean Flow</span>
+<span class="t-blue">ℹ</span> <span class="t-dim">Detecting role...</span> <span class="t-cmd">Maintainer</span>
+
+<span class="t-green">✔</span> Fetched origin
+<span class="t-green">✔</span> Synced <span class="t-purple">main</span> from <span class="t-purple">origin/main</span>
+<span class="t-green">✔</span> Updated <span class="t-purple">dev</span> from <span class="t-purple">origin/dev</span>
+
+<span class="t-green">SUCCESS</span> <span class="t-dim">You are now in sync with main.</span>
+<span class="t-prompt">$</span> <span class="t-cursor"></span></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Features -->
-    <section class="features" id="features">
-      <div class="container">
-        <div class="section-label">Commands</div>
-        <h2 class="section-title">Everything you need,<br /><span class="gradient-text">nothing you don't</span></h2>
-        <div class="features-grid">
-          <div class="feature-card feature-card--highlight">
-            <div class="feature-header">
-              <span class="feature-emoji">🔄</span>
-              <code class="feature-cmd">contrib sync</code>
+    <!-- Showcase 2: Clean Commit -->
+    <section class="showcase-section reverse" id="clean-commit">
+      <div class="showcase-container">
+        <div class="showcase-content">
+          <div class="showcase-badge">Default Convention</div>
+          <h2 class="showcase-title">Commit Messages That Make Sense</h2>
+          <p class="showcase-desc">
+            Stop writing "wip" or "fix". The CLI guides your AI to generate semantic, structured commit messages automatically based on your changes.
+          </p>
+          <div class="showcase-list">
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Follows <strong>Clean Commit</strong> or <strong>Conventional</strong> formats</span>
             </div>
-            <p>Resets <code>dev</code> to match <code>origin/main</code> (maintainer) or <code>upstream/dev</code> (contributor) using safe <code>--force-with-lease</code>. Never bare <code>--force</code>.</p>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Auto-generates descriptions from staged diffs</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Validates types, scopes, and max lengths</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Fully editable before confirming</span>
+            </div>
           </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">⚙️</span>
-              <code class="feature-cmd">contrib setup</code>
+        </div>
+        <div class="showcase-visual">
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <div class="terminal-dot dot-red"></div>
+              <div class="terminal-dot dot-yellow"></div>
+              <div class="terminal-dot dot-green"></div>
+              <div class="terminal-title">contrib commit</div>
             </div>
-            <p>Auto-detects your role as <strong>maintainer</strong> or <strong>contributor</strong> via gh CLI, remote heuristics, or interactive prompt. Writes <code>.contributerc.json</code>.</p>
+            <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">contrib commit</span>
+
+<span class="t-blue">ℹ</span> <span class="t-dim">Analyzing staged changes...</span>
+<span class="t-blue">ℹ</span> <span class="t-dim">Generating message with Copilot...</span>
+
+<span class="t-green">?</span> <span class="t-cmd">Confirm commit message?</span>
+<span class="t-dim">1.</span> 📦 <span class="t-purple">new</span> (auth): add biometrics login support
+<span class="t-dim">2.</span> 🔧 <span class="t-purple">update</span> (ui): refresh login page styles
+<span class="t-dim">3.</span> ✏️ <span class="t-purple">Edit manually...</span>
+
+<span class="t-green">✔</span> Committed: <span class="t-cmd">📦 new (auth): add biometrics login support</span>
+<span class="t-prompt">$</span> <span class="t-cursor"></span></div>
           </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">🌿</span>
-              <code class="feature-cmd">contrib start</code>
-            </div>
-            <p>Creates feature branches from latest dev. Pass natural language — AI suggests a proper branch name for you.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Showcase 3: AI Powered -->
+    <section class="showcase-section" id="ai-powered">
+      <div class="showcase-container">
+        <div class="showcase-content">
+          <div class="showcase-badge">
+            <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" style="margin-top: -2px;"><title>GitHub Copilot</title><path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></svg>
+            Powered by GitHub Copilot SDK
           </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">💾</span>
-              <code class="feature-cmd">contrib commit</code>
+          <h2 class="showcase-title">AI-Powered Git Assistant</h2>
+          <p class="showcase-desc">
+            Zero context switching. Let Copilot handle the tedious parts of git directly in your terminal, without ever leaving your workflow.
+          </p>
+          <div class="showcase-list">
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Generate <strong>branch names</strong> from natural language</span>
             </div>
-            <p>Generates <a href="https://github.com/wgtechlabs/clean-commit" target="_blank" rel="noopener">Clean Commit</a> messages from your staged diff using GitHub Copilot AI.</p>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Resolve <strong>merge conflicts</strong> with smart guidance</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Write <strong>PR titles & bodies</strong> automatically</span>
+            </div>
+            <div class="showcase-item">
+              <span class="showcase-check">✓</span>
+              <span>Select your preferred model with <code>--model</code></span>
+            </div>
           </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">🔃</span>
-              <code class="feature-cmd">contrib update</code>
+          <a href="https://github.com/features/copilot" target="_blank" rel="noopener" class="btn btn-primary">
+            Explore Copilot Features →
+          </a>
+        </div>
+        <div class="showcase-visual">
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <div class="terminal-dot dot-red"></div>
+              <div class="terminal-dot dot-yellow"></div>
+              <div class="terminal-dot dot-green"></div>
+              <div class="terminal-title">contrib start</div>
             </div>
-            <p>Rebases your branch onto latest dev, with AI conflict resolution guidance shown alongside standard rebase instructions.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">🚀</span>
-              <code class="feature-cmd">contrib submit</code>
-            </div>
-            <p>Pushes your branch and creates a PR with an AI-generated title and description. Supports <code>--draft</code>.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">🧹</span>
-              <code class="feature-cmd">contrib clean</code>
-            </div>
-            <p>Deletes merged branches and prunes remote refs. Shows candidates and asks to confirm before deleting anything.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-header">
-              <span class="feature-emoji">📊</span>
-              <code class="feature-cmd">contrib status</code>
-            </div>
-            <p>Dashboard showing sync state for <code>main</code>, <code>dev</code>, and your current feature branch at a glance.</p>
+            <div class="terminal-body"><span class="t-prompt">$</span> <span class="t-cmd">contrib start <span class="t-green">"fix that annoying login bug"</span></span>
+
+<span class="t-blue">ℹ</span> <span class="t-dim">Asking Copilot for branch names...</span>
+
+<span class="t-green">?</span> <span class="t-cmd">Select a branch name:</span>
+<span class="t-dim">1.</span> <span class="t-purple">fix/login-timeout-bug</span>
+<span class="t-dim">2.</span> <span class="t-purple">bug/login-session-error</span>
+<span class="t-dim">3.</span> ✏️ <span class="t-purple">Enter manually...</span>
+
+<span class="t-green">✔</span> Created branch <span class="t-purple">fix/login-timeout-bug</span> from <span class="t-purple">dev</span>
+<span class="t-green">✔</span> Switched to branch <span class="t-purple">fix/login-timeout-bug</span>
+
+<span class="t-green">SUCCESS</span> <span class="t-dim">Ready to code!</span>
+<span class="t-prompt">$</span> <span class="t-cursor"></span></div>
           </div>
         </div>
       </div>
@@ -201,7 +268,7 @@
                 <div class="code-header">
                   <span class="code-lang">bash</span>
                   <button class="copy-btn copy-code" data-code="npx contribute-now setup">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   </button>
                 </div>
                 <pre><code><span class="c-dim"># no install needed</span>
@@ -216,7 +283,7 @@ contrib setup</code></pre>
           <div class="step">
             <div class="step-num">2</div>
             <div class="step-content">
-              <h3>Sync after every squash merge</h3>
+              <h3>Sync regularly</h3>
               <div class="code-block">
                 <div class="code-header">
                   <span class="code-lang">bash</span>
@@ -225,8 +292,8 @@ contrib setup</code></pre>
                   </button>
                 </div>
                 <pre><code>contrib sync
-<span class="c-dim"># ✓ dev reset to origin/main (maintainer)
-# ✓ dev reset to upstream/dev (contributor)</span></code></pre>
+<span class="c-dim"># ✓ updates your base branch (main/dev)
+# ✓ syncs with upstream automatically</span></code></pre>
               </div>
             </div>
           </div>
@@ -240,61 +307,12 @@ contrib setup</code></pre>
                 </div>
                 <pre><code>contrib start <span class="c-green">"fix login timeout"</span>   <span class="c-dim"># AI names the branch</span>
 contrib commit                       <span class="c-dim"># AI writes the message</span>
-contrib update                       <span class="c-dim"># rebase onto latest dev</span>
+contrib update                       <span class="c-dim"># rebase onto base</span>
 contrib submit                       <span class="c-dim"># push + open PR</span></code></pre>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- AI Features -->
-    <section class="ai-section" id="ai">
-      <div class="container">
-        <div class="section-label">AI-Powered</div>
-        <h2 class="section-title">GitHub Copilot, built right in</h2>
-        <p class="section-sub">
-          All AI features use <strong>GitHub Copilot</strong> via <code>@github/copilot-sdk</code>.<br class="br-lg" />
-          Entirely optional — graceful degradation if Copilot is unavailable.
-        </p>
-        <div class="ai-table-wrap">
-          <table class="ai-table">
-            <thead>
-              <tr>
-                <th>Command</th>
-                <th>AI Feature</th>
-                <th>Fallback</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>commit</code></td>
-                <td>Generate Clean Commit message from staged diff</td>
-                <td>Type message manually</td>
-              </tr>
-              <tr>
-                <td><code>start</code></td>
-                <td>Suggest branch name from natural language</td>
-                <td>Prefix picker + manual name</td>
-              </tr>
-              <tr>
-                <td><code>update</code></td>
-                <td>Conflict resolution guidance</td>
-                <td>Standard rebase instructions</td>
-              </tr>
-              <tr>
-                <td><code>submit</code></td>
-                <td>Generate PR title + body from commits + diff</td>
-                <td><code>gh pr create --fill</code> or manual</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="ai-note">
-          Use <code>--model &lt;model&gt;</code> on any AI command to select a specific Copilot model
-          (e.g., <code>gpt-4.1</code>, <code>claude-sonnet-4</code>). Use <code>--no-ai</code> to skip AI entirely.
-        </p>
       </div>
     </section>
 
