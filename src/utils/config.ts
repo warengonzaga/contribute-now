@@ -48,5 +48,6 @@ export function getDefaultConfig(): ContributeConfig {
     upstream: 'upstream',
     origin: 'origin',
     branchPrefixes: ['feature', 'fix', 'docs', 'chore', 'test', 'refactor'],
+    commitConvention: 'clean-commit',
   };
 }

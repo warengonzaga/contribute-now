@@ -30,6 +30,7 @@ describe('config utilities', () => {
     expect(cfg.origin).toBe('origin');
     expect(cfg.upstream).toBe('upstream');
     expect(Array.isArray(cfg.branchPrefixes)).toBe(true);
+    expect(cfg.commitConvention).toBe('clean-commit');
   });
 
   it('configExists returns false when no config', () => {
@@ -45,6 +46,7 @@ describe('config utilities', () => {
       upstream: 'upstream',
       origin: 'origin',
       branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
     };
     writeConfig(cfg, TEST_DIR);
     expect(configExists(TEST_DIR)).toBe(true);
@@ -78,6 +80,7 @@ describe('config utilities', () => {
       upstream: 'upstream',
       origin: 'origin',
       branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
     };
     writeConfig(cfg, TEST_DIR);
     const read = readConfig(TEST_DIR);

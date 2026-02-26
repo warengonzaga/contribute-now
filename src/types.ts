@@ -1,5 +1,7 @@
 export type WorkflowMode = 'clean-flow' | 'github-flow' | 'git-flow';
 
+export type CommitConvention = 'conventional' | 'clean-commit' | 'none';
+
 export interface ContributeConfig {
   workflow: WorkflowMode;
   role: 'maintainer' | 'contributor';
@@ -8,6 +10,7 @@ export interface ContributeConfig {
   upstream: string;
   origin: string;
   branchPrefixes: string[];
+  commitConvention: CommitConvention;
 }
 
 export interface GitResult {
