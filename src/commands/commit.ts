@@ -2,6 +2,11 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import {
+  CONVENTION_FORMAT_HINTS,
+  getValidationError,
+  validateCommitMessage,
+} from '../utils/convention.js';
 import { checkCopilotAvailable, generateCommitMessage } from '../utils/copilot.js';
 import {
   commitWithMessage,
@@ -12,18 +17,10 @@ import {
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 
-// Clean Commit regex for validation
-const CLEAN_COMMIT_PATTERN =
-  /^(📦|🔧|🗑\uFE0F?|🔒|⚙\uFE0F?|☕|🧪|📖|🚀) (new|update|remove|security|setup|chore|test|docs|release)(!?)( \([a-zA-Z0-9][a-zA-Z0-9-]*\))?: .{1,72}$/u;
-
-function validateCleanCommit(msg: string): boolean {
-  return CLEAN_COMMIT_PATTERN.test(msg);
-}
-
 export default defineCommand({
   meta: {
     name: 'commit',
-    description: 'Stage changes and create a Clean Commit message (AI-powered)',
+    description: 'Stage changes and create a commit message (AI-powered)',
   },
   args: {
     model: {
@@ -84,7 +81,12 @@ export default defineCommand({
       } else {
         info('Generating commit message with AI...');
         const diff = await getStagedDiff();
-        commitMessage = await generateCommitMessage(diff, stagedFiles, args.model);
+        commitMessage = await generateCommitMessage(
+          diff,
+          stagedFiles,
+          args.model,
+          config.commitConvention,
+        );
 
         if (commitMessage) {
           console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(commitMessage))}`);
@@ -112,7 +114,12 @@ export default defineCommand({
       } else if (action === 'Regenerate') {
         info('Regenerating...');
         const diff = await getStagedDiff();
-        const regen = await generateCommitMessage(diff, stagedFiles, args.model);
+        const regen = await generateCommitMessage(
+          diff,
+          stagedFiles,
+          args.model,
+          config.commitConvention,
+        );
         if (regen) {
           console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(regen))}`);
           const ok = await confirmPrompt('Use this message?');
@@ -125,11 +132,15 @@ export default defineCommand({
         finalMessage = await inputPrompt('Enter commit message');
       }
     } else {
-      // Fallback: manual entry with Clean Commit validation
-      console.log();
-      console.log(pc.dim('Clean Commit format: <emoji> <type>[!][(<scope>)]: <description>'));
-      console.log(pc.dim('Examples: 📦 new: user auth | 🔧 update (api): improve errors'));
-      console.log();
+      // Fallback: manual entry with convention hints
+      const convention = config.commitConvention;
+      if (convention !== 'none') {
+        console.log();
+        for (const hint of CONVENTION_FORMAT_HINTS[convention]) {
+          console.log(pc.dim(hint));
+        }
+        console.log();
+      }
       finalMessage = await inputPrompt('Enter commit message');
     }
 
@@ -138,10 +149,12 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // Validate Clean Commit format
-    if (!validateCleanCommit(finalMessage)) {
-      warn('Commit message does not follow Clean Commit format.');
-      warn('Format: <emoji> <type>[!][(<scope>)]: <description>');
+    // Validate commit message against configured convention
+    const convention = config.commitConvention;
+    if (!validateCommitMessage(finalMessage, convention)) {
+      for (const line of getValidationError(convention)) {
+        warn(line);
+      }
       const proceed = await confirmPrompt('Commit anyway?');
       if (!proceed) process.exit(1);
     }
