@@ -103,8 +103,23 @@ Rules:
 - Never auto-resolve — provide guidance only
 - Be concise and actionable`;
 
+function suppressSubprocessWarnings(): string | undefined {
+  const prev = process.env.NODE_NO_WARNINGS;
+  process.env.NODE_NO_WARNINGS = '1';
+  return prev;
+}
+
+function restoreWarnings(prev: string | undefined): void {
+  if (prev === undefined) {
+    delete process.env.NODE_NO_WARNINGS;
+  } else {
+    process.env.NODE_NO_WARNINGS = prev;
+  }
+}
+
 export async function checkCopilotAvailable(): Promise<string | null> {
   let client: InstanceType<typeof CopilotClient> | null = null;
+  const prev = suppressSubprocessWarnings();
   try {
     client = new CopilotClient();
     await client.start();
@@ -132,6 +147,7 @@ export async function checkCopilotAvailable(): Promise<string | null> {
     }
     return `Copilot health check failed: ${msg}`;
   } finally {
+    restoreWarnings(prev);
     try {
       await client.stop();
     } catch {
@@ -146,6 +162,7 @@ async function callCopilot(
   userMessage: string,
   model?: string,
 ): Promise<string | null> {
+  const prev = suppressSubprocessWarnings();
   const client = new CopilotClient();
   await client.start();
   try {
@@ -162,6 +179,7 @@ async function callCopilot(
       await session.destroy();
     }
   } finally {
+    restoreWarnings(prev);
     await client.stop();
   }
 }
