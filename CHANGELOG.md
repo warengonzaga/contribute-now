@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.1.2] - 2026-02-25
+
+### Changed
+
+- add no-errors-on-unmatched to pre-commit hook
+- change og image URL to waren.build/contribute-now
+- add www:dev, www:build, and www:preview root scripts
+
 ## [0.1.1] - 2026-02-25
 
 ### Changed

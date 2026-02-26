@@ -1,7 +1,7 @@
 {
   "name": "contribute-now",
-  "version": "0.1.1",
-  "description": "Git workflow CLI that guides contributors through clean branching, commits, and PRs. Supports Clean Flow, GitHub Flow, and Git Flow.",
+  "version": "0.1.2",
+  "description": "Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main after squash merges.",
   "type": "module",
   "bin": {
     "contrib": "dist/index.js",
