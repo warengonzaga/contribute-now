@@ -10,6 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.2.0] - 2026-02-26
+
+### Added
+
+- add hook command for git commit-msg hook management
+- add validate command for commit message linting
+- add Conventional Commits AI generation support
+- add commit convention validators and metadata
+- add CommitConvention type and default config
+- multi-workflow support (clean-flow, github-flow, git-flow)
+
+### Changed
+
+- improve null checks and formatting in main.ts and vite.config.ts
+- update landing page
+- update readme info
+- register hook and validate commands in CLI
+- add commit convention selection step
+- use configurable commit convention for validation
+
 ## [0.1.2] - 2026-02-25
 
 ### Changed
