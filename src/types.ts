@@ -1,7 +1,10 @@
+export type WorkflowMode = 'clean-flow' | 'github-flow' | 'git-flow';
+
 export interface ContributeConfig {
+  workflow: WorkflowMode;
   role: 'maintainer' | 'contributor';
   mainBranch: string;
-  devBranch: string;
+  devBranch?: string;
   upstream: string;
   origin: string;
   branchPrefixes: string[];

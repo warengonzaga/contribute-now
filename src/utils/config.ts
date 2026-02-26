@@ -41,6 +41,7 @@ export function isGitignored(cwd = process.cwd()): boolean {
 
 export function getDefaultConfig(): ContributeConfig {
   return {
+    workflow: 'clean-flow',
     role: 'contributor',
     mainBranch: 'main',
     devBranch: 'dev',

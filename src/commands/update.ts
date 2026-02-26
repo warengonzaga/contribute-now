@@ -13,11 +13,12 @@ import {
   resetHard,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
+import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
     name: 'update',
-    description: 'Rebase current branch onto latest dev',
+    description: 'Rebase current branch onto the latest base branch',
   },
   args: {
     model: {
@@ -42,18 +43,20 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { mainBranch, devBranch, origin, upstream, role } = config;
+    const baseBranch = getBaseBranch(config);
+    const protectedBranches = getProtectedBranches(config);
+    const syncSource = getSyncSource(config);
 
-    // 1. Verify not on main or dev
+    // 1. Verify not on a protected branch
     const currentBranch = await getCurrentBranch();
     if (!currentBranch) {
       error('Could not determine current branch.');
       process.exit(1);
     }
 
-    if (currentBranch === mainBranch || currentBranch === devBranch) {
+    if (protectedBranches.includes(currentBranch)) {
       error(
-        `Use \`contrib sync\` to update ${pc.bold(mainBranch)} or ${pc.bold(devBranch)} branches.`,
+        `Use \`contrib sync\` to update ${protectedBranches.map((b) => pc.bold(b)).join(' or ')} branches.`,
       );
       process.exit(1);
     }
@@ -65,17 +68,14 @@ export default defineCommand({
     }
 
     heading('🔃 contrib update');
-    info(`Updating ${pc.bold(currentBranch)} with latest ${pc.bold(devBranch)}...`);
+    info(`Updating ${pc.bold(currentBranch)} with latest ${pc.bold(baseBranch)}...`);
 
-    // 3. Fetch + update local dev silently
-    const remote = role === 'contributor' ? upstream : origin;
-    const remoteDevRef =
-      role === 'contributor' ? `${upstream}/${devBranch}` : `${origin}/${devBranch}`;
-    await fetchRemote(remote);
-    await resetHard(remoteDevRef);
+    // 3. Fetch + update local base branch silently
+    await fetchRemote(syncSource.remote);
+    await resetHard(syncSource.ref);
 
-    // 4. git rebase dev
-    const rebaseResult = await rebase(devBranch);
+    // 4. git rebase base branch
+    const rebaseResult = await rebase(baseBranch);
 
     if (rebaseResult.exitCode !== 0) {
       // 5. On conflict: AI suggestions
@@ -121,6 +121,6 @@ export default defineCommand({
       process.exit(1);
     }
 
-    success(`✅ ${pc.bold(currentBranch)} has been rebased onto latest ${pc.bold(devBranch)}`);
+    success(`✅ ${pc.bold(currentBranch)} has been rebased onto latest ${pc.bold(baseBranch)}`);
   },
 });

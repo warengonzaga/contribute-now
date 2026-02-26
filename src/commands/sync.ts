@@ -8,15 +8,15 @@ import {
   getDivergence,
   hasUncommittedChanges,
   isGitRepo,
-  pushForceWithLease,
-  resetHard,
+  pullBranch,
 } from '../utils/git.js';
 import { error, heading, info, success } from '../utils/logger.js';
+import { getBaseBranch, getSyncSource, hasDevBranch } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
     name: 'sync',
-    description: 'Reset dev branch to match origin/main (maintainer) or upstream/dev (contributor)',
+    description: 'Sync your local branches with the remote',
   },
   args: {
     yes: {
@@ -38,7 +38,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { role, mainBranch, devBranch, origin, upstream } = config;
+    const { workflow, role, origin } = config;
 
     // 1. Check for uncommitted changes
     if (await hasUncommittedChanges()) {
@@ -46,94 +46,72 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading(`🔄 contrib sync (${role})`);
+    heading(`🔄 contrib sync (${workflow}, ${role})`);
 
-    if (role === 'maintainer') {
-      // Maintainer flow
-      // 2. Fetch origin
-      info(`Fetching ${origin}...`);
-      const fetchResult = await fetchRemote(origin);
-      if (fetchResult.exitCode !== 0) {
-        error(`Failed to fetch ${origin}: ${fetchResult.stderr}`);
-        process.exit(1);
-      }
+    const baseBranch = getBaseBranch(config);
+    const syncSource = getSyncSource(config);
 
-      // 3. Show divergence
-      const div = await getDivergence(devBranch, `${origin}/${mainBranch}`);
-      if (div.ahead > 0 || div.behind > 0) {
-        info(
-          `${pc.bold(devBranch)} is ${pc.yellow(`${div.ahead} ahead`)} and ${pc.red(`${div.behind} behind`)} ${origin}/${mainBranch}`,
-        );
-      } else {
-        info(`${pc.bold(devBranch)} is already in sync with ${origin}/${mainBranch}`);
-      }
+    // 2. Fetch remote
+    info(`Fetching ${syncSource.remote}...`);
+    const fetchResult = await fetchRemote(syncSource.remote);
+    if (fetchResult.exitCode !== 0) {
+      error(`Failed to fetch ${syncSource.remote}: ${fetchResult.stderr}`);
+      process.exit(1);
+    }
 
-      // 4. Confirm
-      if (!args.yes) {
-        const ok = await confirmPrompt(
-          `This will reset ${pc.bold(devBranch)} to match ${pc.bold(`${origin}/${mainBranch}`)}.`,
-        );
-        if (!ok) process.exit(0);
-      }
+    // Also fetch origin if contributor (need to push to origin)
+    if (role === 'contributor' && syncSource.remote !== origin) {
+      await fetchRemote(origin);
+    }
 
-      // 5. Execute
-      const coResult = await checkoutBranch(devBranch);
-      if (coResult.exitCode !== 0) {
-        error(`Failed to checkout ${devBranch}: ${coResult.stderr}`);
-        process.exit(1);
-      }
-
-      const resetResult = await resetHard(`${origin}/${mainBranch}`);
-      if (resetResult.exitCode !== 0) {
-        error(`Failed to reset: ${resetResult.stderr}`);
-        process.exit(1);
-      }
-
-      const pushResult = await pushForceWithLease(origin, devBranch);
-      if (pushResult.exitCode !== 0) {
-        error(`Failed to push: ${pushResult.stderr}`);
-        process.exit(1);
-      }
-
-      success(`✅ ${devBranch} has been reset to match ${origin}/${mainBranch} and pushed.`);
+    // 3. Show divergence
+    const div = await getDivergence(baseBranch, syncSource.ref);
+    if (div.ahead > 0 || div.behind > 0) {
+      info(
+        `${pc.bold(baseBranch)} is ${pc.yellow(`${div.ahead} ahead`)} and ${pc.red(`${div.behind} behind`)} ${syncSource.ref}`,
+      );
     } else {
-      // Contributor flow
-      // 2. Fetch upstream
-      info(`Fetching ${upstream}...`);
-      const fetchResult = await fetchRemote(upstream);
-      if (fetchResult.exitCode !== 0) {
-        error(`Failed to fetch ${upstream}: ${fetchResult.stderr}`);
-        process.exit(1);
-      }
+      info(`${pc.bold(baseBranch)} is already in sync with ${syncSource.ref}`);
+    }
 
-      // 3. Confirm
-      if (!args.yes) {
-        const ok = await confirmPrompt(
-          `This will reset local ${pc.bold(devBranch)} to match ${pc.bold(`${upstream}/${devBranch}`)}.`,
-        );
-        if (!ok) process.exit(0);
-      }
+    // 4. Confirm
+    if (!args.yes) {
+      const ok = await confirmPrompt(
+        `This will pull ${pc.bold(syncSource.ref)} into local ${pc.bold(baseBranch)}.`,
+      );
+      if (!ok) process.exit(0);
+    }
 
-      // 4. Execute
-      const coResult = await checkoutBranch(devBranch);
-      if (coResult.exitCode !== 0) {
-        error(`Failed to checkout ${devBranch}: ${coResult.stderr}`);
-        process.exit(1);
-      }
+    // 5. Checkout and pull
+    const coResult = await checkoutBranch(baseBranch);
+    if (coResult.exitCode !== 0) {
+      error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
+      process.exit(1);
+    }
 
-      const resetResult = await resetHard(`${upstream}/${devBranch}`);
-      if (resetResult.exitCode !== 0) {
-        error(`Failed to reset: ${resetResult.stderr}`);
-        process.exit(1);
-      }
+    const pullResult = await pullBranch(syncSource.remote, baseBranch);
+    if (pullResult.exitCode !== 0) {
+      error(`Failed to pull: ${pullResult.stderr}`);
+      process.exit(1);
+    }
 
-      const pushResult = await pushForceWithLease(origin, devBranch);
-      if (pushResult.exitCode !== 0) {
-        error(`Failed to push: ${pushResult.stderr}`);
-        process.exit(1);
-      }
+    success(`✅ ${baseBranch} is now in sync with ${syncSource.ref}`);
 
-      success(`✅ ${devBranch} has been reset to match ${upstream}/${devBranch} and pushed.`);
+    // For workflows with dev branch, also sync main if maintainer
+    if (hasDevBranch(workflow) && role === 'maintainer') {
+      const mainDiv = await getDivergence(config.mainBranch, `${origin}/${config.mainBranch}`);
+      if (mainDiv.behind > 0) {
+        info(`Also syncing ${pc.bold(config.mainBranch)}...`);
+        const mainCoResult = await checkoutBranch(config.mainBranch);
+        if (mainCoResult.exitCode === 0) {
+          const mainPullResult = await pullBranch(origin, config.mainBranch);
+          if (mainPullResult.exitCode === 0) {
+            success(`✅ ${config.mainBranch} is now in sync with ${origin}/${config.mainBranch}`);
+          }
+        }
+        // Return to base branch
+        await checkoutBranch(baseBranch);
+      }
     }
   },
 });

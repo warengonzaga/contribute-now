@@ -18,7 +18,7 @@ const main = defineCommand({
     name: 'contrib',
     version: getVersion(),
     description:
-      'Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main after squash merges.',
+      'Git workflow CLI that guides contributors through clean branching, commits, and PRs.',
   },
   args: {
     version: {

@@ -7,6 +7,7 @@ import { checkGhAuth, checkGhInstalled, createPR, createPRFill } from '../utils/
 import { getCurrentBranch, getLog, getLogDiff, isGitRepo, pushSetUpstream } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
+import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -41,7 +42,9 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { mainBranch, devBranch, origin } = config;
+    const { origin } = config;
+    const baseBranch = getBaseBranch(config);
+    const protectedBranches = getProtectedBranches(config);
     const currentBranch = await getCurrentBranch();
 
     if (!currentBranch) {
@@ -49,10 +52,10 @@ export default defineCommand({
       process.exit(1);
     }
 
-    // 1. Verify not on main or dev
-    if (currentBranch === mainBranch || currentBranch === devBranch) {
+    // 1. Verify not on a protected branch
+    if (protectedBranches.includes(currentBranch)) {
       error(
-        `Cannot submit ${pc.bold(mainBranch)} or ${pc.bold(devBranch)} as a PR. Switch to your feature branch.`,
+        `Cannot submit ${protectedBranches.map((b) => pc.bold(b)).join(' or ')} as a PR. Switch to your feature branch.`,
       );
       process.exit(1);
     }
@@ -75,7 +78,7 @@ export default defineCommand({
       // 5. gh unavailable: print manual PR URL
       const repoInfo = await getRepoInfoFromRemote(origin);
       if (repoInfo) {
-        const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${devBranch}...${currentBranch}?expand=1`;
+        const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${baseBranch}...${currentBranch}?expand=1`;
         console.log();
         info('Create your PR manually:');
         console.log(`  ${pc.cyan(prUrl)}`);
@@ -93,8 +96,8 @@ export default defineCommand({
       const copilotError = await checkCopilotAvailable();
       if (!copilotError) {
         info('Generating AI PR description...');
-        const commits = await getLog(devBranch, 'HEAD');
-        const diff = await getLogDiff(devBranch, 'HEAD');
+        const commits = await getLog(baseBranch, 'HEAD');
+        const diff = await getLogDiff(baseBranch, 'HEAD');
         const result = await generatePRDescription(commits, diff, args.model);
         if (result) {
           prTitle = result.title;
@@ -128,7 +131,7 @@ export default defineCommand({
         prBody = await inputPrompt('PR body (markdown)');
       } else {
         // gh --fill
-        const fillResult = await createPRFill(devBranch, args.draft);
+        const fillResult = await createPRFill(baseBranch, args.draft);
         if (fillResult.exitCode !== 0) {
           error(`Failed to create PR: ${fillResult.stderr}`);
           process.exit(1);
@@ -142,7 +145,7 @@ export default defineCommand({
         prTitle = await inputPrompt('PR title');
         prBody = await inputPrompt('PR body (markdown)');
       } else {
-        const fillResult = await createPRFill(devBranch, args.draft);
+        const fillResult = await createPRFill(baseBranch, args.draft);
         if (fillResult.exitCode !== 0) {
           error(`Failed to create PR: ${fillResult.stderr}`);
           process.exit(1);
@@ -158,7 +161,7 @@ export default defineCommand({
     }
 
     const prResult = await createPR({
-      base: devBranch,
+      base: baseBranch,
       title: prTitle,
       body: prBody ?? '',
       draft: args.draft,

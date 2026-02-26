@@ -23,6 +23,7 @@ afterEach(() => {
 describe('config utilities', () => {
   it('getDefaultConfig returns expected defaults', () => {
     const cfg = getDefaultConfig();
+    expect(cfg.workflow).toBe('clean-flow');
     expect(cfg.role).toBe('contributor');
     expect(cfg.mainBranch).toBe('main');
     expect(cfg.devBranch).toBe('dev');
@@ -37,6 +38,7 @@ describe('config utilities', () => {
 
   it('writeConfig and readConfig round-trip', () => {
     const cfg: ContributeConfig = {
+      workflow: 'clean-flow',
       role: 'maintainer',
       mainBranch: 'main',
       devBranch: 'dev',
@@ -66,5 +68,20 @@ describe('config utilities', () => {
   it('isGitignored returns false when .contributerc.json not in .gitignore', () => {
     writeFileSync(join(TEST_DIR, '.gitignore'), 'node_modules\ndist\n');
     expect(isGitignored(TEST_DIR)).toBe(false);
+  });
+
+  it('writeConfig and readConfig round-trip with github-flow (no devBranch)', () => {
+    const cfg: ContributeConfig = {
+      workflow: 'github-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+    };
+    writeConfig(cfg, TEST_DIR);
+    const read = readConfig(TEST_DIR);
+    expect(read).toEqual(cfg);
+    expect(read?.devBranch).toBeUndefined();
   });
 });

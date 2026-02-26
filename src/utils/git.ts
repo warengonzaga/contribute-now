@@ -84,10 +84,6 @@ export async function resetHard(ref: string): Promise<GitResult> {
   return run(['reset', '--hard', ref]);
 }
 
-export async function pushForceWithLease(remote: string, branch: string): Promise<GitResult> {
-  return run(['push', '--force-with-lease', remote, branch]);
-}
-
 export async function pushSetUpstream(remote: string, branch: string): Promise<GitResult> {
   return run(['push', '-u', remote, branch]);
 }
@@ -166,4 +162,8 @@ export async function getLog(base: string, head: string): Promise<string[]> {
   const { exitCode, stdout } = await run(['log', `${base}..${head}`, '--oneline']);
   if (exitCode !== 0) return [];
   return stdout.trim().split('\n').filter(Boolean);
+}
+
+export async function pullBranch(remote: string, branch: string): Promise<GitResult> {
+  return run(['pull', remote, branch]);
 }

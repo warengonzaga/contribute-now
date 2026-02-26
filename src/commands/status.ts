@@ -9,11 +9,12 @@ import {
   isGitRepo,
 } from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
+import { getBaseBranch, hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
     name: 'status',
-    description: 'Show sync status of main, dev, and current branch',
+    description: 'Show sync status of branches',
   },
   async run() {
     if (!(await isGitRepo())) {
@@ -29,11 +30,17 @@ export default defineCommand({
 
     heading('📊 contribute-now status');
 
+    // Show workflow mode
+    console.log(`  ${pc.dim('Workflow:')} ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
+    console.log(`  ${pc.dim('Role:')} ${pc.bold(config.role)}`);
+    console.log();
+
     // Silently fetch all remotes
     await fetchAll();
 
     const currentBranch = await getCurrentBranch();
-    const { mainBranch, devBranch, origin, upstream } = config;
+    const { mainBranch, origin, upstream, workflow } = config;
+    const baseBranch = getBaseBranch(config);
     const isContributor = config.role === 'contributor';
 
     // Check uncommitted changes
@@ -49,31 +56,23 @@ export default defineCommand({
     const mainStatus = formatStatus(mainBranch, mainRemote, mainDiv.ahead, mainDiv.behind);
     console.log(mainStatus);
 
-    // Dev branch status
-    const devRemoteRef = isContributor ? `${upstream}/${devBranch}` : `${origin}/${mainBranch}`;
-    const devDiv = await getDivergence(devBranch, devRemoteRef);
-    let devLine = formatStatus(devBranch, devRemoteRef, devDiv.ahead, devDiv.behind);
-
-    // Detect squash-merge divergence: dev is both ahead AND behind main
-    if (!isContributor && devDiv.ahead > 0 && devDiv.behind > 0) {
-      devLine += pc.red(' (needs sync! squash-merge divergence detected)');
-    } else if (devDiv.ahead > 0 && devDiv.behind === 0) {
-      devLine += pc.yellow(' (needs sync!)');
+    // Dev/develop branch status (only for workflows with dev branch)
+    if (hasDevBranch(workflow) && config.devBranch) {
+      const devRemoteRef = isContributor
+        ? `${upstream}/${config.devBranch}`
+        : `${origin}/${config.devBranch}`;
+      const devDiv = await getDivergence(config.devBranch, devRemoteRef);
+      const devLine = formatStatus(config.devBranch, devRemoteRef, devDiv.ahead, devDiv.behind);
+      console.log(devLine);
     }
-    console.log(devLine);
 
-    // Current feature branch (if not on main or dev)
-    if (currentBranch && currentBranch !== mainBranch && currentBranch !== devBranch) {
-      const branchDiv = await getDivergence(currentBranch, devBranch);
-      const branchLine = formatStatus(currentBranch, devBranch, branchDiv.ahead, branchDiv.behind);
+    // Current feature branch (if not on a protected branch)
+    if (currentBranch && currentBranch !== mainBranch && currentBranch !== config.devBranch) {
+      const branchDiv = await getDivergence(currentBranch, baseBranch);
+      const branchLine = formatStatus(currentBranch, baseBranch, branchDiv.ahead, branchDiv.behind);
       console.log(branchLine + pc.dim(` (current ${pc.green('*')})`));
     } else if (currentBranch) {
-      // Mark current branch
-      if (currentBranch === mainBranch) {
-        console.log(pc.dim(`  (on ${pc.bold(mainBranch)} branch)`));
-      } else if (currentBranch === devBranch) {
-        console.log(pc.dim(`  (on ${pc.bold(devBranch)} branch)`));
-      }
+      console.log(pc.dim(`  (on ${pc.bold(currentBranch)} branch)`));
     }
 
     console.log();

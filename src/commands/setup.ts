@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import type { ContributeConfig } from '../types.js';
+import type { ContributeConfig, WorkflowMode } from '../types.js';
 import { getDefaultConfig, isGitignored, writeConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import {
@@ -13,6 +13,7 @@ import {
 import { getRemotes, getRemoteUrl, isGitRepo } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
+import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -28,7 +29,20 @@ export default defineCommand({
 
     heading('🔧 contribute-now setup');
 
-    // 2. Detect remotes
+    // 2. Select workflow mode
+    const workflowChoice = await selectPrompt('Which git workflow does this project use?', [
+      'Clean Flow — main + dev, squash features into dev, merge dev into main (recommended)',
+      'GitHub Flow — main + feature branches, squash/merge into main',
+      'Git Flow — main + develop + release + hotfix branches',
+    ]);
+
+    let workflow: WorkflowMode = 'clean-flow';
+    if (workflowChoice.startsWith('GitHub')) workflow = 'github-flow';
+    else if (workflowChoice.startsWith('Git Flow')) workflow = 'git-flow';
+
+    info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[workflow])}`);
+
+    // 3. Detect remotes
     const remotes = await getRemotes();
     if (remotes.length === 0) {
       error('No git remotes found. Add a remote first (e.g., git remote add origin <url>).');
@@ -94,7 +108,13 @@ export default defineCommand({
     // 4. Confirm branch settings
     const defaultConfig = getDefaultConfig();
     const mainBranch = await inputPrompt('Main branch name', defaultConfig.mainBranch);
-    const devBranch = await inputPrompt('Dev branch name', defaultConfig.devBranch);
+
+    let devBranch: string | undefined;
+    if (hasDevBranch(workflow)) {
+      const defaultDev = workflow === 'git-flow' ? 'develop' : 'dev';
+      devBranch = await inputPrompt('Dev/develop branch name', defaultDev);
+    }
+
     const originRemote = await inputPrompt('Origin remote name', defaultConfig.origin);
 
     let upstreamRemote = defaultConfig.upstream;
@@ -121,9 +141,10 @@ export default defineCommand({
 
     // 6. Write config
     const config: ContributeConfig = {
+      workflow,
       role: detectedRole,
       mainBranch,
-      devBranch,
+      ...(devBranch ? { devBranch } : {}),
       upstream: upstreamRemote,
       origin: originRemote,
       branchPrefixes: defaultConfig.branchPrefixes,
@@ -139,8 +160,13 @@ export default defineCommand({
     }
 
     console.log();
+    info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
     info(`Role: ${pc.bold(config.role)}`);
-    info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
+    if (config.devBranch) {
+      info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
+    } else {
+      info(`Main: ${pc.bold(config.mainBranch)}`);
+    }
     info(
       `Origin: ${pc.bold(config.origin)}${config.role === 'contributor' ? ` | Upstream: ${pc.bold(config.upstream)}` : ''}`,
     );

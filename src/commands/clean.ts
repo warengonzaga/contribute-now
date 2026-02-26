@@ -10,6 +10,7 @@ import {
   pruneRemote,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
+import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -36,17 +37,18 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { mainBranch, devBranch, origin } = config;
+    const { origin } = config;
+    const baseBranch = getBaseBranch(config);
     const currentBranch = await getCurrentBranch();
 
     heading('🧹 contrib clean');
 
-    // 1. List branches merged into dev
-    const mergedBranches = await getMergedBranches(devBranch);
+    // 1. List branches merged into the base branch
+    const mergedBranches = await getMergedBranches(baseBranch);
 
-    // 2. Exclude main, dev, and current branch
-    const protected_ = new Set([mainBranch, devBranch, currentBranch ?? '']);
-    const candidates = mergedBranches.filter((b) => !protected_.has(b));
+    // 2. Exclude protected branches and current branch
+    const protectedBranches = new Set([...getProtectedBranches(config), currentBranch ?? '']);
+    const candidates = mergedBranches.filter((b) => !protectedBranches.has(b));
 
     if (candidates.length === 0) {
       info('No merged branches to clean up.');

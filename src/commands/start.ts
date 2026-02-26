@@ -12,11 +12,12 @@ import {
   resetHard,
 } from '../utils/git.js';
 import { error, heading, info, success } from '../utils/logger.js';
+import { getBaseBranch, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
     name: 'start',
-    description: 'Create a new feature branch from the latest dev',
+    description: 'Create a new feature branch from the latest base branch',
   },
   args: {
     name: {
@@ -51,7 +52,9 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const { devBranch, origin, upstream, branchPrefixes, role } = config;
+    const { branchPrefixes } = config;
+    const baseBranch = getBaseBranch(config);
+    const syncSource = getSyncSource(config);
     let branchName = args.name;
 
     heading('🌿 contrib start');
@@ -83,25 +86,22 @@ export default defineCommand({
 
     info(`Creating branch: ${pc.bold(branchName)}`);
 
-    // Silently sync dev first
-    const remote = role === 'contributor' ? upstream : origin;
-    const remoteDevRef =
-      role === 'contributor' ? `${upstream}/${devBranch}` : `${origin}/${devBranch}`;
-    await fetchRemote(remote);
+    // Silently sync base branch first
+    await fetchRemote(syncSource.remote);
 
-    // Reset dev to latest
-    const resetResult = await resetHard(remoteDevRef);
+    // Reset base to latest
+    const resetResult = await resetHard(syncSource.ref);
     if (resetResult.exitCode !== 0) {
-      // Dev may not be checked out; just continue from current state
+      // Base may not be checked out; just continue from current state
     }
 
-    // Create branch from dev
-    const result = await createBranch(branchName, devBranch);
+    // Create branch from base
+    const result = await createBranch(branchName, baseBranch);
     if (result.exitCode !== 0) {
       error(`Failed to create branch: ${result.stderr}`);
       process.exit(1);
     }
 
-    success(`✅ Created ${pc.bold(branchName)} from latest ${pc.bold(devBranch)}`);
+    success(`✅ Created ${pc.bold(branchName)} from latest ${pc.bold(baseBranch)}`);
   },
 });
