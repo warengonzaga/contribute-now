@@ -1,4 +1,33 @@
 import { CopilotClient } from '@github/copilot-sdk';
+import type { CommitConvention } from '../types.js';
+
+const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Conventional Commit message following this exact format:
+<type>[!][(<scope>)]: <description>
+
+Types:
+feat     – a new feature
+fix      – a bug fix
+docs     – documentation only changes
+style    – changes that do not affect code meaning (whitespace, formatting)
+refactor – code change that neither fixes a bug nor adds a feature
+perf     – performance improvement
+test     – adding or correcting tests
+build    – changes to the build system or external dependencies
+ci       – changes to CI configuration files and scripts
+chore    – other changes that don't modify src or test files
+revert   – reverts a previous commit
+
+Rules:
+- Breaking change (!) only for: feat, fix, refactor, perf
+- Description: concise, imperative mood, max 72 chars, lowercase start
+- Scope: optional, camelCase or kebab-case component name
+- Return ONLY the commit message line, nothing else
+
+Examples:
+feat: add user authentication system
+fix(auth): resolve token expiry issue
+docs: update contributing guidelines
+feat!: redesign authentication API`;
 
 const CLEAN_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Clean Commit message following this exact format:
 <emoji> <type>[!][(<scope>)]: <description>
@@ -125,14 +154,21 @@ async function callCopilot(
   }
 }
 
+function getCommitSystemPrompt(convention: CommitConvention): string {
+  if (convention === 'conventional') return CONVENTIONAL_COMMIT_SYSTEM_PROMPT;
+  // Default to Clean Commit for both 'clean-commit' and 'none'
+  return CLEAN_COMMIT_SYSTEM_PROMPT;
+}
+
 export async function generateCommitMessage(
   diff: string,
   stagedFiles: string[],
   model?: string,
+  convention: CommitConvention = 'clean-commit',
 ): Promise<string | null> {
   try {
     const userMessage = `Generate a commit message for these staged changes:\n\nFiles: ${stagedFiles.join(', ')}\n\nDiff:\n${diff.slice(0, 4000)}`;
-    const result = await callCopilot(CLEAN_COMMIT_SYSTEM_PROMPT, userMessage, model);
+    const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
     return result?.trim() ?? null;
   } catch {
     return null;
