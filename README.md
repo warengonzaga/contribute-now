@@ -1,55 +1,55 @@
 # contribute-now
 
-![GitHub Repo Banner](https://ghrb.waren.build/banner?header=contribute-now+%F0%9F%94%84&subheader=Squash.+Merge.+Stay+in+sync.&bg=0D1117-21262D&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&support=true)
+![GitHub Repo Banner](https://ghrb.waren.build/banner?header=contribute-now+%F0%9F%94%84&subheader=Any+workflow.+Clean+commits.+Zero+friction.&bg=0D1117-21262D&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&support=true)
 <!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
-A lightweight CLI that automates git operations for projects using a **two-branch model** (`main` + `dev`) with squash merges — so maintainers and contributors never have to memorize complex sync flows.
+**contribute-now** is a developer CLI that automates git workflows — branching, syncing, staging, committing, and opening PRs — so you can focus on shipping, not on memorizing git commands.
+
+It natively supports multiple workflow models and commit conventions, with AI-powered assistance throughout.
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![npm version](https://img.shields.io/npm/v/contribute-now.svg)](https://www.npmjs.com/package/contribute-now)
 
-## The Problem
+---
 
-Squash-merging `dev` → `main` is clean for release history, but it breaks the branch relationship. After the merge, `dev` retains old individual commits that are already in `main`'s squash commit. This causes:
+## Workflow Modes
 
-- Dev history becomes messy and diverges from main
-- New PRs from dev to main show stale/duplicate commits
-- Contributors struggle to keep their forks in sync
+Pick the model that matches your project during `contrib setup`. contribute-now adapts its commands to your chosen workflow automatically — no manual branch names to remember.
 
-**contribute-now** fixes this with a single command: `contrib sync`.
+| Mode | Branches | Strategy | Default |
+|------|----------|----------|:-------:|
+| 🌊 **Clean Flow** *(by WGTech Labs)* | `main` + `dev` + feature branches | Squash features → `dev`, merge `dev` → `main` | ✅ |
+| 🐙 **GitHub Flow** | `main` + feature branches | Squash/merge features → `main` | |
+| 🔀 **Git Flow** | `main` + `develop` + release/hotfix branches | Full ceremony branching | |
 
-## Features
+## Commit Conventions
 
-- 🔄 **`contrib sync`** — Resets `dev` to match `main` (maintainer) or `upstream/dev` (contributor) using safe `--force-with-lease`
-- 🌿 **`contrib start`** — Creates feature branches from latest dev, with AI-powered branch name suggestions
-- 💾 **`contrib commit`** — Generates [Clean Commit](https://github.com/wgtechlabs/clean-commit) messages using GitHub Copilot AI
-- 🔃 **`contrib update`** — Rebases your branch onto latest dev, with AI conflict resolution guidance
-- 🚀 **`contrib submit`** — Pushes your branch and creates a PR with an AI-generated title and body
-- 🧹 **`contrib clean`** — Deletes merged branches and prunes remote refs
-- 📊 **`contrib status`** — Dashboard showing sync state for all branches
-- ⚙️ **`contrib setup`** — Auto-detects your role (maintainer/contributor) and writes `.contributerc.json`
-- 🤖 **AI-powered** — All AI features degrade gracefully if GitHub Copilot is unavailable
-- 🎨 **ASCII Banner** — Beautiful ANSI Shadow figlet banner
+contribute-now validates commit messages and guides your AI toward the right format — based on whichever convention you configure.
+
+| Convention | Format | Default |
+|------------|--------|:-------:|
+| 🧹 **Clean Commit** *(by WGTech Labs)* | `<emoji> <type>[!][(<scope>)]: <description>` | ✅ |
+| 📝 **Conventional Commits** | `<type>[!][(<scope>)]: <description>` | |
+| 🚫 **None** | No enforcement | |
+
+---
 
 ## Quick Start
 
 ```bash
-# Using npx
 npx contribute-now setup
-
-# Using bunx
-bunx contribute-now setup
 ```
 
 Or install globally:
 
 ```bash
 npm install -g contribute-now
-# then use:
 contrib setup
-# or:
-contribute setup
 ```
+
+> Both `contrib` and `contribute` invoke the same binary.
+
+---
 
 ## Installation
 
@@ -61,192 +61,173 @@ npm install -g contribute-now
 bun install -g contribute-now
 ```
 
-Both `contrib` and `contribute` invoke the same binary.
-
 ## Prerequisites
 
-- [Git](https://git-scm.com/) (required)
-- [GitHub CLI](https://cli.github.com) (`gh`) — optional, enables role auto-detection and PR creation
-- [GitHub Copilot](https://github.com/features/copilot) subscription — optional, enables AI features
+- **[Git](https://git-scm.com/)** — required
+- **[GitHub CLI](https://cli.github.com)** (`gh`) — optional; enables role auto-detection and PR creation
+- **[GitHub Copilot](https://github.com/features/copilot)** — optional; enables AI features
 
-## Usage
+---
 
-### Setup
+## Commands
 
-Initialize contribute-now for the current repository:
+### `contrib setup`
+
+Interactive setup wizard. Configures your repo's workflow mode, commit convention, your role, and branch/remote names. Writes `.contributerc.json`.
 
 ```bash
 contrib setup
 ```
 
-This will:
-1. Detect your git remotes
-2. Auto-detect your role as **maintainer** or **contributor** (via `gh` CLI, remote heuristics, or interactive prompt)
-3. Confirm branch names (`main`, `dev`) and remote names (`origin`, `upstream`)
-4. Write `.contributerc.json` to the repo root
+Steps:
+1. Choose **workflow mode** — Clean Flow, GitHub Flow, or Git Flow
+2. Choose **commit convention** — Clean Commit, Conventional Commits, or None
+3. Detect remotes and auto-detect your **role** (maintainer or contributor)
+4. Confirm branch and remote names
+5. Write `.contributerc.json`
 
-### Sync
+---
 
-Keep `dev` in sync after a squash merge:
+### `contrib sync`
+
+Pull the latest changes from the correct remote branch based on your workflow and role.
 
 ```bash
-contrib sync         # interactive confirmation
+contrib sync         # with confirmation
 contrib sync --yes   # skip confirmation
 ```
 
-**Maintainer flow:** resets `dev` → `origin/main`  
-**Contributor flow:** resets `dev` → `upstream/dev`
+| Role | Clean Flow / Git Flow | GitHub Flow |
+|------|-----------------------|-------------|
+| Maintainer | pulls `origin/dev` | pulls `origin/main` |
+| Contributor | pulls `upstream/dev` | pulls `upstream/main` |
 
-Always uses `--force-with-lease` (never bare `--force`).
+---
 
-### Start
+### `contrib start`
 
-Create a new feature branch from the latest dev:
+Create a new feature branch from the correct base branch, with optional AI-powered branch naming.
 
 ```bash
+# Direct branch name
 contrib start feature/user-auth
-contrib start fix/login-timeout
 
-# Natural language — AI suggests a proper branch name
-contrib start "fix the login timeout bug"
+# Natural language — AI suggests the branch name
+contrib start "add user authentication"
 
-# Skip AI suggestion
-contrib start "fix the login timeout bug" --no-ai
+# Skip AI
+contrib start "add user authentication" --no-ai
 ```
 
-### Commit
+---
 
-Generate a [Clean Commit](https://github.com/wgtechlabs/clean-commit) message with AI, then commit:
+### `contrib commit`
+
+Stage your changes and create a validated, AI-generated commit message matching your configured convention.
 
 ```bash
-contrib commit
-
-# Use a specific AI model
-contrib commit --model gpt-4.1
-
-# Skip AI, type message manually (still validated against Clean Commit format)
-contrib commit --no-ai
+contrib commit                     # AI-generated message
+contrib commit --no-ai             # manual entry, still validated
+contrib commit --model gpt-4.1    # specific AI model
 ```
 
-The AI generates a message like:
-```
-🔧 update (auth): fix login timeout handling
-```
+After the AI generates a message, you can **accept**, **edit**, **regenerate**, or **write manually**. Messages are always validated against your convention — with a soft warning if they don't match (you can still commit).
 
-You can accept, edit, regenerate, or write manually.
+---
 
-### Update
+### `contrib update`
 
-Rebase your current branch onto the latest dev:
+Rebase your current branch onto the latest base branch, with AI guidance if conflicts occur.
 
 ```bash
 contrib update
-
-# Skip AI conflict suggestions
-contrib update --no-ai
+contrib update --no-ai   # skip AI conflict guidance
 ```
 
-If a conflict occurs, AI guidance is shown alongside standard resolution instructions.
+---
 
-### Submit
+### `contrib submit`
 
-Push your branch and open a pull request:
+Push your branch and open a pull request with an AI-generated title and description.
 
 ```bash
 contrib submit
 contrib submit --draft
-contrib submit --no-ai        # skip AI PR description
+contrib submit --no-ai
 contrib submit --model gpt-4.1
 ```
 
-### Clean
+---
 
-Delete merged branches and prune remote refs:
+### `contrib clean`
+
+Delete merged branches and prune stale remote refs.
 
 ```bash
-contrib clean         # shows candidates, asks to confirm
-contrib clean --yes   # skip confirmation
+contrib clean          # shows candidates, asks to confirm
+contrib clean --yes    # skip confirmation
 ```
 
-### Status
+---
 
-View a dashboard of branch sync states:
+### `contrib status`
+
+Show a sync status dashboard for your main, dev, and current branch.
 
 ```bash
 contrib status
 ```
 
-Example output:
-```
-main                 ✓  in sync with origin/main
-dev                  ↑  3 commits ahead of origin/main (needs sync!)
-feature/user-auth    ↑  2 ahead, 0 behind dev  (current *)
-```
+---
 
-## Config File
+### `contrib hook`
 
-`contrib setup` writes `.contributerc.json` to your repo root:
+Install or uninstall a `commit-msg` git hook that validates every commit against your configured convention — no Husky or lint-staged needed.
 
-```json
-{
-  "role": "contributor",
-  "mainBranch": "main",
-  "devBranch": "dev",
-  "upstream": "upstream",
-  "origin": "origin",
-  "branchPrefixes": ["feature", "fix", "docs", "chore", "test", "refactor"]
-}
+```bash
+contrib hook install     # writes .git/hooks/commit-msg
+contrib hook uninstall   # removes it
 ```
 
-> Add `.contributerc.json` to your `.gitignore` — it's personal config, not meant to be committed.
+- Automatically skips merge commits, fixup, squash, and amend commits
+- Won't overwrite hooks it didn't create
 
-## CLI Reference
+---
 
+### `contrib validate`
+
+Validate a commit message against your configured convention. Exits `0` if valid, `1` if not — useful in CI pipelines or custom hooks.
+
+```bash
+contrib validate "📦 new: user auth module"     # exit 0
+contrib validate "added stuff"                   # exit 1
 ```
-contrib — Git workflow CLI for squash-merge two-branch models
 
-USAGE
-  contrib [OPTIONS] setup|sync|start|commit|update|submit|clean|status
-
-OPTIONS
-  -v, --version    Show version number
-
-COMMANDS
-  setup    Initialize config for this repo (.contributerc.json)
-  sync     Reset dev branch to match origin/main or upstream/dev
-  start    Create a new feature branch from the latest dev
-  commit   Stage changes and create a Clean Commit message (AI-powered)
-  update   Rebase current branch onto latest dev
-  submit   Push current branch and create a pull request
-  clean    Delete merged branches and prune remote refs
-  status   Show sync status of main, dev, and current branch
-
-Use contrib <command> --help for more information about a command.
-```
+---
 
 ## AI Features
 
-All AI features use **GitHub Copilot** via `@github/copilot-sdk`. They are entirely **optional** — if Copilot is unavailable (no subscription, not installed), the CLI falls back to manual input. You are never blocked.
+All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and are entirely **optional** — every command has a manual fallback.
 
 | Command | AI Feature | Fallback |
-|---------|-----------|---------|
-| `commit` | Generate Clean Commit message from staged diff | Type message manually |
-| `start` | Suggest branch name from natural language | Prefix picker + manual name |
-| `update` | Conflict resolution guidance | Standard rebase instructions |
-| `submit` | Generate PR title + body from commits + diff | `gh pr create --fill` or manual |
+|---------|------------|---------|
+| `commit` | Generate commit message from staged diff | Type manually |
+| `start` | Suggest branch name from natural language | Prefix picker + manual |
+| `update` | Conflict resolution guidance | Standard git instructions |
+| `submit` | Generate PR title and body | `gh pr create --fill` or manual |
 
-Use `--model <model>` on any AI-powered command to select a specific Copilot model (e.g., `gpt-4.1`, `claude-sonnet-4`).
+Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to select a specific Copilot model (e.g., `gpt-4.1`, `claude-sonnet-4`).
 
-## Clean Commit Convention
+---
 
-This project uses the **[Clean Commit](https://github.com/wgtechlabs/clean-commit)** convention by [@wgtechlabs](https://github.com/wgtechlabs). Every commit must follow this format:
+## Commit Convention Reference
 
-```
-<emoji> <type>[!][(<scope>)]: <description>
-```
+### Clean Commit *(default)*
 
-| Emoji | Type | Purpose |
-|:-----:|------|---------|
+Format: `<emoji> <type>[!][(<scope>)]: <description>`
+
+| Emoji | Type | When to use |
+|:-----:|------|-------------|
 | 📦 | `new` | New features, files, or capabilities |
 | 🔧 | `update` | Changes, refactoring, improvements |
 | 🗑️ | `remove` | Removing code, files, or dependencies |
@@ -257,7 +238,54 @@ This project uses the **[Clean Commit](https://github.com/wgtechlabs/clean-commi
 | 📖 | `docs` | Documentation changes |
 | 🚀 | `release` | Version releases |
 
-A Husky commit-msg hook enforces this automatically.
+Examples:
+```
+📦 new: user authentication system
+🔧 update (api): improve error handling
+⚙️ setup (ci): configure github actions
+🔧 update!: breaking change to config format
+```
+
+→ [Clean Commit spec](https://github.com/wgtechlabs/clean-commit)
+
+### Conventional Commits
+
+Format: `<type>[!][(<scope>)]: <description>`
+
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+Examples:
+```
+feat: add user authentication
+fix(auth): resolve token expiry issue
+docs: update contributing guide
+feat!: redesign authentication API
+```
+
+→ [conventionalcommits.org](https://www.conventionalcommits.org/)
+
+---
+
+## Config File
+
+`contrib setup` writes `.contributerc.json` to your repo root:
+
+```json
+{
+  "workflow": "clean-flow",
+  "commitConvention": "clean-commit",
+  "role": "contributor",
+  "mainBranch": "main",
+  "devBranch": "dev",
+  "upstream": "upstream",
+  "origin": "origin",
+  "branchPrefixes": ["feature", "fix", "docs", "chore", "test", "refactor"]
+}
+```
+
+> Add `.contributerc.json` to your `.gitignore` — it contains personal config and should not be committed.
+
+---
 
 ## Development
 
@@ -282,3 +310,4 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 ---
 
 💻💖☕ Made with ❤️ by [Waren Gonzaga](https://github.com/warengonzaga)
+
