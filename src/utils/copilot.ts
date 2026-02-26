@@ -29,8 +29,14 @@ fix(auth): resolve token expiry issue
 docs: update contributing guidelines
 feat!: redesign authentication API`;
 
-const CLEAN_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Clean Commit message following this exact format:
-<emoji> <type>[!][(<scope>)]: <description>
+const CLEAN_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Clean Commit message following this EXACT format:
+<emoji> <type>[!][ (<scope>)]: <description>
+
+CRITICAL spacing rules (must follow exactly):
+- There MUST be a space between the emoji and the type
+- If a scope is used, there MUST be a space before the opening parenthesis
+- There MUST be a colon and a space after the type or scope before the description
+- Pattern: EMOJI SPACE TYPE SPACE OPENPAREN SCOPE CLOSEPAREN COLON SPACE DESCRIPTION
 
 Emoji and type table:
 📦 new      – new features, files, or capabilities
@@ -45,15 +51,21 @@ Emoji and type table:
 
 Rules:
 - Breaking change (!) only for: new, update, remove, security
-- Description: concise, imperative mood, max 72 chars
+- Description: concise, imperative mood, max 72 chars, lowercase start
 - Scope: optional, camelCase or kebab-case component name
 - Return ONLY the commit message line, nothing else
 
-Examples:
-📦 new: user authentication system
+Correct examples:
+📦 new: add user authentication system
 🔧 update (api): improve error handling
 ⚙️ setup (ci): configure github actions workflow
-📦 new!: completely redesign authentication system`;
+📦 new!: redesign authentication system
+🗑️ remove (deps): drop unused lodash dependency
+
+WRONG (never do this):
+⚙️setup(ci): ... ← missing spaces
+📦new: ... ← missing space after emoji
+🔧 update(api): ... ← missing space before scope`;
 
 const BRANCH_NAME_SYSTEM_PROMPT = `You are a git branch name generator. Convert natural language descriptions into proper git branch names.
 
@@ -138,12 +150,12 @@ async function callCopilot(
   await client.start();
   try {
     const sessionConfig: Record<string, unknown> = {
-      systemMessage: { content: systemMessage },
+      systemMessage: { mode: 'replace', content: systemMessage },
     };
     if (model) sessionConfig.model = model;
     const session = await client.createSession(sessionConfig);
     try {
-      const response = await session.sendAndWait({ content: userMessage });
+      const response = await session.sendAndWait({ prompt: userMessage });
       if (!response?.data?.content) return null;
       return response.data.content;
     } finally {

@@ -84,6 +84,20 @@ export async function resetHard(ref: string): Promise<GitResult> {
   return run(['reset', '--hard', ref]);
 }
 
+/**
+ * Move a local branch ref to point at a given target without checking it out.
+ * Uses `git branch -f <branch> <target>`. Safe to call while on a different branch.
+ * If you ARE on the target branch, falls back to `git reset --hard`.
+ */
+export async function updateLocalBranch(branch: string, target: string): Promise<GitResult> {
+  const current = await getCurrentBranch();
+  if (current === branch) {
+    // Already on this branch, use reset --hard instead
+    return resetHard(target);
+  }
+  return run(['branch', '-f', branch, target]);
+}
+
 export async function pushSetUpstream(remote: string, branch: string): Promise<GitResult> {
   return run(['push', '-u', remote, branch]);
 }
