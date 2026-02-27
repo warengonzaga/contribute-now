@@ -13,27 +13,34 @@ import {
   checkGhInstalled,
   createPR,
   createPRFill,
+  getMergedPRForBranch,
   getPRForBranch,
 } from '../utils/gh.js';
 import {
   checkoutBranch,
   commitWithMessage,
   deleteRemoteBranch,
+  fetchRemote,
   forceDeleteBranch,
   getCurrentBranch,
   getLog,
   getLogDiff,
   getStagedDiff,
   getStagedFiles,
+  hasLocalWork,
+  hasUncommittedChanges,
   isGitRepo,
   mergeSquash,
   pushBranch,
   pushSetUpstream,
+  rebase,
+  renameBranch,
+  updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
 import { createSpinner } from '../utils/spinner.js';
-import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
+import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 /**
  * Squash-merge a feature branch into the base branch locally, push,
@@ -174,7 +181,111 @@ export default defineCommand({
 
     heading('🚀 contrib submit');
 
-    // 2. Push branch
+    // 2a. Check if PR for this branch was already merged (before pushing)
+    const ghInstalled = await checkGhInstalled();
+    const ghAuthed = ghInstalled && (await checkGhAuth());
+
+    if (ghInstalled && ghAuthed) {
+      const mergedPR = await getMergedPRForBranch(currentBranch);
+      if (mergedPR) {
+        warn(
+          `PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) was already merged.`,
+        );
+
+        // Check if user has local work that would be lost
+        const localWork = await hasLocalWork(origin, currentBranch);
+        const hasWork = localWork.uncommitted || localWork.unpushedCommits > 0;
+
+        if (hasWork) {
+          // Warn about local changes
+          if (localWork.uncommitted) {
+            warn('You have uncommitted changes in your working tree.');
+          }
+          if (localWork.unpushedCommits > 0) {
+            warn(
+              `You have ${pc.bold(String(localWork.unpushedCommits))} local commit${localWork.unpushedCommits !== 1 ? 's' : ''} not in the merged PR.`,
+            );
+          }
+
+          const SAVE_NEW_BRANCH = 'Save changes to a new branch';
+          const DISCARD = 'Discard all changes and clean up';
+          const CANCEL = 'Cancel';
+
+          const action = await selectPrompt(
+            'This branch was merged but you have local changes. What would you like to do?',
+            [SAVE_NEW_BRANCH, DISCARD, CANCEL],
+          );
+
+          if (action === CANCEL) {
+            info('No changes made. You are still on your current branch.');
+            return;
+          }
+
+          if (action === SAVE_NEW_BRANCH) {
+            const suggestedName = currentBranch.replace(/^(feature|fix|docs|chore|test|refactor)\//, '$1/new-');
+            const newBranchName = await inputPrompt(
+              'New branch name',
+              suggestedName !== currentBranch ? suggestedName : `${currentBranch}-v2`,
+            );
+
+            // Rename branch preserves all commits + uncommitted changes
+            const renameResult = await renameBranch(currentBranch, newBranchName);
+            if (renameResult.exitCode !== 0) {
+              error(`Failed to rename branch: ${renameResult.stderr}`);
+              process.exit(1);
+            }
+            success(`Renamed ${pc.bold(currentBranch)} → ${pc.bold(newBranchName)}`);
+
+            // Rebase onto latest base branch so the saved work is up-to-date
+            const syncSource = getSyncSource(config);
+            info(`Syncing ${pc.bold(newBranchName)} with latest ${pc.bold(baseBranch)}...`);
+            await fetchRemote(syncSource.remote);
+            const rebaseResult = await rebase(syncSource.ref);
+            if (rebaseResult.exitCode !== 0) {
+              warn('Rebase encountered conflicts. Resolve them manually, then run:');
+              info(`  ${pc.bold('git rebase --continue')}`);
+            } else {
+              success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
+            }
+
+            info(
+              `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+            );
+            return;
+          }
+
+          // DISCARD path: reset and clean up
+          warn('Discarding local changes...');
+        }
+
+        // Auto-switch to base branch, sync, and delete stale feature branch
+        const syncSource = getSyncSource(config);
+        info(`Switching to ${pc.bold(baseBranch)} and syncing...`);
+        await fetchRemote(syncSource.remote);
+        const coResult = await checkoutBranch(baseBranch);
+        if (coResult.exitCode !== 0) {
+          error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
+          process.exit(1);
+        }
+        await updateLocalBranch(baseBranch, syncSource.ref);
+        success(`Synced ${pc.bold(baseBranch)} with ${pc.bold(syncSource.ref)}.`);
+
+        // Delete the stale feature branch
+        info(`Deleting stale branch ${pc.bold(currentBranch)}...`);
+        const delResult = await forceDeleteBranch(currentBranch);
+        if (delResult.exitCode === 0) {
+          success(`Deleted ${pc.bold(currentBranch)}.`);
+        } else {
+          warn(`Could not delete branch: ${delResult.stderr.trim()}`);
+        }
+
+        console.log();
+        info(`You're now on ${pc.bold(baseBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`);
+        return;
+      }
+    }
+
+    // 2b. Push branch
     info(`Pushing ${pc.bold(currentBranch)} to ${origin}...`);
     const pushResult = await pushSetUpstream(origin, currentBranch);
     if (pushResult.exitCode !== 0) {
@@ -183,11 +294,8 @@ export default defineCommand({
     }
 
     // 3. Check if gh CLI is available
-    const ghInstalled = await checkGhInstalled();
-    const ghAuthed = ghInstalled && (await checkGhAuth());
-
     if (!ghInstalled || !ghAuthed) {
-      // 5. gh unavailable: print manual PR URL
+      // gh unavailable: print manual PR URL
       const repoInfo = await getRepoInfoFromRemote(origin);
       if (repoInfo) {
         const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${baseBranch}...${currentBranch}?expand=1`;
