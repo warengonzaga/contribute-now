@@ -5,9 +5,9 @@ function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr
     execFileCb('gh', args, (error, stdout, stderr) => {
       resolve({
         exitCode: error
-          ? (error as NodeJS.ErrnoException).code != null
-            ? Number((error as NodeJS.ErrnoException).code)
-            : 1
+          ? (error as NodeJS.ErrnoException).code === 'ENOENT'
+            ? 127
+            : ((error as { status?: number }).status ?? 1)
           : 0,
         stdout: stdout ?? '',
         stderr: stderr ?? '',
@@ -40,10 +40,13 @@ export interface RepoPermissions {
   pull: boolean;
 }
 
+const SAFE_SLUG = /^[\w.-]+$/;
+
 export async function checkRepoPermissions(
   owner: string,
   repo: string,
 ): Promise<RepoPermissions | null> {
+  if (!SAFE_SLUG.test(owner) || !SAFE_SLUG.test(repo)) return null;
   const { exitCode, stdout } = await run(['api', `repos/${owner}/${repo}`, '--jq', '.permissions']);
   if (exitCode !== 0) return null;
   try {
