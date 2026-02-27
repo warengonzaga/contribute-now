@@ -36,8 +36,19 @@ case "$commit_msg" in
   Merge\\ *|fixup!*|squash!*|amend!*) exit 0 ;;
 esac
 
-# Validate using contrib CLI
-npx contrib validate "$commit_msg"
+# Detect available package runner
+if command -v contrib >/dev/null 2>&1; then
+  contrib validate "$commit_msg"
+elif command -v bunx >/dev/null 2>&1; then
+  bunx contrib validate "$commit_msg"
+elif command -v pnpx >/dev/null 2>&1; then
+  pnpx contrib validate "$commit_msg"
+elif command -v npx >/dev/null 2>&1; then
+  npx contrib validate "$commit_msg"
+else
+  echo "Warning: No package runner found. Skipping commit message validation."
+  exit 0
+fi
 `;
 }
 

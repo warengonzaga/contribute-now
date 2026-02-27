@@ -1,6 +1,11 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import { formatBranchName, hasPrefix, looksLikeNaturalLanguage } from '../utils/branch.js';
+import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from '../utils/branch.js';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { suggestBranchName } from '../utils/copilot.js';
@@ -82,6 +87,14 @@ export default defineCommand({
         branchPrefixes,
       );
       branchName = formatBranchName(prefix, branchName);
+    }
+
+    // Validate final branch name before any git operations
+    if (!isValidBranchName(branchName)) {
+      error(
+        'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+      );
+      process.exit(1);
     }
 
     info(`Creating branch: ${pc.bold(branchName)}`);
