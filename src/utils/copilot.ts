@@ -69,7 +69,6 @@ Rules: title follows convention, present tense, max 72 chars; body has Summary, 
 Rules: title concise present tense; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
 }
 
-
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
 
 /** Suppress Node.js subprocess warnings once at init time. */
