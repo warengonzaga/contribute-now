@@ -1,71 +1,17 @@
 import { CopilotClient } from '@github/copilot-sdk';
 import type { CommitConvention } from '../types.js';
 
-const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Conventional Commit message following this exact format:
-<type>[!][(<scope>)]: <description>
+const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `Git commit message generator. Format: <type>[!][(<scope>)]: <description>
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+Rules: breaking (!) only for feat/fix/refactor/perf; imperative mood; max 72 chars; lowercase start; scope optional camelCase/kebab-case. Return ONLY the message line.
+Examples: feat: add user auth | fix(auth): resolve token expiry | feat!: redesign auth API`;
 
-Types:
-feat     – a new feature
-fix      – a bug fix
-docs     – documentation only changes
-style    – changes that do not affect code meaning (whitespace, formatting)
-refactor – code change that neither fixes a bug nor adds a feature
-perf     – performance improvement
-test     – adding or correcting tests
-build    – changes to the build system or external dependencies
-ci       – changes to CI configuration files and scripts
-chore    – other changes that don't modify src or test files
-revert   – reverts a previous commit
-
-Rules:
-- Breaking change (!) only for: feat, fix, refactor, perf
-- Description: concise, imperative mood, max 72 chars, lowercase start
-- Scope: optional, camelCase or kebab-case component name
-- Return ONLY the commit message line, nothing else
-
-Examples:
-feat: add user authentication system
-fix(auth): resolve token expiry issue
-docs: update contributing guidelines
-feat!: redesign authentication API`;
-
-const CLEAN_COMMIT_SYSTEM_PROMPT = `You are a git commit message generator. Generate a Clean Commit message following this EXACT format:
-<emoji> <type>[!][ (<scope>)]: <description>
-
-CRITICAL spacing rules (must follow exactly):
-- There MUST be a space between the emoji and the type
-- If a scope is used, there MUST be a space before the opening parenthesis
-- There MUST be a colon and a space after the type or scope before the description
-- Pattern: EMOJI SPACE TYPE SPACE OPENPAREN SCOPE CLOSEPAREN COLON SPACE DESCRIPTION
-
-Emoji and type table:
-📦 new      – new features, files, or capabilities
-🔧 update   – changes, refactoring, improvements
-🗑️ remove   – removing code, files, or dependencies
-🔒 security – security fixes or patches
-⚙️ setup    – configs, CI/CD, tooling, build systems
-☕ chore    – maintenance, dependency updates
-🧪 test     – adding or updating tests
-📖 docs     – documentation changes
-🚀 release  – version releases
-
-Rules:
-- Breaking change (!) only for: new, update, remove, security
-- Description: concise, imperative mood, max 72 chars, lowercase start
-- Scope: optional, camelCase or kebab-case component name
-- Return ONLY the commit message line, nothing else
-
-Correct examples:
-📦 new: add user authentication system
-🔧 update (api): improve error handling
-⚙️ setup (ci): configure github actions workflow
-📦 new!: redesign authentication system
-🗑️ remove (deps): drop unused lodash dependency
-
-WRONG (never do this):
-⚙️setup(ci): ... ← missing spaces
-📦new: ... ← missing space after emoji
-🔧 update(api): ... ← missing space before scope`;
+const CLEAN_COMMIT_SYSTEM_PROMPT = `Git commit message generator. EXACT format: <emoji> <type>[!][ (<scope>)]: <description>
+Spacing: EMOJI SPACE TYPE [SPACE OPENPAREN SCOPE CLOSEPAREN] COLON SPACE DESCRIPTION
+Types: 📦 new, 🔧 update, 🗑️ remove, 🔒 security, ⚙️ setup, ☕ chore, 🧪 test, 📖 docs, 🚀 release
+Rules: breaking (!) only for new/update/remove/security; imperative mood; max 72 chars; lowercase start; scope optional. Return ONLY the message line.
+Correct: 📦 new: add user auth | 🔧 update (api): improve error handling | ⚙️ setup (ci): configure github actions
+WRONG: ⚙️setup(ci): ... | 🔧 update(api): ... ← always space before scope parenthesis`;
 
 function getGroupingSystemPrompt(convention: CommitConvention): string {
   const conventionBlock =
@@ -97,46 +43,19 @@ Rules:
 - Return ONLY the JSON array, nothing else`;
 }
 
-const BRANCH_NAME_SYSTEM_PROMPT = `You are a git branch name generator. Convert natural language descriptions into proper git branch names.
-
-Format: <prefix>/<kebab-case-name>
+const BRANCH_NAME_SYSTEM_PROMPT = `Git branch name generator. Format: <prefix>/<kebab-case-name>
 Prefixes: feature, fix, docs, chore, test, refactor
+Rules: lowercase kebab-case, 2-5 words max. Return ONLY the branch name.
+Examples: fix/login-timeout | feature/user-profile-page | docs/update-readme`;
 
-Rules:
-- Use lowercase kebab-case for the name part
-- Keep it short and descriptive (2-5 words max)
-- Return ONLY the branch name, nothing else
+const PR_DESCRIPTION_SYSTEM_PROMPT = `GitHub PR description generator. Return JSON: {"title":"<50 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}
+Rules: title concise present tense; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
 
-Examples:
-Input: "fix the login timeout bug" → fix/login-timeout
-Input: "add user profile page" → feature/user-profile-page
-Input: "update readme documentation" → docs/update-readme`;
+const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
 
-const PR_DESCRIPTION_SYSTEM_PROMPT = `You are a GitHub pull request description generator. Create a clear, structured PR description.
-
-Return a JSON object with this exact structure:
-{
-  "title": "Brief PR title (50 chars max)",
-  "body": "## Summary\\n...\\n\\n## Changes\\n...\\n\\n## Test Plan\\n..."
-}
-
-Rules:
-- title: concise, present tense, describes what the PR does
-- body: markdown with Summary, Changes (bullet list), and Test Plan sections
-- Return ONLY the JSON object, no markdown fences, no extra text`;
-
-const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a git merge conflict resolution advisor. Analyze the conflict markers and provide guidance.
-
-Rules:
-- Explain what each side of the conflict contains
-- Suggest the most likely correct resolution strategy
-- Never auto-resolve — provide guidance only
-- Be concise and actionable`;
-
-function suppressSubprocessWarnings(): string | undefined {
-  const prev = process.env.NODE_NO_WARNINGS;
+/** Suppress Node.js subprocess warnings once at init time. */
+function suppressSubprocessWarnings(): void {
   process.env.NODE_NO_WARNINGS = '1';
-  return prev;
 }
 
 /** Race a promise against a timeout. Rejects with a descriptive error on timeout. */
@@ -162,16 +81,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 const COPILOT_TIMEOUT_MS = 30_000;
 const COPILOT_LONG_TIMEOUT_MS = 90_000;
 
-function restoreWarnings(prev: string | undefined): void {
-  if (prev === undefined) {
-    delete process.env.NODE_NO_WARNINGS;
-  } else {
-    process.env.NODE_NO_WARNINGS = prev;
-  }
-}
-
 export async function checkCopilotAvailable(): Promise<string | null> {
-  const prev = suppressSubprocessWarnings();
   try {
     const client = await getManagedClient();
     try {
@@ -198,8 +108,6 @@ export async function checkCopilotAvailable(): Promise<string | null> {
       return 'Copilot CLI binary not found. Ensure GitHub Copilot is installed and your gh CLI is up to date.';
     }
     return `Failed to start Copilot service: ${msg}`;
-  } finally {
-    restoreWarnings(prev);
   }
 }
 
@@ -209,6 +117,7 @@ let _clientStarted = false;
 
 async function getManagedClient(): Promise<InstanceType<typeof CopilotClient>> {
   if (!_managedClient || !_clientStarted) {
+    suppressSubprocessWarnings();
     _managedClient = new CopilotClient();
     await _managedClient.start();
     _clientStarted = true;
@@ -237,23 +146,18 @@ async function callCopilot(
   model?: string,
   timeoutMs = COPILOT_TIMEOUT_MS,
 ): Promise<string | null> {
-  const prev = suppressSubprocessWarnings();
+  const client = await getManagedClient();
+  const sessionConfig: Record<string, unknown> = {
+    systemMessage: { mode: 'replace', content: systemMessage },
+  };
+  if (model) sessionConfig.model = model;
+  const session = await client.createSession(sessionConfig);
   try {
-    const client = await getManagedClient();
-    const sessionConfig: Record<string, unknown> = {
-      systemMessage: { mode: 'replace', content: systemMessage },
-    };
-    if (model) sessionConfig.model = model;
-    const session = await client.createSession(sessionConfig);
-    try {
-      const response = await withTimeout(session.sendAndWait({ prompt: userMessage }), timeoutMs);
-      if (!response?.data?.content) return null;
-      return response.data.content;
-    } finally {
-      await session.destroy();
-    }
+    const response = await withTimeout(session.sendAndWait({ prompt: userMessage }), timeoutMs);
+    if (!response?.data?.content) return null;
+    return response.data.content;
   } finally {
-    restoreWarnings(prev);
+    await session.destroy();
   }
 }
 
