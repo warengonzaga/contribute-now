@@ -48,4 +48,9 @@ const main = defineCommand({
   },
 });
 
-runMain(main);
+runMain(main).then(() => {
+  // Ensure the process exits cleanly after any command completes.
+  // Citty does not call process.exit() and interactive prompts
+  // may leave stdin open, preventing the event loop from draining.
+  process.exit(0);
+});
