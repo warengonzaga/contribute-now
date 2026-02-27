@@ -217,7 +217,11 @@ export async function generateCommitMessage(
   convention: CommitConvention = 'clean-commit',
 ): Promise<string | null> {
   try {
-    const userMessage = `Generate a commit message for these staged changes:\n\nFiles: ${stagedFiles.join(', ')}\n\nDiff:\n${diff.slice(0, 4000)}`;
+    const multiFileHint =
+      stagedFiles.length > 1
+        ? '\n\nIMPORTANT: Multiple files are staged. Generate ONE commit message that captures the high-level purpose of ALL changes together. Focus on the overall intent, not individual file changes. Be specific but concise — do not list every file.'
+        : '';
+    const userMessage = `Generate a commit message for these staged changes:\n\nFiles: ${stagedFiles.join(', ')}\n\nDiff:\n${diff.slice(0, 4000)}${multiFileHint}`;
     const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
     return result?.trim() ?? null;
   } catch {
