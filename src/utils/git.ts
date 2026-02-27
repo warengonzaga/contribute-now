@@ -1,4 +1,6 @@
 import { execFile as execFileCb } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { GitResult } from '../types.js';
 
 function run(args: string[]): Promise<GitResult> {
@@ -8,9 +10,7 @@ function run(args: string[]): Promise<GitResult> {
         exitCode: error
           ? (error as NodeJS.ErrnoException).code === 'ENOENT'
             ? 127
-            : (error as NodeJS.ErrnoException).code != null
-              ? Number((error as NodeJS.ErrnoException).code)
-              : 1
+            : ((error as { status?: number }).status ?? 1)
           : 0,
         stdout: stdout ?? '',
         stderr: stderr ?? '',
@@ -124,7 +124,18 @@ export async function getChangedFiles(): Promise<string[]> {
     .trim()
     .split('\n')
     .filter(Boolean)
-    .map((l) => l.slice(3));
+    .map((l) => {
+      // Strip trailing \r (Windows CRLF compat)
+      const line = l.replace(/\r$/, '');
+      // Porcelain format: XY PATH — match 2-char status code + whitespace
+      const match = line.match(/^..\s+(.*)/);
+      if (!match) return '';
+      const file = match[1];
+      // Handle renames: "old -> new" — use the new name
+      const renameIdx = file.indexOf(' -> ');
+      return renameIdx !== -1 ? file.slice(renameIdx + 4) : file;
+    })
+    .filter(Boolean);
 }
 
 export async function getDivergence(
@@ -180,4 +191,68 @@ export async function getLog(base: string, head: string): Promise<string[]> {
 
 export async function pullBranch(remote: string, branch: string): Promise<GitResult> {
   return run(['pull', remote, branch]);
+}
+
+export async function stageFiles(files: string[]): Promise<GitResult> {
+  return run(['add', '--', ...files]);
+}
+
+export async function unstageFiles(files: string[]): Promise<GitResult> {
+  return run(['reset', 'HEAD', '--', ...files]);
+}
+
+export async function stageAll(): Promise<GitResult> {
+  return run(['add', '-A']);
+}
+
+export async function getDiffForFiles(files: string[]): Promise<string> {
+  const { stdout } = await run(['diff', '--', ...files]);
+  return stdout;
+}
+
+/**
+ * Returns the combined staged + unstaged diff for the given files.
+ * For untracked files (no diff output), includes file content as context.
+ */
+export async function getFullDiffForFiles(files: string[]): Promise<string> {
+  const [unstaged, staged, untracked] = await Promise.all([
+    run(['diff', '--', ...files]),
+    run(['diff', '--cached', '--', ...files]),
+    getUntrackedFiles(),
+  ]);
+
+  const parts = [staged.stdout, unstaged.stdout].filter(Boolean);
+
+  // For untracked files, git diff produces nothing — read content directly
+  const untrackedSet = new Set(untracked);
+  const MAX_FILE_CONTENT = 2000;
+  for (const file of files) {
+    if (untrackedSet.has(file)) {
+      try {
+        const content = readFileSync(join(process.cwd(), file), 'utf-8');
+        const truncated =
+          content.length > MAX_FILE_CONTENT
+            ? `${content.slice(0, MAX_FILE_CONTENT)}\n... (truncated)`
+            : content;
+        // Format as a pseudo-diff so the AI understands it's a new file
+        const lines = truncated.split('\n').map((l) => `+${l}`);
+        parts.push(
+          `diff --git a/${file} b/${file}\nnew file\n--- /dev/null\n+++ b/${file}\n${lines.join('\n')}`,
+        );
+      } catch {
+        // If we can't read the file (binary, etc.), skip it
+      }
+    }
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Returns a list of untracked files (not yet added to the index).
+ */
+export async function getUntrackedFiles(): Promise<string[]> {
+  const { exitCode, stdout } = await run(['ls-files', '--others', '--exclude-standard']);
+  if (exitCode !== 0) return [];
+  return stdout.trim().split('\n').filter(Boolean);
 }
