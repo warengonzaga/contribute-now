@@ -1,8 +1,13 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import type { CommitConvention } from '../types.js';
 import { readConfig } from '../utils/config.js';
 import { inputPrompt, selectPrompt } from '../utils/confirm.js';
-import { checkCopilotAvailable, generatePRDescription } from '../utils/copilot.js';
+import {
+  checkCopilotAvailable,
+  generateCommitMessage,
+  generatePRDescription,
+} from '../utils/copilot.js';
 import {
   checkGhAuth,
   checkGhInstalled,
@@ -18,6 +23,8 @@ import {
   getCurrentBranch,
   getLog,
   getLogDiff,
+  getStagedDiff,
+  getStagedFiles,
   isGitRepo,
   mergeSquash,
   pushBranch,
@@ -36,7 +43,7 @@ async function performSquashMerge(
   origin: string,
   baseBranch: string,
   featureBranch: string,
-  defaultMsg?: string,
+  options?: { defaultMsg?: string; model?: string; convention?: CommitConvention },
 ): Promise<void> {
   // 1. Checkout base branch
   info(`Checking out ${pc.bold(baseBranch)}...`);
@@ -54,9 +61,34 @@ async function performSquashMerge(
     process.exit(1);
   }
 
-  // 3. Commit
-  const message = defaultMsg || `squash merge ${featureBranch}`;
-  const finalMsg = await inputPrompt('Commit message', message);
+  // 3. Generate commit message
+  let message = options?.defaultMsg;
+
+  if (!message) {
+    // After squash merge, changes are staged — use AI to generate a commit message
+    const copilotError = await checkCopilotAvailable();
+    if (!copilotError) {
+      const spinner = createSpinner('Generating AI commit message for squash merge...');
+      const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
+      const aiMsg = await generateCommitMessage(
+        stagedDiff,
+        stagedFiles,
+        options?.model,
+        options?.convention ?? 'clean-commit',
+      );
+      if (aiMsg) {
+        message = aiMsg;
+        spinner.success('AI commit message generated.');
+      } else {
+        spinner.fail('AI did not return a commit message.');
+      }
+    } else {
+      warn(`AI unavailable: ${copilotError}`);
+    }
+  }
+
+  const fallback = message || `squash merge ${featureBranch}`;
+  const finalMsg = await inputPrompt('Commit message', fallback);
   const commitResult = await commitWithMessage(finalMsg);
   if (commitResult.exitCode !== 0) {
     error(`Commit failed: ${commitResult.stderr}`);
@@ -191,7 +223,7 @@ export default defineCommand({
       ]);
       if (!copilotError) {
         const spinner = createSpinner('Generating AI PR description...');
-        const result = await generatePRDescription(commits, diff, args.model);
+        const result = await generatePRDescription(commits, diff, args.model, config.commitConvention);
         if (result) {
           prTitle = result.title;
           prBody = result.body;
@@ -232,7 +264,11 @@ export default defineCommand({
       }
 
       if (action === SQUASH_LOCAL) {
-        await performSquashMerge(origin, baseBranch, currentBranch, prTitle);
+        await performSquashMerge(origin, baseBranch, currentBranch, {
+          defaultMsg: prTitle ?? undefined,
+          model: args.model,
+          convention: config.commitConvention,
+        });
         return;
       }
 
@@ -269,7 +305,10 @@ export default defineCommand({
       }
 
       if (action === SQUASH_LOCAL) {
-        await performSquashMerge(origin, baseBranch, currentBranch);
+        await performSquashMerge(origin, baseBranch, currentBranch, {
+          model: args.model,
+          convention: config.commitConvention,
+        });
         return;
       }
 

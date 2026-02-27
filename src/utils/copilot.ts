@@ -48,8 +48,26 @@ Prefixes: feature, fix, docs, chore, test, refactor
 Rules: lowercase kebab-case, 2-5 words max. Return ONLY the branch name.
 Examples: fix/login-timeout | feature/user-profile-page | docs/update-readme`;
 
-const PR_DESCRIPTION_SYSTEM_PROMPT = `GitHub PR description generator. Return JSON: {"title":"<50 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}
+const PR_DESCRIPTION_SYSTEM_PROMPT_BASE = `GitHub PR description generator. Return JSON: {"title":"<72 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}`;
+
+function getPRDescriptionSystemPrompt(convention: CommitConvention): string {
+  if (convention === 'clean-commit') {
+    return `${PR_DESCRIPTION_SYSTEM_PROMPT_BASE}
+CRITICAL: The PR title MUST follow the Clean Commit format exactly: <emoji> <type>: <description>
+Emoji/type table: 📦 new, 🔧 update, 🗑️ remove, 🔒 security, ⚙️ setup, ☕ chore, 🧪 test, 📖 docs, 🚀 release
+Title examples: 📦 new: add user authentication | 🔧 update: improve error handling | 🗑️ remove: drop legacy API
+Rules: title follows convention, present tense, max 72 chars; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+  }
+  if (convention === 'conventional') {
+    return `${PR_DESCRIPTION_SYSTEM_PROMPT_BASE}
+CRITICAL: The PR title MUST follow Conventional Commits format: <type>[(<scope>)]: <description>
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+Title examples: feat: add user authentication | fix(auth): resolve token expiry | docs: update contributing guide
+Rules: title follows convention, present tense, max 72 chars; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+  }
+  return `${PR_DESCRIPTION_SYSTEM_PROMPT_BASE}
 Rules: title concise present tense; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+}
 
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
 
@@ -233,10 +251,11 @@ export async function generatePRDescription(
   commits: string[],
   diff: string,
   model?: string,
+  convention: CommitConvention = 'clean-commit',
 ): Promise<{ title: string; body: string } | null> {
   try {
     const userMessage = `Generate a PR description for these changes:\n\nCommits:\n${commits.join('\n')}\n\nDiff (truncated):\n${diff.slice(0, 4000)}`;
-    const result = await callCopilot(PR_DESCRIPTION_SYSTEM_PROMPT, userMessage, model);
+    const result = await callCopilot(getPRDescriptionSystemPrompt(convention), userMessage, model);
     if (!result) return null;
     const cleaned = extractJson(result);
     return JSON.parse(cleaned) as { title: string; body: string };
