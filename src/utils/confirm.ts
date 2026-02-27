@@ -1,4 +1,5 @@
 import * as clack from '@clack/prompts';
+import pc from 'picocolors';
 
 /**
  * Handle cancellation (Ctrl+C / Esc) from any clack prompt.
@@ -42,7 +43,7 @@ export async function inputPrompt(message: string, defaultValue?: string): Promi
  */
 export async function multiSelectPrompt(message: string, choices: string[]): Promise<string[]> {
   const result = await clack.multiselect({
-    message,
+    message: `${message} ${pc.dim('(space to toggle, enter to confirm)')}`,
     options: choices.map((choice) => ({ value: choice, label: choice })),
     required: false,
   });
