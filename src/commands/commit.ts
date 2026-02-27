@@ -1,19 +1,31 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import type { ContributeConfig } from '../types.js';
 import { readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { confirmPrompt, inputPrompt, multiSelectPrompt, selectPrompt } from '../utils/confirm.js';
 import {
   CONVENTION_FORMAT_HINTS,
   getValidationError,
   validateCommitMessage,
 } from '../utils/convention.js';
-import { checkCopilotAvailable, generateCommitMessage } from '../utils/copilot.js';
+import {
+  checkCopilotAvailable,
+  generateCommitGroups,
+  generateCommitMessage,
+  regenerateAllGroupMessages,
+  regenerateGroupMessage,
+} from '../utils/copilot.js';
 import {
   commitWithMessage,
   getChangedFiles,
+  getDiffForFiles,
+  getFullDiffForFiles,
   getStagedDiff,
   getStagedFiles,
   isGitRepo,
+  stageAll,
+  stageFiles,
+  unstageFiles,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 
@@ -32,6 +44,11 @@ export default defineCommand({
       description: 'Skip AI and write commit message manually',
       default: false,
     },
+    group: {
+      type: 'boolean',
+      description: 'AI groups related changes into separate atomic commits',
+      default: false,
+    },
   },
   async run({ args }) {
     if (!(await isGitRepo())) {
@@ -47,10 +64,18 @@ export default defineCommand({
 
     heading('💾 contrib commit');
 
-    // 1. Check for staged changes
-    const stagedFiles = await getStagedFiles();
+    // ── Group commit mode ──────────────────────────────────────────────
+    if (args.group) {
+      await runGroupCommit(args.model, config);
+      return;
+    }
 
-    // 2. If nothing staged, show changed files and prompt to stage
+    // ── Single commit mode ─────────────────────────────────────────────
+
+    // 1. Check for staged changes
+    let stagedFiles = await getStagedFiles();
+
+    // 2. If nothing staged, offer interactive staging
     if (stagedFiles.length === 0) {
       const changedFiles = await getChangedFiles();
       if (changedFiles.length === 0) {
@@ -62,9 +87,43 @@ export default defineCommand({
       for (const f of changedFiles) {
         console.log(`  ${pc.dim('•')} ${f}`);
       }
-      console.log();
-      warn('No staged changes. Stage your files with `git add` and re-run.');
-      process.exit(1);
+
+      const stageAction = await selectPrompt('No staged changes. How would you like to stage?', [
+        'Stage all changes',
+        'Select files to stage',
+        'Cancel',
+      ]);
+
+      if (stageAction === 'Cancel') {
+        process.exit(0);
+      }
+
+      if (stageAction === 'Stage all changes') {
+        const result = await stageAll();
+        if (result.exitCode !== 0) {
+          error(`Failed to stage files: ${result.stderr}`);
+          process.exit(1);
+        }
+        success('Staged all changes.');
+      } else {
+        const selected = await multiSelectPrompt('Select files to stage:', changedFiles);
+        if (selected.length === 0) {
+          error('No files selected.');
+          process.exit(1);
+        }
+        const result = await stageFiles(selected);
+        if (result.exitCode !== 0) {
+          error(`Failed to stage files: ${result.stderr}`);
+          process.exit(1);
+        }
+        success(`Staged ${selected.length} file(s).`);
+      }
+
+      stagedFiles = await getStagedFiles();
+      if (stagedFiles.length === 0) {
+        error('No staged changes after staging attempt.');
+        process.exit(1);
+      }
     }
 
     info(`Staged files: ${stagedFiles.join(', ')}`);
@@ -169,3 +228,203 @@ export default defineCommand({
     success(`✅ Committed: ${pc.bold(finalMessage)}`);
   },
 });
+
+// ── Group Commit Mode ────────────────────────────────────────────────
+
+async function runGroupCommit(model: string | undefined, config: ContributeConfig): Promise<void> {
+  const copilotError = await checkCopilotAvailable();
+  if (copilotError) {
+    error(`AI is required for --group mode but unavailable: ${copilotError}`);
+    process.exit(1);
+  }
+
+  // Gather all changed (unstaged + staged) files
+  const changedFiles = await getChangedFiles();
+  if (changedFiles.length === 0) {
+    error('No changes to group-commit.');
+    process.exit(1);
+  }
+
+  console.log(`\n${pc.bold('Changed files:')}`);
+  for (const f of changedFiles) {
+    console.log(`  ${pc.dim('•')} ${f}`);
+  }
+
+  info(`\nAsking AI to group ${changedFiles.length} file(s) into logical commits...`);
+
+  const diffs = await getFullDiffForFiles(changedFiles);
+  if (!diffs.trim()) {
+    warn('Could not retrieve diff context for any files. AI needs diffs to produce groups.');
+  }
+
+  let groups: Awaited<ReturnType<typeof generateCommitGroups>>;
+  try {
+    groups = await generateCommitGroups(changedFiles, diffs, model, config.commitConvention);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    error(`AI grouping failed: ${reason}`);
+    process.exit(1);
+  }
+
+  if (groups.length === 0) {
+    error('AI could not produce commit groups. Try committing files manually.');
+    process.exit(1);
+  }
+
+  // Validate AI-returned filenames against actual changed files
+  const changedSet = new Set(changedFiles);
+  for (const group of groups) {
+    const invalid = group.files.filter((f) => !changedSet.has(f));
+    if (invalid.length > 0) {
+      warn(`AI suggested unknown file(s): ${invalid.join(', ')} — removed from group.`);
+    }
+    group.files = group.files.filter((f) => changedSet.has(f));
+  }
+  // Remove empty groups after filtering
+  let validGroups = groups.filter((g) => g.files.length > 0);
+  if (validGroups.length === 0) {
+    error('No valid groups remain after validation. Try committing files manually.');
+    process.exit(1);
+  }
+
+  // ── Summary + regenerate-all loop ──────────────────────────────────
+  let proceedToCommit = false;
+  while (!proceedToCommit) {
+    // Present groups to user
+    console.log(`\n${pc.bold(`AI suggested ${validGroups.length} commit group(s):`)}\n`);
+    for (let i = 0; i < validGroups.length; i++) {
+      const g = validGroups[i];
+      console.log(`  ${pc.cyan(`Group ${i + 1}:`)} ${pc.bold(g.message)}`);
+      for (const f of g.files) {
+        console.log(`    ${pc.dim('•')} ${f}`);
+      }
+      console.log();
+    }
+
+    const summaryAction = await selectPrompt('What would you like to do?', [
+      'Proceed to commit',
+      'Regenerate all messages',
+      'Cancel',
+    ]);
+
+    if (summaryAction === 'Cancel') {
+      warn('Group commit cancelled.');
+      process.exit(0);
+    }
+
+    if (summaryAction === 'Regenerate all messages') {
+      info('Regenerating all commit messages (keeping file groupings)...');
+      try {
+        validGroups = await regenerateAllGroupMessages(
+          validGroups,
+          diffs,
+          model,
+          config.commitConvention,
+        );
+        success('Messages regenerated.');
+      } catch {
+        warn('Failed to regenerate messages. Keeping current ones.');
+      }
+      continue;
+    }
+
+    proceedToCommit = true;
+  }
+
+  // ── Process each group ─────────────────────────────────────────────
+  let committed = 0;
+  for (let i = 0; i < validGroups.length; i++) {
+    const group = validGroups[i];
+    console.log(pc.bold(`\n── Group ${i + 1}/${validGroups.length} ──`));
+    console.log(`  ${pc.cyan(group.message)}`);
+    for (const f of group.files) {
+      console.log(`  ${pc.dim('•')} ${f}`);
+    }
+
+    let message = group.message;
+    let actionDone = false;
+
+    while (!actionDone) {
+      const action = await selectPrompt('Action for this group:', [
+        'Commit as-is',
+        'Edit message and commit',
+        'Regenerate message',
+        'Skip this group',
+      ]);
+
+      if (action === 'Skip this group') {
+        warn(`Skipped group ${i + 1}.`);
+        actionDone = true;
+        continue;
+      }
+
+      if (action === 'Regenerate message') {
+        info('Regenerating commit message for this group...');
+        const groupDiffs = await getDiffForFiles(group.files);
+        const newMsg = await regenerateGroupMessage(
+          group.files,
+          groupDiffs || diffs,
+          model,
+          config.commitConvention,
+        );
+        if (newMsg) {
+          message = newMsg;
+          group.message = newMsg;
+          success(`New message: ${pc.bold(message)}`);
+        } else {
+          warn('AI could not generate a new message. Keeping current one.');
+        }
+        // Loop back to show action menu again with the new message
+        continue;
+      }
+
+      if (action === 'Edit message and commit') {
+        message = await inputPrompt('Edit commit message', message);
+        if (!message) {
+          warn(`Skipped group ${i + 1} (empty message).`);
+          actionDone = true;
+          continue;
+        }
+      }
+
+      // Validate convention
+      if (!validateCommitMessage(message, config.commitConvention)) {
+        for (const line of getValidationError(config.commitConvention)) {
+          warn(line);
+        }
+        const proceed = await confirmPrompt('Commit anyway?');
+        if (!proceed) {
+          warn(`Skipped group ${i + 1}.`);
+          actionDone = true;
+          continue;
+        }
+      }
+
+      // Stage only this group's files, then commit
+      const stageResult = await stageFiles(group.files);
+      if (stageResult.exitCode !== 0) {
+        error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
+        actionDone = true;
+        continue;
+      }
+
+      const commitResult = await commitWithMessage(message);
+      if (commitResult.exitCode !== 0) {
+        error(`Failed to commit group ${i + 1}: ${commitResult.stderr}`);
+        await unstageFiles(group.files);
+        actionDone = true;
+        continue;
+      }
+
+      committed++;
+      success(`✅ Committed group ${i + 1}: ${pc.bold(message)}`);
+      actionDone = true;
+    }
+  }
+
+  if (committed === 0) {
+    warn('No groups were committed.');
+  } else {
+    success(`\n🎉 ${committed} of ${validGroups.length} group(s) committed successfully.`);
+  }
+}
