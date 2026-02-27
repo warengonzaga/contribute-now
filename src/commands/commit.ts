@@ -18,7 +18,6 @@ import {
 import {
   commitWithMessage,
   getChangedFiles,
-  getDiffForFiles,
   getFullDiffForFiles,
   getStagedDiff,
   getStagedFiles,
@@ -28,6 +27,7 @@ import {
   unstageFiles,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
 
 export default defineCommand({
   meta: {
@@ -133,13 +133,13 @@ export default defineCommand({
     // 3. AI: generate commit message
     const useAI = !args['no-ai'];
     if (useAI) {
-      const copilotError = await checkCopilotAvailable();
+      // Parallelize: check Copilot availability while fetching diff
+      const [copilotError, diff] = await Promise.all([checkCopilotAvailable(), getStagedDiff()]);
       if (copilotError) {
         warn(`AI unavailable: ${copilotError}`);
         warn('Falling back to manual commit message entry.');
       } else {
-        info('Generating commit message with AI...');
-        const diff = await getStagedDiff();
+        const spinner = createSpinner('Generating commit message with AI...');
         commitMessage = await generateCommitMessage(
           diff,
           stagedFiles,
@@ -148,9 +148,11 @@ export default defineCommand({
         );
 
         if (commitMessage) {
+          spinner.success('AI commit message generated.');
           console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(commitMessage))}`);
         } else {
-          warn('AI did not return a commit message. Falling back to manual entry.');
+          spinner.fail('AI did not return a commit message.');
+          warn('Falling back to manual entry.');
         }
       }
     }
@@ -171,7 +173,7 @@ export default defineCommand({
       } else if (action === 'Edit this message') {
         finalMessage = await inputPrompt('Edit commit message', commitMessage);
       } else if (action === 'Regenerate') {
-        info('Regenerating...');
+        const spinner = createSpinner('Regenerating commit message...');
         const diff = await getStagedDiff();
         const regen = await generateCommitMessage(
           diff,
@@ -180,11 +182,12 @@ export default defineCommand({
           config.commitConvention,
         );
         if (regen) {
+          spinner.success('Commit message regenerated.');
           console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(regen))}`);
           const ok = await confirmPrompt('Use this message?');
           finalMessage = ok ? regen : await inputPrompt('Enter commit message manually');
         } else {
-          warn('Regeneration failed. Falling back to manual entry.');
+          spinner.fail('Regeneration failed.');
           finalMessage = await inputPrompt('Enter commit message');
         }
       } else {
@@ -232,14 +235,17 @@ export default defineCommand({
 // ── Group Commit Mode ────────────────────────────────────────────────
 
 async function runGroupCommit(model: string | undefined, config: ContributeConfig): Promise<void> {
-  const copilotError = await checkCopilotAvailable();
+  // Parallelize: check Copilot + gather changed files concurrently
+  const [copilotError, changedFiles] = await Promise.all([
+    checkCopilotAvailable(),
+    getChangedFiles(),
+  ]);
+
   if (copilotError) {
     error(`AI is required for --group mode but unavailable: ${copilotError}`);
     process.exit(1);
   }
 
-  // Gather all changed (unstaged + staged) files
-  const changedFiles = await getChangedFiles();
   if (changedFiles.length === 0) {
     error('No changes to group-commit.');
     process.exit(1);
@@ -250,19 +256,23 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     console.log(`  ${pc.dim('•')} ${f}`);
   }
 
-  info(`\nAsking AI to group ${changedFiles.length} file(s) into logical commits...`);
+  const spinner = createSpinner(
+    `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
+  );
 
   const diffs = await getFullDiffForFiles(changedFiles);
   if (!diffs.trim()) {
+    spinner.stop();
     warn('Could not retrieve diff context for any files. AI needs diffs to produce groups.');
   }
 
   let groups: Awaited<ReturnType<typeof generateCommitGroups>>;
   try {
     groups = await generateCommitGroups(changedFiles, diffs, model, config.commitConvention);
+    spinner.success(`AI generated ${groups.length} commit group(s).`);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    error(`AI grouping failed: ${reason}`);
+    spinner.fail(`AI grouping failed: ${reason}`);
     process.exit(1);
   }
 
@@ -289,6 +299,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
 
   // ── Summary + regenerate-all loop ──────────────────────────────────
   let proceedToCommit = false;
+  let commitAll = false;
   while (!proceedToCommit) {
     // Present groups to user
     console.log(`\n${pc.bold(`AI suggested ${validGroups.length} commit group(s):`)}\n`);
@@ -302,7 +313,8 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     }
 
     const summaryAction = await selectPrompt('What would you like to do?', [
-      'Proceed to commit',
+      'Commit all',
+      'Review each group',
       'Regenerate all messages',
       'Cancel',
     ]);
@@ -313,7 +325,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     }
 
     if (summaryAction === 'Regenerate all messages') {
-      info('Regenerating all commit messages (keeping file groupings)...');
+      const regenSpinner = createSpinner('Regenerating all commit messages...');
       try {
         validGroups = await regenerateAllGroupMessages(
           validGroups,
@@ -321,104 +333,129 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
           model,
           config.commitConvention,
         );
-        success('Messages regenerated.');
+        regenSpinner.success('All commit messages regenerated.');
       } catch {
-        warn('Failed to regenerate messages. Keeping current ones.');
+        regenSpinner.fail('Failed to regenerate messages. Keeping current ones.');
       }
       continue;
     }
 
     proceedToCommit = true;
+    commitAll = summaryAction === 'Commit all';
   }
 
   // ── Process each group ─────────────────────────────────────────────
   let committed = 0;
-  for (let i = 0; i < validGroups.length; i++) {
-    const group = validGroups[i];
-    console.log(pc.bold(`\n── Group ${i + 1}/${validGroups.length} ──`));
-    console.log(`  ${pc.cyan(group.message)}`);
-    for (const f of group.files) {
-      console.log(`  ${pc.dim('•')} ${f}`);
+
+  if (commitAll) {
+    // Batch commit: stage + commit each group without prompting
+    for (let i = 0; i < validGroups.length; i++) {
+      const group = validGroups[i];
+      const stageResult = await stageFiles(group.files);
+      if (stageResult.exitCode !== 0) {
+        error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
+        continue;
+      }
+      const commitResult = await commitWithMessage(group.message);
+      if (commitResult.exitCode !== 0) {
+        const detail = (commitResult.stderr || commitResult.stdout).trim();
+        error(`Failed to commit group ${i + 1}: ${detail}`);
+        await unstageFiles(group.files);
+        continue;
+      }
+      committed++;
+      success(`✅ Committed group ${i + 1}: ${pc.bold(group.message)}`);
     }
-
-    let message = group.message;
-    let actionDone = false;
-
-    while (!actionDone) {
-      const action = await selectPrompt('Action for this group:', [
-        'Commit as-is',
-        'Edit message and commit',
-        'Regenerate message',
-        'Skip this group',
-      ]);
-
-      if (action === 'Skip this group') {
-        warn(`Skipped group ${i + 1}.`);
-        actionDone = true;
-        continue;
+  } else {
+    // Interactive: review each group individually
+    for (let i = 0; i < validGroups.length; i++) {
+      const group = validGroups[i];
+      console.log(pc.bold(`\n── Group ${i + 1}/${validGroups.length} ──`));
+      console.log(`  ${pc.cyan(group.message)}`);
+      for (const f of group.files) {
+        console.log(`  ${pc.dim('•')} ${f}`);
       }
 
-      if (action === 'Regenerate message') {
-        info('Regenerating commit message for this group...');
-        const groupDiffs = await getDiffForFiles(group.files);
-        const newMsg = await regenerateGroupMessage(
-          group.files,
-          groupDiffs || diffs,
-          model,
-          config.commitConvention,
-        );
-        if (newMsg) {
-          message = newMsg;
-          group.message = newMsg;
-          success(`New message: ${pc.bold(message)}`);
-        } else {
-          warn('AI could not generate a new message. Keeping current one.');
-        }
-        // Loop back to show action menu again with the new message
-        continue;
-      }
+      let message = group.message;
+      let actionDone = false;
 
-      if (action === 'Edit message and commit') {
-        message = await inputPrompt('Edit commit message', message);
-        if (!message) {
-          warn(`Skipped group ${i + 1} (empty message).`);
-          actionDone = true;
-          continue;
-        }
-      }
+      while (!actionDone) {
+        const action = await selectPrompt('Action for this group:', [
+          'Commit as-is',
+          'Edit message and commit',
+          'Regenerate message',
+          'Skip this group',
+        ]);
 
-      // Validate convention
-      if (!validateCommitMessage(message, config.commitConvention)) {
-        for (const line of getValidationError(config.commitConvention)) {
-          warn(line);
-        }
-        const proceed = await confirmPrompt('Commit anyway?');
-        if (!proceed) {
+        if (action === 'Skip this group') {
           warn(`Skipped group ${i + 1}.`);
           actionDone = true;
           continue;
         }
-      }
 
-      // Stage only this group's files, then commit
-      const stageResult = await stageFiles(group.files);
-      if (stageResult.exitCode !== 0) {
-        error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
+        if (action === 'Regenerate message') {
+          const regenSpinner = createSpinner('Regenerating commit message for this group...');
+          // Use pre-fetched diffs filtered to this group's files instead of re-fetching
+          const newMsg = await regenerateGroupMessage(
+            group.files,
+            diffs,
+            model,
+            config.commitConvention,
+          );
+          if (newMsg) {
+            message = newMsg;
+            group.message = newMsg;
+            regenSpinner.success(`New message: ${pc.bold(message)}`);
+          } else {
+            regenSpinner.fail('AI could not generate a new message. Keeping current one.');
+          }
+          // Loop back to show action menu again with the new message
+          continue;
+        }
+
+        if (action === 'Edit message and commit') {
+          message = await inputPrompt('Edit commit message', message);
+          if (!message) {
+            warn(`Skipped group ${i + 1} (empty message).`);
+            actionDone = true;
+            continue;
+          }
+        }
+
+        // Validate convention
+        if (!validateCommitMessage(message, config.commitConvention)) {
+          for (const line of getValidationError(config.commitConvention)) {
+            warn(line);
+          }
+          const proceed = await confirmPrompt('Commit anyway?');
+          if (!proceed) {
+            warn(`Skipped group ${i + 1}.`);
+            actionDone = true;
+            continue;
+          }
+        }
+
+        // Stage only this group's files, then commit
+        const stageResult = await stageFiles(group.files);
+        if (stageResult.exitCode !== 0) {
+          error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
+          actionDone = true;
+          continue;
+        }
+
+        const commitResult = await commitWithMessage(message);
+        if (commitResult.exitCode !== 0) {
+          const detail = (commitResult.stderr || commitResult.stdout).trim();
+          error(`Failed to commit group ${i + 1}: ${detail}`);
+          await unstageFiles(group.files);
+          actionDone = true;
+          continue;
+        }
+
+        committed++;
+        success(`✅ Committed group ${i + 1}: ${pc.bold(message)}`);
         actionDone = true;
-        continue;
       }
-
-      const commitResult = await commitWithMessage(message);
-      if (commitResult.exitCode !== 0) {
-        error(`Failed to commit group ${i + 1}: ${commitResult.stderr}`);
-        await unstageFiles(group.files);
-        actionDone = true;
-        continue;
-      }
-
-      committed++;
-      success(`✅ Committed group ${i + 1}: ${pc.bold(message)}`);
-      actionDone = true;
     }
   }
 
@@ -427,4 +464,6 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   } else {
     success(`\n🎉 ${committed} of ${validGroups.length} group(s) committed successfully.`);
   }
+
+  process.exit(0);
 }

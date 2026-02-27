@@ -7,6 +7,7 @@ import { checkGhAuth, checkGhInstalled, createPR, createPRFill } from '../utils/
 import { getCurrentBranch, getLog, getLogDiff, isGitRepo, pushSetUpstream } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
+import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -93,20 +94,24 @@ export default defineCommand({
     let prBody: string | null = null;
 
     if (!args['no-ai']) {
-      const copilotError = await checkCopilotAvailable();
+      // Parallelize: check Copilot + fetch commits & diff concurrently
+      const [copilotError, commits, diff] = await Promise.all([
+        checkCopilotAvailable(),
+        getLog(baseBranch, 'HEAD'),
+        getLogDiff(baseBranch, 'HEAD'),
+      ]);
       if (!copilotError) {
-        info('Generating AI PR description...');
-        const commits = await getLog(baseBranch, 'HEAD');
-        const diff = await getLogDiff(baseBranch, 'HEAD');
+        const spinner = createSpinner('Generating AI PR description...');
         const result = await generatePRDescription(commits, diff, args.model);
         if (result) {
           prTitle = result.title;
           prBody = result.body;
+          spinner.success('PR description generated.');
           console.log(`\n  ${pc.dim('AI title:')} ${pc.bold(pc.cyan(prTitle))}`);
           console.log(`\n${pc.dim('AI body preview:')}`);
           console.log(pc.dim(prBody.slice(0, 300) + (prBody.length > 300 ? '...' : '')));
         } else {
-          warn('AI did not return a PR description.');
+          spinner.fail('AI did not return a PR description.');
         }
       } else {
         warn(`AI unavailable: ${copilotError}`);

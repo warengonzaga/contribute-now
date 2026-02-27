@@ -17,6 +17,7 @@ import {
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -67,9 +68,10 @@ export default defineCommand({
     // AI enhancement: if name looks like natural language, suggest a branch name
     const useAI = !args['no-ai'] && looksLikeNaturalLanguage(branchName);
     if (useAI) {
-      info('Generating branch name suggestion from description...');
+      const spinner = createSpinner('Generating branch name suggestion...');
       const suggested = await suggestBranchName(branchName, args.model);
       if (suggested) {
+        spinner.success('Branch name suggestion ready.');
         console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
         const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
         if (accepted) {
@@ -77,6 +79,8 @@ export default defineCommand({
         } else {
           branchName = await inputPrompt('Enter branch name', branchName);
         }
+      } else {
+        spinner.fail('AI did not return a branch name suggestion.');
       }
     }
 
