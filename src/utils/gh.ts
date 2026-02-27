@@ -110,3 +110,36 @@ export async function createPRFill(
   if (draft) args.push('--draft');
   return run(args);
 }
+
+export interface ExistingPR {
+  number: number;
+  url: string;
+  title: string;
+  state: string;
+}
+
+/**
+ * Check if an open PR already exists for the given head branch.
+ * Returns the PR info if found, or null if none exists.
+ */
+export async function getPRForBranch(headBranch: string): Promise<ExistingPR | null> {
+  const { exitCode, stdout } = await run([
+    'pr',
+    'list',
+    '--head',
+    headBranch,
+    '--state',
+    'open',
+    '--json',
+    'number,url,title,state',
+    '--limit',
+    '1',
+  ]);
+  if (exitCode !== 0) return null;
+  try {
+    const prs = JSON.parse(stdout.trim()) as ExistingPR[];
+    return prs.length > 0 ? prs[0] : null;
+  } catch {
+    return null;
+  }
+}

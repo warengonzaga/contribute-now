@@ -3,7 +3,13 @@ import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import { inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { checkCopilotAvailable, generatePRDescription } from '../utils/copilot.js';
-import { checkGhAuth, checkGhInstalled, createPR, createPRFill } from '../utils/gh.js';
+import {
+  checkGhAuth,
+  checkGhInstalled,
+  createPR,
+  createPRFill,
+  getPRForBranch,
+} from '../utils/gh.js';
 import {
   checkoutBranch,
   commitWithMessage,
@@ -159,6 +165,16 @@ export default defineCommand({
       } else {
         info('gh CLI not available. Create your PR manually on GitHub.');
       }
+      return;
+    }
+
+    // 3b. Check if a PR already exists for this branch
+    const existingPR = await getPRForBranch(currentBranch);
+    if (existingPR) {
+      success(
+        `Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`,
+      );
+      console.log(`  ${pc.cyan(existingPR.url)}`);
       return;
     }
 
