@@ -276,3 +276,57 @@ export async function getUntrackedFiles(): Promise<string[]> {
   if (exitCode !== 0) return [];
   return stdout.trim().split('\n').filter(Boolean);
 }
+
+export interface FileStatus {
+  staged: { file: string; status: string }[];
+  modified: { file: string; status: string }[];
+  untracked: string[];
+}
+
+/**
+ * Parse `git status --porcelain` into categorized file lists.
+ * - staged: files in the index (ready to commit)
+ * - modified: tracked files with unstaged changes
+ * - untracked: new files not yet tracked
+ */
+export async function getFileStatus(): Promise<FileStatus> {
+  const { exitCode, stdout } = await run(['status', '--porcelain']);
+  if (exitCode !== 0) return { staged: [], modified: [], untracked: [] };
+
+  const result: FileStatus = { staged: [], modified: [], untracked: [] };
+  const STATUS_LABELS: Record<string, string> = {
+    A: 'new file',
+    M: 'modified',
+    D: 'deleted',
+    R: 'renamed',
+    C: 'copied',
+    T: 'type changed',
+  };
+
+  for (const raw of stdout.trimEnd().split('\n').filter(Boolean)) {
+    const line = raw.replace(/\r$/, '');
+    const indexStatus = line[0];
+    const workTreeStatus = line[1];
+    const pathPart = line.slice(3);
+    // Handle renames: "old -> new"
+    const renameIdx = pathPart.indexOf(' -> ');
+    const file = renameIdx !== -1 ? pathPart.slice(renameIdx + 4) : pathPart;
+
+    if (indexStatus === '?' && workTreeStatus === '?') {
+      result.untracked.push(file);
+      continue;
+    }
+
+    // Index status (staged)
+    if (indexStatus && indexStatus !== ' ' && indexStatus !== '?') {
+      result.staged.push({ file, status: STATUS_LABELS[indexStatus] ?? indexStatus });
+    }
+
+    // Work-tree status (unstaged modifications)
+    if (workTreeStatus && workTreeStatus !== ' ' && workTreeStatus !== '?') {
+      result.modified.push({ file, status: STATUS_LABELS[workTreeStatus] ?? workTreeStatus });
+    }
+  }
+
+  return result;
+}

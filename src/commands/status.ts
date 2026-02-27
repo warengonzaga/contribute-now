@@ -5,6 +5,7 @@ import {
   fetchAll,
   getCurrentBranch,
   getDivergence,
+  getFileStatus,
   hasUncommittedChanges,
   isGitRepo,
 } from '../utils/git.js';
@@ -43,8 +44,11 @@ export default defineCommand({
     const baseBranch = getBaseBranch(config);
     const isContributor = config.role === 'contributor';
 
-    // Check uncommitted changes
-    const dirty = await hasUncommittedChanges();
+    // Check uncommitted changes and file status
+    const [dirty, fileStatus] = await Promise.all([
+      hasUncommittedChanges(),
+      getFileStatus(),
+    ]);
     if (dirty) {
       console.log(`  ${pc.yellow('⚠')}  ${pc.yellow('Uncommitted changes in working tree')}`);
       console.log();
@@ -73,6 +77,65 @@ export default defineCommand({
       console.log(branchLine + pc.dim(` (current ${pc.green('*')})`));
     } else if (currentBranch) {
       console.log(pc.dim(`  (on ${pc.bold(currentBranch)} branch)`));
+    }
+
+    // File status section
+    const hasFiles =
+      fileStatus.staged.length > 0 ||
+      fileStatus.modified.length > 0 ||
+      fileStatus.untracked.length > 0;
+
+    if (hasFiles) {
+      console.log();
+      if (fileStatus.staged.length > 0) {
+        console.log(`  ${pc.green('Staged for commit:')}`);
+        for (const { file, status } of fileStatus.staged) {
+          console.log(`    ${pc.green('+')} ${pc.dim(`${status}:`)} ${file}`);
+        }
+      }
+      if (fileStatus.modified.length > 0) {
+        console.log(`  ${pc.yellow('Unstaged changes:')}`);
+        for (const { file, status } of fileStatus.modified) {
+          console.log(`    ${pc.yellow('~')} ${pc.dim(`${status}:`)} ${file}`);
+        }
+      }
+      if (fileStatus.untracked.length > 0) {
+        console.log(`  ${pc.red('Untracked files:')}`);
+        for (const file of fileStatus.untracked) {
+          console.log(`    ${pc.red('?')} ${file}`);
+        }
+      }
+    } else if (!dirty) {
+      console.log(`  ${pc.green('✓')}  ${pc.dim('Working tree clean')}`);
+    }
+
+    // Contextual tips
+    const tips: string[] = [];
+    if (fileStatus.staged.length > 0) {
+      tips.push(`Run ${pc.bold('contrib commit')} to commit staged changes`);
+    }
+    if (fileStatus.modified.length > 0 || fileStatus.untracked.length > 0) {
+      tips.push(`Run ${pc.bold('contrib commit')} to stage and commit changes`);
+    }
+    if (
+      fileStatus.staged.length === 0 &&
+      fileStatus.modified.length === 0 &&
+      fileStatus.untracked.length === 0 &&
+      currentBranch &&
+      !protectedBranches.includes(currentBranch)
+    ) {
+      const branchDiv = await getDivergence(currentBranch, `${origin}/${currentBranch}`);
+      if (branchDiv.ahead > 0) {
+        tips.push(`Run ${pc.bold('contrib submit')} to push and create/update your PR`);
+      }
+    }
+
+    if (tips.length > 0) {
+      console.log();
+      console.log(`  ${pc.dim('💡 Tip:')}`);
+      for (const tip of tips) {
+        console.log(`     ${pc.dim(tip)}`);
+      }
     }
 
     console.log();
