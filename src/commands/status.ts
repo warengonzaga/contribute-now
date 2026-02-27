@@ -122,7 +122,8 @@ export default defineCommand({
       fileStatus.modified.length === 0 &&
       fileStatus.untracked.length === 0 &&
       currentBranch &&
-      !protectedBranches.includes(currentBranch)
+      currentBranch !== mainBranch &&
+      currentBranch !== config.devBranch
     ) {
       const branchDiv = await getDivergence(currentBranch, `${origin}/${currentBranch}`);
       if (branchDiv.ahead > 0) {
