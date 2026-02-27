@@ -1,4 +1,6 @@
 import { execFile as execFileCb } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { GitResult } from '../types.js';
 
 function run(args: string[]): Promise<GitResult> {
@@ -8,9 +10,7 @@ function run(args: string[]): Promise<GitResult> {
         exitCode: error
           ? (error as NodeJS.ErrnoException).code === 'ENOENT'
             ? 127
-            : (error as NodeJS.ErrnoException).code != null
-              ? Number((error as NodeJS.ErrnoException).code)
-              : 1
+            : ((error as { status?: number }).status ?? 1)
           : 0,
         stdout: stdout ?? '',
         stderr: stderr ?? '',
@@ -121,10 +121,21 @@ export async function getChangedFiles(): Promise<string[]> {
   const { exitCode, stdout } = await run(['status', '--porcelain']);
   if (exitCode !== 0) return [];
   return stdout
-    .trim()
+    .trimEnd()
     .split('\n')
     .filter(Boolean)
-    .map((l) => l.slice(3));
+    .map((l) => {
+      // Strip trailing \r (Windows CRLF compat)
+      const line = l.replace(/\r$/, '');
+      // Porcelain format: XY PATH — match 2-char status code + whitespace
+      const match = line.match(/^..\s+(.*)/);
+      if (!match) return '';
+      const file = match[1];
+      // Handle renames: "old -> new" — use the new name
+      const renameIdx = file.indexOf(' -> ');
+      return renameIdx !== -1 ? file.slice(renameIdx + 4) : file;
+    })
+    .filter(Boolean);
 }
 
 export async function getDivergence(
@@ -159,6 +170,26 @@ export async function deleteBranch(branch: string): Promise<GitResult> {
   return run(['branch', '-d', branch]);
 }
 
+/**
+ * Force-delete a local branch even if it hasn't been fully merged.
+ * Required after squash merges where git can't detect the merge.
+ */
+export async function forceDeleteBranch(branch: string): Promise<GitResult> {
+  return run(['branch', '-D', branch]);
+}
+
+export async function deleteRemoteBranch(remote: string, branch: string): Promise<GitResult> {
+  return run(['push', remote, '--delete', branch]);
+}
+
+export async function mergeSquash(branch: string): Promise<GitResult> {
+  return run(['merge', '--squash', branch]);
+}
+
+export async function pushBranch(remote: string, branch: string): Promise<GitResult> {
+  return run(['push', remote, branch]);
+}
+
 export async function pruneRemote(remote: string): Promise<GitResult> {
   return run(['remote', 'prune', remote]);
 }
@@ -180,4 +211,122 @@ export async function getLog(base: string, head: string): Promise<string[]> {
 
 export async function pullBranch(remote: string, branch: string): Promise<GitResult> {
   return run(['pull', remote, branch]);
+}
+
+export async function stageFiles(files: string[]): Promise<GitResult> {
+  return run(['add', '--', ...files]);
+}
+
+export async function unstageFiles(files: string[]): Promise<GitResult> {
+  return run(['reset', 'HEAD', '--', ...files]);
+}
+
+export async function stageAll(): Promise<GitResult> {
+  return run(['add', '-A']);
+}
+
+export async function getDiffForFiles(files: string[]): Promise<string> {
+  const { stdout } = await run(['diff', '--', ...files]);
+  return stdout;
+}
+
+/**
+ * Returns the combined staged + unstaged diff for the given files.
+ * For untracked files (no diff output), includes file content as context.
+ */
+export async function getFullDiffForFiles(files: string[]): Promise<string> {
+  const [unstaged, staged, untracked] = await Promise.all([
+    run(['diff', '--', ...files]),
+    run(['diff', '--cached', '--', ...files]),
+    getUntrackedFiles(),
+  ]);
+
+  const parts = [staged.stdout, unstaged.stdout].filter(Boolean);
+
+  // For untracked files, git diff produces nothing — read content directly
+  const untrackedSet = new Set(untracked);
+  const MAX_FILE_CONTENT = 2000;
+  for (const file of files) {
+    if (untrackedSet.has(file)) {
+      try {
+        const content = readFileSync(join(process.cwd(), file), 'utf-8');
+        const truncated =
+          content.length > MAX_FILE_CONTENT
+            ? `${content.slice(0, MAX_FILE_CONTENT)}\n... (truncated)`
+            : content;
+        // Format as a pseudo-diff so the AI understands it's a new file
+        const lines = truncated.split('\n').map((l) => `+${l}`);
+        parts.push(
+          `diff --git a/${file} b/${file}\nnew file\n--- /dev/null\n+++ b/${file}\n${lines.join('\n')}`,
+        );
+      } catch {
+        // If we can't read the file (binary, etc.), skip it
+      }
+    }
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Returns a list of untracked files (not yet added to the index).
+ */
+export async function getUntrackedFiles(): Promise<string[]> {
+  const { exitCode, stdout } = await run(['ls-files', '--others', '--exclude-standard']);
+  if (exitCode !== 0) return [];
+  return stdout.trim().split('\n').filter(Boolean);
+}
+
+export interface FileStatus {
+  staged: { file: string; status: string }[];
+  modified: { file: string; status: string }[];
+  untracked: string[];
+}
+
+/**
+ * Parse `git status --porcelain` into categorized file lists.
+ * - staged: files in the index (ready to commit)
+ * - modified: tracked files with unstaged changes
+ * - untracked: new files not yet tracked
+ */
+export async function getFileStatus(): Promise<FileStatus> {
+  const { exitCode, stdout } = await run(['status', '--porcelain']);
+  if (exitCode !== 0) return { staged: [], modified: [], untracked: [] };
+
+  const result: FileStatus = { staged: [], modified: [], untracked: [] };
+  const STATUS_LABELS: Record<string, string> = {
+    A: 'new file',
+    M: 'modified',
+    D: 'deleted',
+    R: 'renamed',
+    C: 'copied',
+    T: 'type changed',
+  };
+
+  for (const raw of stdout.trimEnd().split('\n').filter(Boolean)) {
+    const line = raw.replace(/\r$/, '');
+    const indexStatus = line[0];
+    const workTreeStatus = line[1];
+    const pathPart = line.slice(3);
+    // Handle renames: "old -> new"
+    const renameIdx = pathPart.indexOf(' -> ');
+    const file = renameIdx !== -1 ? pathPart.slice(renameIdx + 4) : pathPart;
+
+    if (indexStatus === '?' && workTreeStatus === '?') {
+      result.untracked.push(file);
+      continue;
+    }
+
+    // Index status (staged)
+    if (indexStatus && indexStatus !== ' ' && indexStatus !== '?') {
+      result.staged.push({ file, status: STATUS_LABELS[indexStatus] ?? indexStatus });
+    }
+
+    // Work-tree status (unstaged modifications)
+    if (workTreeStatus && workTreeStatus !== ' ' && workTreeStatus !== '?') {
+      result.modified.push({ file, status: STATUS_LABELS[workTreeStatus] ?? workTreeStatus });
+    }
+  }
+
+  return result;
 }

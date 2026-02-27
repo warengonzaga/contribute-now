@@ -17,7 +17,22 @@ export function readConfig(cwd = process.cwd()): ContributeConfig | null {
   if (!existsSync(path)) return null;
   try {
     const raw = readFileSync(path, 'utf-8');
-    return JSON.parse(raw) as ContributeConfig;
+    const parsed = JSON.parse(raw);
+    // Runtime validation of required fields
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof parsed.workflow !== 'string' ||
+      typeof parsed.role !== 'string' ||
+      typeof parsed.mainBranch !== 'string' ||
+      typeof parsed.upstream !== 'string' ||
+      typeof parsed.origin !== 'string' ||
+      !Array.isArray(parsed.branchPrefixes) ||
+      typeof parsed.commitConvention !== 'string'
+    ) {
+      return null;
+    }
+    return parsed as ContributeConfig;
   } catch {
     return null;
   }

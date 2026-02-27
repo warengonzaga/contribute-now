@@ -1,61 +1,52 @@
+import * as clack from '@clack/prompts';
 import pc from 'picocolors';
 
-export async function confirmPrompt(message: string): Promise<boolean> {
-  console.log(`\n${message}`);
-  process.stdout.write(`${pc.dim('Continue? [y/N] ')}`);
-
-  const response = await new Promise<string>((resolve) => {
-    process.stdin.setEncoding('utf-8');
-    process.stdin.once('data', (data) => {
-      process.stdin.pause();
-      resolve(data.toString().trim());
-    });
-    process.stdin.resume();
-  });
-
-  if (response.toLowerCase() !== 'y') {
-    console.log(pc.yellow('Aborted.'));
-    return false;
+/**
+ * Handle cancellation (Ctrl+C / Esc) from any clack prompt.
+ * Exits cleanly with a "Cancelled." message.
+ */
+function handleCancel(value: unknown): void {
+  if (clack.isCancel(value)) {
+    clack.cancel('Cancelled.');
+    process.exit(0);
   }
+}
 
-  return true;
+export async function confirmPrompt(message: string): Promise<boolean> {
+  const result = await clack.confirm({ message });
+  handleCancel(result);
+  return result as boolean;
 }
 
 export async function selectPrompt(message: string, choices: string[]): Promise<string> {
-  console.log(`\n${message}`);
-  choices.forEach((choice, i) => {
-    console.log(`  ${pc.dim(`${i + 1}.`)} ${choice}`);
+  const result = await clack.select({
+    message,
+    options: choices.map((choice) => ({ value: choice, label: choice })),
   });
-  process.stdout.write(pc.dim(`Enter number [1-${choices.length}]: `));
-
-  const response = await new Promise<string>((resolve) => {
-    process.stdin.setEncoding('utf-8');
-    process.stdin.once('data', (data) => {
-      process.stdin.pause();
-      resolve(data.toString().trim());
-    });
-    process.stdin.resume();
-  });
-
-  const index = Number.parseInt(response, 10) - 1;
-  if (index >= 0 && index < choices.length) {
-    return choices[index];
-  }
-  return choices[0];
+  handleCancel(result);
+  return result as string;
 }
 
 export async function inputPrompt(message: string, defaultValue?: string): Promise<string> {
-  const hint = defaultValue ? ` ${pc.dim(`[${defaultValue}]`)}` : '';
-  process.stdout.write(`\n${message}${hint}: `);
-
-  const response = await new Promise<string>((resolve) => {
-    process.stdin.setEncoding('utf-8');
-    process.stdin.once('data', (data) => {
-      process.stdin.pause();
-      resolve(data.toString().trim());
-    });
-    process.stdin.resume();
+  const result = await clack.text({
+    message,
+    placeholder: defaultValue,
+    defaultValue,
   });
+  handleCancel(result);
+  return (result as string) || defaultValue || '';
+}
 
-  return response || defaultValue || '';
+/**
+ * Multi-select prompt with arrow-key navigation and space-to-toggle.
+ * Returns the selected items as strings.
+ */
+export async function multiSelectPrompt(message: string, choices: string[]): Promise<string[]> {
+  const result = await clack.multiselect({
+    message: `${message} ${pc.dim('(space to toggle, enter to confirm)')}`,
+    options: choices.map((choice) => ({ value: choice, label: choice })),
+    required: false,
+  });
+  handleCancel(result);
+  return result as string[];
 }

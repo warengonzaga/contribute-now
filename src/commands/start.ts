@@ -1,6 +1,11 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import { formatBranchName, hasPrefix, looksLikeNaturalLanguage } from '../utils/branch.js';
+import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from '../utils/branch.js';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { suggestBranchName } from '../utils/copilot.js';
@@ -12,6 +17,7 @@ import {
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -62,9 +68,10 @@ export default defineCommand({
     // AI enhancement: if name looks like natural language, suggest a branch name
     const useAI = !args['no-ai'] && looksLikeNaturalLanguage(branchName);
     if (useAI) {
-      info('Generating branch name suggestion from description...');
+      const spinner = createSpinner('Generating branch name suggestion...');
       const suggested = await suggestBranchName(branchName, args.model);
       if (suggested) {
+        spinner.success('Branch name suggestion ready.');
         console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
         const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
         if (accepted) {
@@ -72,6 +79,8 @@ export default defineCommand({
         } else {
           branchName = await inputPrompt('Enter branch name', branchName);
         }
+      } else {
+        spinner.fail('AI did not return a branch name suggestion.');
       }
     }
 
@@ -82,6 +91,14 @@ export default defineCommand({
         branchPrefixes,
       );
       branchName = formatBranchName(prefix, branchName);
+    }
+
+    // Validate final branch name before any git operations
+    if (!isValidBranchName(branchName)) {
+      error(
+        'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+      );
+      process.exit(1);
     }
 
     info(`Creating branch: ${pc.bold(branchName)}`);

@@ -5,9 +5,9 @@ function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr
     execFileCb('gh', args, (error, stdout, stderr) => {
       resolve({
         exitCode: error
-          ? (error as NodeJS.ErrnoException).code != null
-            ? Number((error as NodeJS.ErrnoException).code)
-            : 1
+          ? (error as NodeJS.ErrnoException).code === 'ENOENT'
+            ? 127
+            : ((error as { status?: number }).status ?? 1)
           : 0,
         stdout: stdout ?? '',
         stderr: stderr ?? '',
@@ -40,10 +40,13 @@ export interface RepoPermissions {
   pull: boolean;
 }
 
+const SAFE_SLUG = /^[\w.-]+$/;
+
 export async function checkRepoPermissions(
   owner: string,
   repo: string,
 ): Promise<RepoPermissions | null> {
+  if (!SAFE_SLUG.test(owner) || !SAFE_SLUG.test(repo)) return null;
   const { exitCode, stdout } = await run(['api', `repos/${owner}/${repo}`, '--jq', '.permissions']);
   if (exitCode !== 0) return null;
   try {
@@ -106,4 +109,37 @@ export async function createPRFill(
   const args = ['pr', 'create', '--base', base, '--fill'];
   if (draft) args.push('--draft');
   return run(args);
+}
+
+export interface ExistingPR {
+  number: number;
+  url: string;
+  title: string;
+  state: string;
+}
+
+/**
+ * Check if an open PR already exists for the given head branch.
+ * Returns the PR info if found, or null if none exists.
+ */
+export async function getPRForBranch(headBranch: string): Promise<ExistingPR | null> {
+  const { exitCode, stdout } = await run([
+    'pr',
+    'list',
+    '--head',
+    headBranch,
+    '--state',
+    'open',
+    '--json',
+    'number,url,title,state',
+    '--limit',
+    '1',
+  ]);
+  if (exitCode !== 0) return null;
+  try {
+    const prs = JSON.parse(stdout.trim()) as ExistingPR[];
+    return prs.length > 0 ? prs[0] : null;
+  } catch {
+    return null;
+  }
 }

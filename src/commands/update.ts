@@ -13,6 +13,7 @@ import {
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -100,13 +101,17 @@ export default defineCommand({
           }
 
           if (conflictDiff) {
+            const spinner = createSpinner('Analyzing conflicts with AI...');
             const suggestion = await suggestConflictResolution(conflictDiff, args.model);
             if (suggestion) {
+              spinner.success('AI conflict guidance ready.');
               console.log(`\n${pc.bold('💡 AI Conflict Resolution Guidance:')}`);
               console.log(pc.dim('─'.repeat(60)));
               console.log(suggestion);
               console.log(pc.dim('─'.repeat(60)));
               console.log();
+            } else {
+              spinner.fail('AI could not analyze the conflicts.');
             }
           }
         }
