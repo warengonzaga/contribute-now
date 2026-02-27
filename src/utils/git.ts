@@ -121,7 +121,7 @@ export async function getChangedFiles(): Promise<string[]> {
   const { exitCode, stdout } = await run(['status', '--porcelain']);
   if (exitCode !== 0) return [];
   return stdout
-    .trim()
+    .trimEnd()
     .split('\n')
     .filter(Boolean)
     .map((l) => {
@@ -168,6 +168,26 @@ export async function getMergedBranches(base: string): Promise<string[]> {
 
 export async function deleteBranch(branch: string): Promise<GitResult> {
   return run(['branch', '-d', branch]);
+}
+
+/**
+ * Force-delete a local branch even if it hasn't been fully merged.
+ * Required after squash merges where git can't detect the merge.
+ */
+export async function forceDeleteBranch(branch: string): Promise<GitResult> {
+  return run(['branch', '-D', branch]);
+}
+
+export async function deleteRemoteBranch(remote: string, branch: string): Promise<GitResult> {
+  return run(['push', remote, '--delete', branch]);
+}
+
+export async function mergeSquash(branch: string): Promise<GitResult> {
+  return run(['merge', '--squash', branch]);
+}
+
+export async function pushBranch(remote: string, branch: string): Promise<GitResult> {
+  return run(['push', remote, branch]);
 }
 
 export async function pruneRemote(remote: string): Promise<GitResult> {
