@@ -1,15 +1,29 @@
 import { readFileSync } from 'node:fs';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import { readConfig } from '../utils/config.js';
-import { checkCopilotAvailable, suggestConflictResolution } from '../utils/copilot.js';
 import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from '../utils/branch.js';
+import { readConfig } from '../utils/config.js';
+import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { checkCopilotAvailable, suggestBranchName, suggestConflictResolution } from '../utils/copilot.js';
+import { getMergedPRForBranch } from '../utils/gh.js';
+import {
+  checkoutBranch,
   fetchRemote,
+  forceDeleteBranch,
   getChangedFiles,
   getCurrentBranch,
+  getUpstreamRef,
+  hasLocalWork,
   hasUncommittedChanges,
   isGitRepo,
   rebase,
+  rebaseOnto,
+  renameBranch,
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
@@ -69,17 +83,139 @@ export default defineCommand({
     }
 
     heading('🔃 contrib update');
+
+    // 3. Check if the branch's PR has already been merged (stale branch)
+    const mergedPR = await getMergedPRForBranch(currentBranch);
+    if (mergedPR) {
+      warn(
+        `PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`,
+      );
+      info(`Link: ${pc.underline(mergedPR.url)}`);
+
+      const localWork = await hasLocalWork(syncSource.remote, currentBranch);
+      const hasWork = localWork.uncommitted || localWork.unpushedCommits > 0;
+
+      if (hasWork) {
+        if (localWork.uncommitted) {
+          info('You have uncommitted local changes.');
+        }
+        if (localWork.unpushedCommits > 0) {
+          info(`You have ${localWork.unpushedCommits} unpushed commit(s).`);
+        }
+
+        const SAVE_NEW_BRANCH = 'Save changes to a new branch';
+        const DISCARD = 'Discard all changes and clean up';
+        const CANCEL = 'Cancel';
+
+        const action = await selectPrompt(
+          `${pc.bold(currentBranch)} is stale but has local work. What would you like to do?`,
+          [SAVE_NEW_BRANCH, DISCARD, CANCEL],
+        );
+
+        if (action === CANCEL) {
+          info('No changes made. You are still on your current branch.');
+          return;
+        }
+
+        if (action === SAVE_NEW_BRANCH) {
+          info(pc.dim('Tip: Describe what you\'re working on in plain English and we\'ll generate a branch name.'));
+          const description = await inputPrompt('What are you working on?');
+
+          let newBranchName = description;
+          if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
+            const spinner = createSpinner('Generating branch name suggestion...');
+            const suggested = await suggestBranchName(description, args.model);
+            if (suggested) {
+              spinner.success('Branch name suggestion ready.');
+              console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
+              const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
+              newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+            } else {
+              spinner.fail('AI did not return a suggestion.');
+              newBranchName = await inputPrompt('Enter branch name', description);
+            }
+          }
+
+          if (!hasPrefix(newBranchName, config.branchPrefixes)) {
+            const prefix = await selectPrompt(
+              `Choose a branch type for ${pc.bold(newBranchName)}:`,
+              config.branchPrefixes,
+            );
+            newBranchName = formatBranchName(prefix, newBranchName);
+          }
+
+          if (!isValidBranchName(newBranchName)) {
+            error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+            process.exit(1);
+          }
+
+          const renameResult = await renameBranch(currentBranch, newBranchName);
+          if (renameResult.exitCode !== 0) {
+            error(`Failed to rename branch: ${renameResult.stderr}`);
+            process.exit(1);
+          }
+          success(`Renamed ${pc.bold(currentBranch)} → ${pc.bold(newBranchName)}`);
+
+          // Rebase onto latest base so saved work is up-to-date.
+          // Use --onto if upstream tracking ref differs to avoid replaying already-merged commits.
+          await fetchRemote(syncSource.remote);
+          const savedUpstreamRef = await getUpstreamRef();
+          const rebaseResult =
+            savedUpstreamRef && savedUpstreamRef !== syncSource.ref
+              ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
+              : await rebase(syncSource.ref);
+          if (rebaseResult.exitCode !== 0) {
+            warn('Rebase encountered conflicts. Resolve them manually, then run:');
+            info(`  ${pc.bold('git rebase --continue')}`);
+          } else {
+            success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
+          }
+
+          info(
+            `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+          );
+          return;
+        }
+
+        // DISCARD path
+        warn('Discarding local changes...');
+      }
+
+      // No local work or user chose discard — switch to base, sync, delete stale branch
+      await fetchRemote(syncSource.remote);
+      const coResult = await checkoutBranch(baseBranch);
+      if (coResult.exitCode !== 0) {
+        error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
+        process.exit(1);
+      }
+      await updateLocalBranch(baseBranch, syncSource.ref);
+      success(`Synced ${pc.bold(baseBranch)} with ${pc.bold(syncSource.ref)}.`);
+
+      info(`Deleting stale branch ${pc.bold(currentBranch)}...`);
+      await forceDeleteBranch(currentBranch);
+      success(`Deleted ${pc.bold(currentBranch)}.`);
+
+      info(`Run ${pc.bold('contrib start')} to begin a new feature branch.`);
+      return;
+    }
+
     info(`Updating ${pc.bold(currentBranch)} with latest ${pc.bold(baseBranch)}...`);
 
-    // 3. Fetch + update local base branch ref (without switching to it)
+    // 4. Fetch + update local base branch ref (without switching to it)
     await fetchRemote(syncSource.remote);
     await updateLocalBranch(baseBranch, syncSource.ref);
 
-    // 4. git rebase base branch
-    const rebaseResult = await rebase(baseBranch);
+    // 5. Rebase onto the sync target, using --onto if the upstream tracking ref differs
+    //    (e.g. branch was based on feature/X which is now merged into dev — plain rebase
+    //    would re-apply already-merged commits and cause conflicts).
+    const upstreamRef = await getUpstreamRef();
+    const rebaseResult =
+      upstreamRef && upstreamRef !== syncSource.ref
+        ? await rebaseOnto(syncSource.ref, upstreamRef)
+        : await rebase(syncSource.ref);
 
     if (rebaseResult.exitCode !== 0) {
-      // 5. On conflict: AI suggestions
+      // 6. On conflict: AI suggestions
       warn('Rebase hit conflicts. Resolve them manually.');
       console.log();
 

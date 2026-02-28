@@ -106,6 +106,18 @@ export async function rebase(branch: string): Promise<GitResult> {
   return run(['rebase', branch]);
 }
 
+/** Returns the upstream tracking ref for the current branch (e.g. "origin/feature/git-add"), or null if none. */
+export async function getUpstreamRef(): Promise<string | null> {
+  const { exitCode, stdout } = await run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/** Rebases commits not in `oldBase` onto `newBase` (git rebase --onto newBase oldBase). */
+export async function rebaseOnto(newBase: string, oldBase: string): Promise<GitResult> {
+  return run(['rebase', '--onto', newBase, oldBase]);
+}
+
 export async function getStagedDiff(): Promise<string> {
   const { stdout } = await run(['diff', '--cached']);
   return stdout;
@@ -166,6 +178,24 @@ export async function getMergedBranches(base: string): Promise<string[]> {
     .filter(Boolean);
 }
 
+/**
+ * Returns local branches whose remote tracking branch has been deleted.
+ * After `git fetch --prune`, branches with upstream set to `[gone]` are
+ * stale — typically because the remote branch was deleted after a merge.
+ * This catches squash-merged branches that `git branch --merged` misses.
+ */
+export async function getGoneBranches(): Promise<string[]> {
+  // `git branch -vv` shows tracking info like [origin/branch: gone]
+  const { exitCode, stdout } = await run(['branch', '-vv']);
+  if (exitCode !== 0) return [];
+  return stdout
+    .trimEnd()
+    .split('\n')
+    .filter((line) => line.includes(': gone]'))
+    .map((line) => line.replace(/^\*?\s+/, '').split(/\s+/)[0])
+    .filter(Boolean);
+}
+
 export async function deleteBranch(branch: string): Promise<GitResult> {
   return run(['branch', '-d', branch]);
 }
@@ -176,6 +206,31 @@ export async function deleteBranch(branch: string): Promise<GitResult> {
  */
 export async function forceDeleteBranch(branch: string): Promise<GitResult> {
   return run(['branch', '-D', branch]);
+}
+
+/**
+ * Rename a local branch. Preserves all commits and uncommitted changes.
+ * If renaming the current branch, just pass the new name.
+ */
+export async function renameBranch(oldName: string, newName: string): Promise<GitResult> {
+  return run(['branch', '-m', oldName, newName]);
+}
+
+/**
+ * Check if the current branch has local work that would be lost if deleted.
+ * Returns true if there are uncommitted changes OR unpushed commits
+ * (commits ahead of the remote tracking branch).
+ */
+export async function hasLocalWork(remote: string, branch: string): Promise<{
+  uncommitted: boolean;
+  unpushedCommits: number;
+}> {
+  const uncommitted = await hasUncommittedChanges();
+  const trackingRef = `${remote}/${branch}`;
+  // Check for commits that exist locally but not on remote
+  const { exitCode, stdout } = await run(['rev-list', '--count', `${trackingRef}..${branch}`]);
+  const unpushedCommits = exitCode === 0 ? Number.parseInt(stdout.trim(), 10) || 0 : 0;
+  return { uncommitted, unpushedCommits };
 }
 
 export async function deleteRemoteBranch(remote: string, branch: string): Promise<GitResult> {
