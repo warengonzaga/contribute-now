@@ -12,6 +12,7 @@ describe('git utility module', () => {
     expect(typeof mod.hasUncommittedChanges).toBe('function');
     expect(typeof mod.branchExists).toBe('function');
     expect(typeof mod.commitsBetween).toBe('function');
+    expect(typeof mod.countCommitsAhead).toBe('function');
     expect(typeof mod.getDivergence).toBe('function');
   });
 });
