@@ -11,7 +11,14 @@ import {
   getCurrentRepoInfo,
   isRepoFork,
 } from '../utils/gh.js';
-import { getRemotes, getRemoteUrl, isGitRepo } from '../utils/git.js';
+import {
+  addRemote,
+  fetchRemote,
+  getRemotes,
+  getRemoteUrl,
+  isGitRepo,
+  refExists,
+} from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
@@ -148,8 +155,17 @@ export default defineCommand({
         );
 
         if (upstreamUrl) {
-          info(`Run: git remote add ${upstreamRemote} ${upstreamUrl}`);
-          warn('Please add the upstream remote and re-run setup, or add it manually.');
+          const addResult = await addRemote(upstreamRemote, upstreamUrl);
+          if (addResult.exitCode !== 0) {
+            error(`Failed to add remote "${upstreamRemote}": ${addResult.stderr.trim()}`);
+            error('Setup cannot continue without the upstream remote for contributors.');
+            process.exit(1);
+          }
+          success(`Added remote ${pc.bold(upstreamRemote)} → ${upstreamUrl}`);
+        } else {
+          error('An upstream remote URL is required for contributors.');
+          info('Add it manually: git remote add upstream <url>');
+          process.exit(1);
         }
       }
     }
@@ -168,6 +184,24 @@ export default defineCommand({
 
     writeConfig(config);
     success(`✅ Config written to .contributerc.json`);
+
+    // Verify configured branches exist on their remotes
+    const syncRemote = config.role === 'contributor' ? config.upstream : config.origin;
+    info(`Fetching ${pc.bold(syncRemote)} to verify branch configuration...`);
+    await fetchRemote(syncRemote);
+
+    const mainRef = `${syncRemote}/${config.mainBranch}`;
+    if (!(await refExists(mainRef))) {
+      warn(`Main branch ref ${pc.bold(mainRef)} not found on remote.`);
+      warn('Config was saved — verify the branch name and re-run setup if needed.');
+    }
+    if (config.devBranch) {
+      const devRef = `${syncRemote}/${config.devBranch}`;
+      if (!(await refExists(devRef))) {
+        warn(`Dev branch ref ${pc.bold(devRef)} not found on remote.`);
+        warn('Config was saved — verify the branch name and re-run setup if needed.');
+      }
+    }
 
     // 7. Warn if not in .gitignore
     if (!isGitignored()) {

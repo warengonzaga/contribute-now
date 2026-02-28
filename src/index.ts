@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { defineCommand, runMain } from 'citty';
+import branch from './commands/branch.js';
 import clean from './commands/clean.js';
 import commit from './commands/commit.js';
+import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
+import log from './commands/log.js';
 import setup from './commands/setup.js';
 import start from './commands/start.js';
 import status from './commands/status.js';
@@ -12,8 +15,29 @@ import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
 
-const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
-showBanner(isHelp);
+const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
+
+if (!isVersion) {
+  const subCommands = [
+    'setup',
+    'sync',
+    'start',
+    'commit',
+    'update',
+    'submit',
+    'clean',
+    'status',
+    'log',
+    'branch',
+    'hook',
+    'validate',
+    'doctor',
+  ];
+  const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
+  const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
+  const useBigBanner = isHelp || !hasSubCommand;
+  showBanner(useBigBanner ? 'big' : 'small');
+}
 
 const main = defineCommand({
   meta: {
@@ -36,10 +60,13 @@ const main = defineCommand({
     commit,
     update,
     submit,
+    branch,
     clean,
     status,
+    log,
     hook,
     validate,
+    doctor,
   },
   run({ args }) {
     if (args.version) {
@@ -48,4 +75,9 @@ const main = defineCommand({
   },
 });
 
-runMain(main);
+runMain(main).then(() => {
+  // Ensure the process exits cleanly after any command completes.
+  // Citty does not call process.exit() and interactive prompts
+  // may leave stdin open, preventing the event loop from draining.
+  process.exit(0);
+});

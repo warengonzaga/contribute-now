@@ -87,4 +87,88 @@ describe('config utilities', () => {
     expect(read).toEqual(cfg);
     expect(read?.devBranch).toBeUndefined();
   });
+
+  it('readConfig returns null for invalid workflow enum', () => {
+    const cfg = {
+      workflow: 'yolo-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('readConfig returns null for invalid role enum', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'admin',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('readConfig returns null for invalid commitConvention enum', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'gitmoji',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('readConfig returns null for empty mainBranch', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: '  ',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('readConfig returns null for empty branchPrefixes', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+      commitConvention: 'clean-commit',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('readConfig returns null for empty upstream when role is contributor', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      upstream: '  ',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+    };
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+    expect(readConfig(TEST_DIR)).toBeNull();
+  });
 });

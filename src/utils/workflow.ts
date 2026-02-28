@@ -81,6 +81,7 @@ export function getSyncSource(config: ContributeConfig): {
 
 /**
  * Returns the list of protected branches that should never be deleted.
+ * For git-flow, this also protects release/* and hotfix/* prefixes.
  */
 export function getProtectedBranches(config: ContributeConfig): string[] {
   const branches = [config.mainBranch];
@@ -88,4 +89,28 @@ export function getProtectedBranches(config: ContributeConfig): string[] {
     branches.push(config.devBranch);
   }
   return branches;
+}
+
+/**
+ * Returns prefixes for branches that are protected in the given workflow.
+ * For git-flow, release/* and hotfix/* branches are semantically protected
+ * and should not be deleted by `contrib clean`.
+ */
+export function getProtectedPrefixes(config: ContributeConfig): string[] {
+  if (config.workflow === 'git-flow') {
+    return ['release/', 'hotfix/'];
+  }
+  return [];
+}
+
+/**
+ * Returns true if the given branch name is protected (either exact match
+ * or matches a protected prefix pattern like release/* or hotfix/*).
+ */
+export function isBranchProtected(branch: string, config: ContributeConfig): boolean {
+  const protectedBranches = getProtectedBranches(config);
+  if (protectedBranches.includes(branch)) return true;
+
+  const protectedPrefixes = getProtectedPrefixes(config);
+  return protectedPrefixes.some((prefix) => branch.startsWith(prefix));
 }

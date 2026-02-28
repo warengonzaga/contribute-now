@@ -2,11 +2,18 @@ import figlet from 'figlet';
 import pc from 'picocolors';
 import pkg from '../../package.json';
 
-let LOGO: string;
+let LOGO_BIG: string;
 try {
-  LOGO = figlet.textSync('Contribute\nNow', { font: 'ANSI Shadow' });
+  LOGO_BIG = figlet.textSync('Contribute\nNow', { font: 'ANSI Shadow' });
 } catch {
-  LOGO = 'Contribute Now';
+  LOGO_BIG = 'Contribute Now';
+}
+
+let LOGO_SMALL: string;
+try {
+  LOGO_SMALL = figlet.textSync('Contribute Now', { font: 'Slant' });
+} catch {
+  LOGO_SMALL = 'Contribute Now';
 }
 
 export function getVersion(): string {
@@ -17,13 +24,14 @@ export function getAuthor(): string {
   return typeof pkg.author === 'string' ? pkg.author : 'unknown';
 }
 
-export function showBanner(showLinks = false): void {
-  console.log(pc.cyan(`\n${LOGO}`));
+export function showBanner(variant: 'big' | 'small' = 'small'): void {
+  const logo = variant === 'big' ? LOGO_BIG : LOGO_SMALL;
+  console.log(pc.cyan(`\n${logo}`));
   console.log(
     `  ${pc.dim(`v${getVersion()}`)} ${pc.dim('—')} ${pc.dim(`Built by ${getAuthor()}`)}`,
   );
 
-  if (showLinks) {
+  if (variant === 'big') {
     console.log();
     console.log(
       `  ${pc.yellow('Star')}        ${pc.cyan('https://github.com/warengonzaga/contribute-now')}`,
