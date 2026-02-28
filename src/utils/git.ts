@@ -485,3 +485,69 @@ export async function getFileStatus(): Promise<FileStatus> {
 
   return result;
 }
+
+/**
+ * Returns a decorated, graph-formatted git log.
+ * Replicates `git log --oneline --graph --decorate` with optional filters.
+ *
+ * @param options.count  - Max number of commits to show (default: 20)
+ * @param options.all    - Show all branches, not just current (default: false)
+ * @param options.branch - Specific branch to show log for
+ */
+export async function getLogGraph(options?: {
+  count?: number;
+  all?: boolean;
+  branch?: string;
+}): Promise<string[]> {
+  const count = options?.count ?? 20;
+  const args = [
+    'log',
+    '--oneline',
+    '--graph',
+    '--decorate',
+    `--max-count=${count}`,
+    '--color=never',
+  ];
+  if (options?.all) {
+    args.push('--all');
+  }
+  if (options?.branch) {
+    args.push(options.branch);
+  }
+  const { exitCode, stdout } = await run(args);
+  if (exitCode !== 0) return [];
+  return stdout.trimEnd().split('\n');
+}
+
+/**
+ * Returns the raw log entries (hash + subject) for a branch range.
+ * Each entry is `{ hash, subject, refs }` for structured rendering.
+ */
+export async function getLogEntries(options?: {
+  count?: number;
+  all?: boolean;
+  branch?: string;
+}): Promise<{ hash: string; subject: string; refs: string }[]> {
+  const count = options?.count ?? 20;
+  const args = [
+    'log',
+    `--format=%h||%s||%D`,
+    `--max-count=${count}`,
+  ];
+  if (options?.all) {
+    args.push('--all');
+  }
+  if (options?.branch) {
+    args.push(options.branch);
+  }
+  const { exitCode, stdout } = await run(args);
+  if (exitCode !== 0) return [];
+  return stdout
+    .trimEnd()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [hash = '', subject = '', refs = ''] = line.split('||');
+      return { hash: hash.trim(), subject: subject.trim(), refs: refs.trim() };
+    });
+}

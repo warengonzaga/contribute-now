@@ -4,6 +4,7 @@ import clean from './commands/clean.js';
 import commit from './commands/commit.js';
 import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
+import log from './commands/log.js';
 import setup from './commands/setup.js';
 import start from './commands/start.js';
 import status from './commands/status.js';
@@ -16,7 +17,7 @@ import { getVersion, showBanner } from './ui/banner.js';
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 
 if (!isVersion) {
-  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'hook', 'validate', 'doctor'];
+  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'log', 'hook', 'validate', 'doctor'];
   const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
   const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
   const useBigBanner = isHelp || !hasSubCommand;
@@ -46,6 +47,7 @@ const main = defineCommand({
     submit,
     clean,
     status,
+    log,
     hook,
     validate,
     doctor,
