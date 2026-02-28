@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.3.0] - 2026-02-28
+
+### Added
+
+- add protected branch prefix detection for git-flow
+- add branch listing command with workflow-aware labels
+- add colorized workflow-aware commit log command
+- add suggestBranchName AI utility
+- add group commit mode and interactive staging (#3)
+
+### Changed
+
+- minor formatting and UX improvements
+- expose shallow clone, in-progress ops, and lock file checks
+- auto-add upstream remote and verify branch refs after save
+- guard against unclean git state and duplicate branch names
+- add enum and field validation in readConfig
+- strengthen branch name validation with full git rules
+- add git state detection, lock guard, and new utility functions
+- auto-accept ai commit message and skip missing remote branch deletion
+- improve interactive branch workflow with AI suggestions
+- recover gracefully when submitting from a protected branch
+- add small banner variant and skip banner for version flag
+- add doctor command, fix rebase strategy, and refactor submit
+- add AI branch name suggestion on save
+- improve PR title generation prompt clarity (#5)
+- enhance git workflows with AI, rebase, and stale branch handling (#4)
+
 ## [0.2.1] - 2026-02-26
 
 ### Changed

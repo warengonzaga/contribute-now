@@ -1,6 +1,6 @@
 {
   "name": "contribute-now",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main after squash merges.",
   "type": "module",
   "bin": {
