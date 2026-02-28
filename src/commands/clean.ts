@@ -11,6 +11,9 @@ import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { suggestBranchName } from '../utils/copilot.js';
 import { checkGhAuth, checkGhInstalled, getMergedPRForBranch } from '../utils/gh.js';
 import {
+  assertCleanGitState,
+  branchExists,
+  checkoutBranch,
   deleteBranch,
   fetchRemote,
   forceDeleteBranch,
@@ -22,13 +25,20 @@ import {
   isGitRepo,
   pruneRemote,
   rebase,
+  rebaseAbort,
   rebaseOnto,
   renameBranch,
+  resetHard,
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
-import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
+import {
+  getBaseBranch,
+  getProtectedBranches,
+  getSyncSource,
+  isBranchProtected,
+} from '../utils/workflow.js';
 
 /**
  * If the user is on a branch that's about to be deleted, check for
@@ -108,6 +118,11 @@ async function handleCurrentBranchDeletion(
         return 'skipped';
       }
 
+      if (await branchExists(newBranchName)) {
+        error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+        return 'skipped';
+      }
+
       const renameResult = await renameBranch(currentBranch, newBranchName);
       if (renameResult.exitCode !== 0) {
         error(`Failed to rename branch: ${renameResult.stderr}`);
@@ -124,8 +139,11 @@ async function handleCurrentBranchDeletion(
           ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
           : await rebase(syncSource.ref);
       if (rebaseResult.exitCode !== 0) {
-        warn('Rebase encountered conflicts. Resolve them after cleanup:');
-        info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase --continue`)}`);
+        // Abort the conflicting rebase so the repo isn't left in a broken state
+        await rebaseAbort();
+        warn('Rebase had conflicts — aborted to keep the repo in a clean state.');
+        info(`Your work is saved on ${pc.bold(newBranchName)}. After cleanup, rebase manually:`);
+        info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase ${syncSource.ref}`)}`);
       } else {
         success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
       }
@@ -146,6 +164,7 @@ async function handleCurrentBranchDeletion(
   const syncSource = getSyncSource(config);
   info(`Switching to ${pc.bold(baseBranch)} and syncing...`);
   await fetchRemote(syncSource.remote);
+  await resetHard('HEAD');
   const coResult = await checkoutBranch(baseBranch);
   if (coResult.exitCode !== 0) {
     error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
@@ -175,6 +194,9 @@ export default defineCommand({
       process.exit(1);
     }
 
+    // Guard: check for in-progress git operations, lock files, and shallow clone
+    await assertCleanGitState('cleaning');
+
     const config = readConfig();
     if (!config) {
       error('No .contributerc.json found. Run `contrib setup` first.');
@@ -198,22 +220,24 @@ export default defineCommand({
 
     // Protected branches should never be deleted (but current branch CAN be if it's stale)
     const protectedBranches = new Set(getProtectedBranches(config));
+    // Helper that also checks workflow-specific prefixes (e.g. release/*, hotfix/* in git-flow)
+    const isProtected = (b: string) => protectedBranches.has(b) || isBranchProtected(b, config);
 
     // 2. Detect branches merged via real merge commits
     const mergedBranches = await getMergedBranches(baseBranch);
-    const mergedCandidates = mergedBranches.filter((b) => !protectedBranches.has(b));
+    const mergedCandidates = mergedBranches.filter((b) => !isProtected(b));
 
     // 3. Detect branches whose remote was deleted (squash-merged on GitHub)
     const goneBranches = await getGoneBranches();
     const goneCandidates = goneBranches.filter(
-      (b) => !protectedBranches.has(b) && !mergedCandidates.includes(b),
+      (b) => !isProtected(b) && !mergedCandidates.includes(b),
     );
 
     // 4. GitHub-aware check: detect if current branch's PR was merged (catches squash-merges
     //    where the remote branch still exists or git hasn't detected [gone] yet)
     if (
       currentBranch &&
-      !protectedBranches.has(currentBranch) &&
+      !isProtected(currentBranch) &&
       !mergedCandidates.includes(currentBranch) &&
       !goneCandidates.includes(currentBranch)
     ) {

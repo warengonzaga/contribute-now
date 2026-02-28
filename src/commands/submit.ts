@@ -24,6 +24,7 @@ import {
   getPRForBranch,
 } from '../utils/gh.js';
 import {
+  assertCleanGitState,
   branchExists,
   checkoutBranch,
   commitWithMessage,
@@ -184,6 +185,9 @@ export default defineCommand({
       process.exit(1);
     }
 
+    // Guard: check for in-progress git operations, lock files, and shallow clone
+    await assertCleanGitState('submitting');
+
     const config = readConfig();
     if (!config) {
       error('No .contributerc.json found. Run `contrib setup` first.');
@@ -236,10 +240,10 @@ export default defineCommand({
       const MOVE_BRANCH = 'Move my changes to a new feature branch';
       const CANCEL = 'Cancel (stay on this branch)';
 
-      const action = await selectPrompt(
-        "Let's get you back on track. What would you like to do?",
-        [MOVE_BRANCH, CANCEL],
-      );
+      const action = await selectPrompt("Let's get you back on track. What would you like to do?", [
+        MOVE_BRANCH,
+        CANCEL,
+      ]);
 
       if (action === CANCEL) {
         info('No changes made. You are still on your current branch.');
@@ -263,9 +267,7 @@ export default defineCommand({
           if (suggested) {
             spinner.success('Branch name suggestion ready.');
             console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-            const accepted = await confirmPrompt(
-              `Use ${pc.bold(suggested)} as your branch name?`,
-            );
+            const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
             newBranchName = accepted
               ? suggested
               : await inputPrompt('Enter branch name', description);
@@ -292,6 +294,11 @@ export default defineCommand({
       }
 
       // Create the new branch from current HEAD (carries all commits + working tree)
+      if (await branchExists(newBranchName)) {
+        error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+        process.exit(1);
+      }
+
       const branchResult = await createBranch(newBranchName);
       if (branchResult.exitCode !== 0) {
         error(`Failed to create branch: ${branchResult.stderr}`);
@@ -302,9 +309,7 @@ export default defineCommand({
       // Reset the protected branch back to its remote state
       // (We're now on the new branch, so this is safe)
       await updateLocalBranch(currentBranch, remoteRef);
-      info(
-        `Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`,
-      );
+      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`);
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
@@ -400,6 +405,11 @@ export default defineCommand({
             const staleUpstreamHash = staleUpstream ? await getCommitHash(staleUpstream) : null;
 
             // Rename branch preserves all commits + uncommitted changes
+            if (await branchExists(newBranchName)) {
+              error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+              process.exit(1);
+            }
+
             const renameResult = await renameBranch(currentBranch, newBranchName);
             if (renameResult.exitCode !== 0) {
               error(`Failed to rename branch: ${renameResult.stderr}`);
@@ -449,6 +459,7 @@ export default defineCommand({
         const syncSource = getSyncSource(config);
         info(`Switching to ${pc.bold(baseBranch)} and syncing...`);
         await fetchRemote(syncSource.remote);
+        await resetHard('HEAD');
         const coResult = await checkoutBranch(baseBranch);
         if (coResult.exitCode !== 0) {
           error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
@@ -630,6 +641,16 @@ export default defineCommand({
     const pushResult = await pushSetUpstream(origin, currentBranch);
     if (pushResult.exitCode !== 0) {
       error(`Failed to push: ${pushResult.stderr}`);
+      if (
+        pushResult.stderr.includes('rejected') ||
+        pushResult.stderr.includes('non-fast-forward')
+      ) {
+        warn('The remote branch has diverged. Try:');
+        info(`  git pull --rebase ${origin} ${currentBranch}`);
+        info('  Then run `contrib submit` again.');
+        info('If you need to force push (use with caution):');
+        info(`  git push --force-with-lease ${origin} ${currentBranch}`);
+      }
       process.exit(1);
     }
 

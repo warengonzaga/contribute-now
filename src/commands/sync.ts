@@ -10,20 +10,28 @@ import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { checkCopilotAvailable, suggestBranchName } from '../utils/copilot.js';
 import {
+  assertCleanGitState,
+  branchExists,
   checkoutBranch,
   createBranch,
   fetchRemote,
-  getDivergence,
   getCurrentBranch,
-  hasLocalWork,
+  getDivergence,
   hasUncommittedChanges,
   isGitRepo,
   pullBranch,
+  pullFastForwardOnly,
+  refExists,
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
-import { getBaseBranch, getProtectedBranches, getSyncSource, hasDevBranch } from '../utils/workflow.js';
+import {
+  getBaseBranch,
+  getProtectedBranches,
+  getSyncSource,
+  hasDevBranch,
+} from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -52,6 +60,9 @@ export default defineCommand({
       error('Not inside a git repository.');
       process.exit(1);
     }
+
+    // Guard: check for in-progress git operations, lock files, and shallow clone
+    await assertCleanGitState('syncing');
 
     const config = readConfig();
     if (!config) {
@@ -85,7 +96,16 @@ export default defineCommand({
       await fetchRemote(origin);
     }
 
+    // Validate remote ref exists after fetch
+    if (!(await refExists(syncSource.ref))) {
+      error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
+      info('This can happen if the branch was renamed or deleted on the remote.');
+      info(`Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`);
+      process.exit(1);
+    }
+
     // 3. Show divergence
+    let allowMergeCommit = false;
     const div = await getDivergence(baseBranch, syncSource.ref);
     if (div.ahead > 0 || div.behind > 0) {
       info(
@@ -106,19 +126,18 @@ export default defineCommand({
         warn(
           `You have ${pc.bold(String(div.ahead))} local commit${div.ahead !== 1 ? 's' : ''} on ${pc.bold(baseBranch)} that aren't on the remote.`,
         );
-        info(
-          'Pulling now could create a merge commit, which breaks clean history.',
-        );
+        info('Pulling now could create a merge commit, which breaks clean history.');
         console.log();
 
         const MOVE_BRANCH = 'Move my commits to a new feature branch, then sync';
         const PULL_ANYWAY = 'Pull anyway (may create a merge commit)';
         const CANCEL = 'Cancel';
 
-        const action = await selectPrompt(
-          'How would you like to handle this?',
-          [MOVE_BRANCH, PULL_ANYWAY, CANCEL],
-        );
+        const action = await selectPrompt('How would you like to handle this?', [
+          MOVE_BRANCH,
+          PULL_ANYWAY,
+          CANCEL,
+        ]);
 
         if (action === CANCEL) {
           info('No changes made.');
@@ -171,6 +190,11 @@ export default defineCommand({
           }
 
           // Create feature branch from current HEAD (carries commits)
+          if (await branchExists(newBranchName)) {
+            error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+            process.exit(1);
+          }
+
           const branchResult = await createBranch(newBranchName);
           if (branchResult.exitCode !== 0) {
             error(`Failed to create branch: ${branchResult.stderr}`);
@@ -189,21 +213,17 @@ export default defineCommand({
           await updateLocalBranch(baseBranch, remoteRef);
           success(`Reset ${pc.bold(baseBranch)} to ${pc.bold(remoteRef)}.`);
 
-          // Now pull to fully sync
-          const pullResult = await pullBranch(syncSource.remote, baseBranch);
-          if (pullResult.exitCode !== 0) {
-            error(`Failed to pull: ${pullResult.stderr}`);
-            process.exit(1);
-          }
-
           success(`✅ ${pc.bold(baseBranch)} is now in sync with ${syncSource.ref}`);
           console.log();
           info(`Your commits are safe on ${pc.bold(newBranchName)}.`);
-          info(`Run ${pc.bold(`git checkout ${newBranchName}`)} then ${pc.bold('contrib update')} to rebase onto the synced ${pc.bold(baseBranch)}.`);
+          info(
+            `Run ${pc.bold(`git checkout ${newBranchName}`)} then ${pc.bold('contrib update')} to rebase onto the synced ${pc.bold(baseBranch)}.`,
+          );
           return;
         }
 
         // PULL_ANYWAY — fall through to normal sync
+        allowMergeCommit = true;
         warn('Proceeding with pull — a merge commit may be created.');
       }
     }
@@ -223,9 +243,18 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const pullResult = await pullBranch(syncSource.remote, baseBranch);
+    const pullResult = allowMergeCommit
+      ? await pullBranch(syncSource.remote, baseBranch)
+      : await pullFastForwardOnly(syncSource.remote, baseBranch);
     if (pullResult.exitCode !== 0) {
-      error(`Failed to pull: ${pullResult.stderr}`);
+      if (allowMergeCommit) {
+        error(`Pull failed: ${pullResult.stderr.trim()}`);
+      } else {
+        error(`Fast-forward pull failed. Your local ${pc.bold(baseBranch)} may have diverged.`);
+        info(
+          `Use ${pc.bold('contrib sync')} again and choose "Move my commits to a new feature branch" to fix this.`,
+        );
+      }
       process.exit(1);
     }
 
@@ -238,7 +267,7 @@ export default defineCommand({
         info(`Also syncing ${pc.bold(config.mainBranch)}...`);
         const mainCoResult = await checkoutBranch(config.mainBranch);
         if (mainCoResult.exitCode === 0) {
-          const mainPullResult = await pullBranch(origin, config.mainBranch);
+          const mainPullResult = await pullFastForwardOnly(origin, config.mainBranch);
           if (mainPullResult.exitCode === 0) {
             success(`✅ ${config.mainBranch} is now in sync with ${origin}/${config.mainBranch}`);
           }

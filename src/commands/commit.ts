@@ -16,6 +16,7 @@ import {
   regenerateGroupMessage,
 } from '../utils/copilot.js';
 import {
+  assertCleanGitState,
   commitWithMessage,
   getChangedFiles,
   getFullDiffForFiles,
@@ -55,6 +56,9 @@ export default defineCommand({
       error('Not inside a git repository.');
       process.exit(1);
     }
+
+    // Guard: check for in-progress git operations, lock files, and shallow clone
+    await assertCleanGitState('committing');
 
     const config = readConfig();
     if (!config) {

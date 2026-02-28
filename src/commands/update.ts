@@ -16,6 +16,8 @@ import {
 } from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
+  assertCleanGitState,
+  branchExists,
   checkoutBranch,
   createBranch,
   determineRebaseStrategy,
@@ -31,7 +33,9 @@ import {
   isGitRepo,
   rebase,
   rebaseOnto,
+  refExists,
   renameBranch,
+  resetHard,
   unsetUpstream,
   updateLocalBranch,
 } from '../utils/git.js';
@@ -60,6 +64,9 @@ export default defineCommand({
       error('Not inside a git repository.');
       process.exit(1);
     }
+
+    // Guard: check for in-progress git operations, lock files, and shallow clone
+    await assertCleanGitState('updating');
 
     const config = readConfig();
     if (!config) {
@@ -95,7 +102,9 @@ export default defineCommand({
 
       if (!hasAnything) {
         info(`No local changes found on ${pc.bold(currentBranch)}.`);
-        info(`Use ${pc.bold('contrib sync')} to sync protected branches, or ${pc.bold('contrib start')} to create a feature branch.`);
+        info(
+          `Use ${pc.bold('contrib sync')} to sync protected branches, or ${pc.bold('contrib start')} to create a feature branch.`,
+        );
         process.exit(1);
       }
 
@@ -114,10 +123,10 @@ export default defineCommand({
       const MOVE_BRANCH = 'Move my changes to a new feature branch';
       const CANCEL = 'Cancel (stay on this branch)';
 
-      const action = await selectPrompt(
-        "Let's get you back on track. What would you like to do?",
-        [MOVE_BRANCH, CANCEL],
-      );
+      const action = await selectPrompt("Let's get you back on track. What would you like to do?", [
+        MOVE_BRANCH,
+        CANCEL,
+      ]);
 
       if (action === CANCEL) {
         info('No changes made. You are still on your current branch.');
@@ -141,9 +150,7 @@ export default defineCommand({
           if (suggested) {
             spinner.success('Branch name suggestion ready.');
             console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-            const accepted = await confirmPrompt(
-              `Use ${pc.bold(suggested)} as your branch name?`,
-            );
+            const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
             newBranchName = accepted
               ? suggested
               : await inputPrompt('Enter branch name', description);
@@ -179,9 +186,7 @@ export default defineCommand({
 
       // Reset the protected branch back to its remote state
       await updateLocalBranch(currentBranch, remoteRef);
-      info(
-        `Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`,
-      );
+      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`);
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
@@ -276,6 +281,11 @@ export default defineCommand({
           const staleUpstream = await getUpstreamRef();
           const staleUpstreamHash = staleUpstream ? await getCommitHash(staleUpstream) : null;
 
+          if (await branchExists(newBranchName)) {
+            error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+            process.exit(1);
+          }
+
           const renameResult = await renameBranch(currentBranch, newBranchName);
           if (renameResult.exitCode !== 0) {
             error(`Failed to rename branch: ${renameResult.stderr}`);
@@ -322,6 +332,7 @@ export default defineCommand({
 
       // No local work or user chose discard — switch to base, sync, delete stale branch
       await fetchRemote(syncSource.remote);
+      await resetHard('HEAD');
       const coResult = await checkoutBranch(baseBranch);
       if (coResult.exitCode !== 0) {
         error(`Failed to checkout ${baseBranch}: ${coResult.stderr}`);
@@ -342,6 +353,14 @@ export default defineCommand({
 
     // 4. Fetch + update local base branch ref (without switching to it)
     await fetchRemote(syncSource.remote);
+
+    // Validate the remote ref actually exists after fetch
+    if (!(await refExists(syncSource.ref))) {
+      error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
+      error('Run `git fetch --all` and verify your remote configuration.');
+      process.exit(1);
+    }
+
     await updateLocalBranch(baseBranch, syncSource.ref);
 
     // 5. Smart rebase: determine whether plain rebase or --onto is needed.
