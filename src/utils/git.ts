@@ -169,6 +169,17 @@ export async function commitsBetween(base: string, head: string): Promise<string
   return stdout.trim().split('\n').filter(Boolean);
 }
 
+/**
+ * Returns the number of commits that `branch` is ahead of `upstream`.
+ * Returns 0 if the refs are equal, upstream is missing, or the count fails.
+ */
+export async function countCommitsAhead(branch: string, upstream: string): Promise<number> {
+  const { exitCode, stdout } = await run(['rev-list', '--count', `${upstream}..${branch}`]);
+  if (exitCode !== 0) return 0;
+  const count = Number.parseInt(stdout.trim(), 10);
+  return Number.isNaN(count) ? 0 : count;
+}
+
 export async function fetchRemote(remote: string): Promise<GitResult> {
   return run(['fetch', remote]);
 }
