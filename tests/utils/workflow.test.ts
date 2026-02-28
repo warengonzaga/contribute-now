@@ -3,8 +3,10 @@ import type { ContributeConfig } from '../../src/types.js';
 import {
   getBaseBranch,
   getProtectedBranches,
+  getProtectedPrefixes,
   getSyncSource,
   hasDevBranch,
+  isBranchProtected,
 } from '../../src/utils/workflow.js';
 
 describe('hasDevBranch', () => {
@@ -174,5 +176,101 @@ describe('getProtectedBranches', () => {
       branchPrefixes: [],
     };
     expect(getProtectedBranches(config)).toEqual(['main', 'develop']);
+  });
+});
+
+describe('getProtectedPrefixes', () => {
+  it('returns release and hotfix prefixes for git-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'git-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'develop',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(getProtectedPrefixes(config)).toEqual(['release/', 'hotfix/']);
+  });
+
+  it('returns empty array for github-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'github-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(getProtectedPrefixes(config)).toEqual([]);
+  });
+
+  it('returns empty array for clean-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(getProtectedPrefixes(config)).toEqual([]);
+  });
+});
+
+describe('isBranchProtected', () => {
+  it('returns true for exact match on protected branch', () => {
+    const config: ContributeConfig = {
+      workflow: 'git-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'develop',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(isBranchProtected('main', config)).toBe(true);
+    expect(isBranchProtected('develop', config)).toBe(true);
+  });
+
+  it('returns true for release/* branches in git-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'git-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'develop',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(isBranchProtected('release/1.0.0', config)).toBe(true);
+    expect(isBranchProtected('hotfix/urgent-fix', config)).toBe(true);
+  });
+
+  it('returns false for feature branches in git-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'git-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'develop',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(isBranchProtected('feature/new-feature', config)).toBe(false);
+    expect(isBranchProtected('fix/some-bug', config)).toBe(false);
+  });
+
+  it('returns false for release/* branches in non-git-flow', () => {
+    const config: ContributeConfig = {
+      workflow: 'github-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: [],
+    };
+    expect(isBranchProtected('release/1.0.0', config)).toBe(false);
   });
 });
