@@ -45,10 +45,7 @@ export default defineCommand({
     const isContributor = config.role === 'contributor';
 
     // Check uncommitted changes and file status
-    const [dirty, fileStatus] = await Promise.all([
-      hasUncommittedChanges(),
-      getFileStatus(),
-    ]);
+    const [dirty, fileStatus] = await Promise.all([hasUncommittedChanges(), getFileStatus()]);
     if (dirty) {
       console.log(`  ${pc.yellow('⚠')}  ${pc.yellow('Uncommitted changes in working tree')}`);
       console.log();

@@ -9,11 +9,7 @@ import {
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { suggestBranchName } from '../utils/copilot.js';
-import {
-  checkGhAuth,
-  checkGhInstalled,
-  getMergedPRForBranch,
-} from '../utils/gh.js';
+import { checkGhAuth, checkGhInstalled, getMergedPRForBranch } from '../utils/gh.js';
 import {
   deleteBranch,
   fetchRemote,
@@ -73,7 +69,11 @@ async function handleCurrentBranchDeletion(
 
     if (action === SAVE_NEW_BRANCH) {
       if (!config) return 'skipped';
-      info(pc.dim("Tip: Describe what you're working on in plain English and we'll generate a branch name."));
+      info(
+        pc.dim(
+          "Tip: Describe what you're working on in plain English and we'll generate a branch name.",
+        ),
+      );
       const description = await inputPrompt('What are you working on?');
 
       let newBranchName = description;
@@ -84,7 +84,9 @@ async function handleCurrentBranchDeletion(
           spinner.success('Branch name suggestion ready.');
           console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
           const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-          newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+          newBranchName = accepted
+            ? suggested
+            : await inputPrompt('Enter branch name', description);
         } else {
           spinner.fail('AI did not return a suggestion.');
           newBranchName = await inputPrompt('Enter branch name', description);
@@ -100,7 +102,9 @@ async function handleCurrentBranchDeletion(
       }
 
       if (!isValidBranchName(newBranchName)) {
-        error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+        error(
+          'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+        );
         return 'skipped';
       }
 
@@ -225,7 +229,6 @@ export default defineCommand({
       }
     }
 
-
     if (mergedCandidates.length > 0) {
       console.log(`\n${pc.bold('Merged branches to delete:')}`);
       for (const b of mergedCandidates) {
@@ -316,7 +319,9 @@ export default defineCommand({
     const finalBranch = await getCurrentBranch();
     if (finalBranch && protectedBranches.has(finalBranch)) {
       console.log();
-      info(`You're on ${pc.bold(finalBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`);
+      info(
+        `You're on ${pc.bold(finalBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`,
+      );
     }
   },
 });

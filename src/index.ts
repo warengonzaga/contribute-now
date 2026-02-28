@@ -2,6 +2,7 @@
 import { defineCommand, runMain } from 'citty';
 import clean from './commands/clean.js';
 import commit from './commands/commit.js';
+import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
 import setup from './commands/setup.js';
 import start from './commands/start.js';
@@ -40,6 +41,7 @@ const main = defineCommand({
     status,
     hook,
     validate,
+    doctor,
   },
   run({ args }) {
     if (args.version) {

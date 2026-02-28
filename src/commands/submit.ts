@@ -1,12 +1,12 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import type { CommitConvention } from '../types.js';
 import {
   formatBranchName,
   hasPrefix,
   isValidBranchName,
   looksLikeNaturalLanguage,
 } from '../utils/branch.js';
-import type { CommitConvention } from '../types.js';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import {
@@ -27,15 +27,17 @@ import {
   checkoutBranch,
   commitWithMessage,
   deleteRemoteBranch,
+  determineRebaseStrategy,
   fetchRemote,
   forceDeleteBranch,
+  getCommitHash,
   getCurrentBranch,
   getLog,
   getLogDiff,
   getStagedDiff,
   getStagedFiles,
+  getUpstreamRef,
   hasLocalWork,
-  hasUncommittedChanges,
   isGitRepo,
   mergeSquash,
   pushBranch,
@@ -43,8 +45,8 @@ import {
   rebase,
   rebaseOnto,
   renameBranch,
+  unsetUpstream,
   updateLocalBranch,
-  getUpstreamRef,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
@@ -197,9 +199,7 @@ export default defineCommand({
     if (ghInstalled && ghAuthed) {
       const mergedPR = await getMergedPRForBranch(currentBranch);
       if (mergedPR) {
-        warn(
-          `PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) was already merged.`,
-        );
+        warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) was already merged.`);
 
         // Check if user has local work that would be lost
         const localWork = await hasLocalWork(origin, currentBranch);
@@ -231,7 +231,11 @@ export default defineCommand({
           }
 
           if (action === SAVE_NEW_BRANCH) {
-            info(pc.dim("Tip: Describe what you're working on in plain English and we'll generate a branch name."));
+            info(
+              pc.dim(
+                "Tip: Describe what you're working on in plain English and we'll generate a branch name.",
+              ),
+            );
             const description = await inputPrompt('What are you working on?');
 
             let newBranchName = description;
@@ -241,8 +245,12 @@ export default defineCommand({
               if (suggested) {
                 spinner.success('Branch name suggestion ready.');
                 console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-                const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-                newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+                const accepted = await confirmPrompt(
+                  `Use ${pc.bold(suggested)} as your branch name?`,
+                );
+                newBranchName = accepted
+                  ? suggested
+                  : await inputPrompt('Enter branch name', description);
               } else {
                 spinner.fail('AI did not return a suggestion.');
                 newBranchName = await inputPrompt('Enter branch name', description);
@@ -258,9 +266,16 @@ export default defineCommand({
             }
 
             if (!isValidBranchName(newBranchName)) {
-              error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+              error(
+                'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+              );
               process.exit(1);
             }
+
+            // Capture stale upstream hash BEFORE rename so we know where old work ends.
+            // After a merged PR, commits before this point are already in the base branch.
+            const staleUpstream = await getUpstreamRef();
+            const staleUpstreamHash = staleUpstream ? await getCommitHash(staleUpstream) : null;
 
             // Rename branch preserves all commits + uncommitted changes
             const renameResult = await renameBranch(currentBranch, newBranchName);
@@ -270,15 +285,27 @@ export default defineCommand({
             }
             success(`Renamed ${pc.bold(currentBranch)} → ${pc.bold(newBranchName)}`);
 
+            // Clear the stale upstream tracking (points to the old deleted remote branch)
+            await unsetUpstream();
+
             // Rebase onto latest base branch so the saved work is up-to-date
             const syncSource = getSyncSource(config);
             info(`Syncing ${pc.bold(newBranchName)} with latest ${pc.bold(baseBranch)}...`);
             await fetchRemote(syncSource.remote);
-            const savedUpstreamRef = await getUpstreamRef();
-            const rebaseResult =
-              savedUpstreamRef && savedUpstreamRef !== syncSource.ref
-                ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
-                : await rebase(syncSource.ref);
+
+            // If we captured the stale upstream hash, use --onto to only replay
+            // commits after the old branch tip (skipping already-merged PR commits).
+            let rebaseResult: { exitCode: number; stdout: string; stderr: string };
+            if (staleUpstreamHash) {
+              rebaseResult = await rebaseOnto(syncSource.ref, staleUpstreamHash);
+            } else {
+              const savedStrategy = await determineRebaseStrategy(newBranchName, syncSource.ref);
+              rebaseResult =
+                savedStrategy.strategy === 'onto' && savedStrategy.ontoOldBase
+                  ? await rebaseOnto(syncSource.ref, savedStrategy.ontoOldBase)
+                  : await rebase(syncSource.ref);
+            }
+
             if (rebaseResult.exitCode !== 0) {
               warn('Rebase encountered conflicts. Resolve them manually, then run:');
               info(`  ${pc.bold('git rebase --continue')}`);
@@ -318,50 +345,21 @@ export default defineCommand({
         }
 
         console.log();
-        info(`You're now on ${pc.bold(baseBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`);
+        info(
+          `You're now on ${pc.bold(baseBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`,
+        );
         return;
       }
     }
 
-    // 2b. Push branch
-    info(`Pushing ${pc.bold(currentBranch)} to ${origin}...`);
-    const pushResult = await pushSetUpstream(origin, currentBranch);
-    if (pushResult.exitCode !== 0) {
-      error(`Failed to push: ${pushResult.stderr}`);
-      process.exit(1);
-    }
+    // ─── Phase 1: Collect PR information ─────────────────────────────
 
-    // 3. Check if gh CLI is available
-    if (!ghInstalled || !ghAuthed) {
-      // gh unavailable: print manual PR URL
-      const repoInfo = await getRepoInfoFromRemote(origin);
-      if (repoInfo) {
-        const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${baseBranch}...${currentBranch}?expand=1`;
-        console.log();
-        info('Create your PR manually:');
-        console.log(`  ${pc.cyan(prUrl)}`);
-      } else {
-        info('gh CLI not available. Create your PR manually on GitHub.');
-      }
-      return;
-    }
-
-    // 3b. Check if a PR already exists for this branch
-    const existingPR = await getPRForBranch(currentBranch);
-    if (existingPR) {
-      success(
-        `Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`,
-      );
-      console.log(`  ${pc.cyan(existingPR.url)}`);
-      return;
-    }
-
-    // 4. Generate AI PR description
+    // 2b. Generate AI PR description (before pushing anything)
     let prTitle: string | null = null;
     let prBody: string | null = null;
 
-    if (!args['no-ai']) {
-      // Parallelize: check Copilot + fetch commits & diff concurrently
+    // Helper: attempt AI PR description generation
+    async function tryGenerateAI(): Promise<void> {
       const [copilotError, commits, diff] = await Promise.all([
         checkCopilotAvailable(),
         getLog(baseBranch, 'HEAD'),
@@ -369,7 +367,12 @@ export default defineCommand({
       ]);
       if (!copilotError) {
         const spinner = createSpinner('Generating AI PR description...');
-        const result = await generatePRDescription(commits, diff, args.model, config.commitConvention);
+        const result = await generatePRDescription(
+          commits,
+          diff,
+          args.model,
+          config.commitConvention,
+        );
         if (result) {
           prTitle = result.title;
           prBody = result.body;
@@ -385,94 +388,163 @@ export default defineCommand({
       }
     }
 
-    // --- Action selection ---
+    if (!args['no-ai']) {
+      await tryGenerateAI();
+    }
+
+    // 2c. Action selection (loop to allow AI regeneration)
     const CANCEL = 'Cancel';
     const SQUASH_LOCAL = `Squash merge to ${baseBranch} locally (no PR)`;
+    const REGENERATE = 'Regenerate AI description';
 
-    if (prTitle && prBody) {
-      const choices = [
-        'Use AI description',
-        'Edit title',
-        'Write manually',
-        'Use gh --fill (auto-fill from commits)',
-      ];
-      if (config.role === 'maintainer') choices.push(SQUASH_LOCAL);
-      choices.push(CANCEL);
+    // Tracks what the user decided to do
+    type SubmitAction = 'create-pr' | 'fill' | 'squash' | 'cancel';
+    let submitAction: SubmitAction = 'cancel';
 
-      const action = await selectPrompt(
-        'What would you like to do with the PR description?',
-        choices,
-      );
+    const isMaintainer = config.role === 'maintainer';
 
-      if (action === CANCEL) {
-        warn('Submit cancelled.');
-        return;
-      }
+    let actionResolved = false;
+    while (!actionResolved) {
+      if (prTitle && prBody) {
+        // Role-based ordering: maintainer gets squash merge near the top
+        const choices: string[] = ['Use AI description'];
+        if (isMaintainer) choices.push(SQUASH_LOCAL);
+        choices.push(
+          'Edit title',
+          'Write manually',
+          'Use gh --fill (auto-fill from commits)',
+          REGENERATE,
+          CANCEL,
+        );
 
-      if (action === SQUASH_LOCAL) {
-        await performSquashMerge(origin, baseBranch, currentBranch, {
-          defaultMsg: prTitle ?? undefined,
-          model: args.model,
-          convention: config.commitConvention,
-        });
-        return;
-      }
+        const action = await selectPrompt(
+          'What would you like to do with the PR description?',
+          choices,
+        );
 
-      if (action === 'Use AI description') {
-        // use as-is
-      } else if (action === 'Edit title') {
-        prTitle = await inputPrompt('PR title', prTitle);
-      } else if (action === 'Write manually') {
-        prTitle = await inputPrompt('PR title');
-        prBody = await inputPrompt('PR body (markdown)');
-      } else {
-        // gh --fill
-        const fillResult = await createPRFill(baseBranch, args.draft);
-        if (fillResult.exitCode !== 0) {
-          error(`Failed to create PR: ${fillResult.stderr}`);
-          process.exit(1);
+        if (action === CANCEL) {
+          submitAction = 'cancel';
+          actionResolved = true;
+        } else if (action === REGENERATE) {
+          prTitle = null;
+          prBody = null;
+          await tryGenerateAI();
+          // loop again
+        } else if (action === SQUASH_LOCAL) {
+          submitAction = 'squash';
+          actionResolved = true;
+        } else if (action === 'Use AI description') {
+          submitAction = 'create-pr';
+          actionResolved = true;
+        } else if (action === 'Edit title') {
+          prTitle = await inputPrompt('PR title', prTitle);
+          submitAction = 'create-pr';
+          actionResolved = true;
+        } else if (action === 'Write manually') {
+          prTitle = await inputPrompt('PR title');
+          prBody = await inputPrompt('PR body (markdown)');
+          submitAction = 'create-pr';
+          actionResolved = true;
+        } else {
+          // gh --fill
+          submitAction = 'fill';
+          actionResolved = true;
         }
-        success(`✅ PR created: ${fillResult.stdout.trim()}`);
-        return;
-      }
-    } else {
-      const choices = [
-        'Write title & body manually',
-        'Use gh --fill (auto-fill from commits)',
-      ];
-      if (config.role === 'maintainer') choices.push(SQUASH_LOCAL);
-      choices.push(CANCEL);
-
-      const action = await selectPrompt('How would you like to create the PR?', choices);
-
-      if (action === CANCEL) {
-        warn('Submit cancelled.');
-        return;
-      }
-
-      if (action === SQUASH_LOCAL) {
-        await performSquashMerge(origin, baseBranch, currentBranch, {
-          model: args.model,
-          convention: config.commitConvention,
-        });
-        return;
-      }
-
-      if (action === 'Write title & body manually') {
-        prTitle = await inputPrompt('PR title');
-        prBody = await inputPrompt('PR body (markdown)');
       } else {
-        // gh --fill
-        const fillResult = await createPRFill(baseBranch, args.draft);
-        if (fillResult.exitCode !== 0) {
-          error(`Failed to create PR: ${fillResult.stderr}`);
-          process.exit(1);
+        // Role-based ordering: maintainer gets squash merge at the top
+        const choices: string[] = [];
+        if (isMaintainer) choices.push(SQUASH_LOCAL);
+        if (!args['no-ai']) choices.push(REGENERATE);
+        choices.push(
+          'Write title & body manually',
+          'Use gh --fill (auto-fill from commits)',
+          CANCEL,
+        );
+
+        const action = await selectPrompt('How would you like to create the PR?', choices);
+
+        if (action === CANCEL) {
+          submitAction = 'cancel';
+          actionResolved = true;
+        } else if (action === REGENERATE) {
+          await tryGenerateAI();
+          // loop again
+        } else if (action === SQUASH_LOCAL) {
+          submitAction = 'squash';
+          actionResolved = true;
+        } else if (action === 'Write title & body manually') {
+          prTitle = await inputPrompt('PR title');
+          prBody = await inputPrompt('PR body (markdown)');
+          submitAction = 'create-pr';
+          actionResolved = true;
+        } else {
+          // gh --fill
+          submitAction = 'fill';
+          actionResolved = true;
         }
-        success(`✅ PR created: ${fillResult.stdout.trim()}`);
-        return;
       }
     }
 
+    // ─── Phase 2: Execute ─────────────────────────────────────────────
+
+    // Handle cancel (nothing pushed)
+    if (submitAction === 'cancel') {
+      warn('Submit cancelled.');
+      return;
+    }
+
+    // Handle squash merge locally (has its own push logic)
+    if (submitAction === 'squash') {
+      await performSquashMerge(origin, baseBranch, currentBranch, {
+        defaultMsg: prTitle ?? undefined,
+        model: args.model,
+        convention: config.commitConvention,
+      });
+      return;
+    }
+
+    // Push branch (only for PR paths: 'create-pr' or 'fill')
+    info(`Pushing ${pc.bold(currentBranch)} to ${origin}...`);
+    const pushResult = await pushSetUpstream(origin, currentBranch);
+    if (pushResult.exitCode !== 0) {
+      error(`Failed to push: ${pushResult.stderr}`);
+      process.exit(1);
+    }
+
+    // If gh CLI is not available, print manual PR URL
+    if (!ghInstalled || !ghAuthed) {
+      const repoInfo = await getRepoInfoFromRemote(origin);
+      if (repoInfo) {
+        const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${baseBranch}...${currentBranch}?expand=1`;
+        console.log();
+        info('Create your PR manually:');
+        console.log(`  ${pc.cyan(prUrl)}`);
+      } else {
+        info('gh CLI not available. Create your PR manually on GitHub.');
+      }
+      return;
+    }
+
+    // Check if a PR already exists for this branch (after push)
+    const existingPR = await getPRForBranch(currentBranch);
+    if (existingPR) {
+      success(`Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`);
+      console.log(`  ${pc.cyan(existingPR.url)}`);
+      return;
+    }
+
+    // Create the PR
+    if (submitAction === 'fill') {
+      const fillResult = await createPRFill(baseBranch, args.draft);
+      if (fillResult.exitCode !== 0) {
+        error(`Failed to create PR: ${fillResult.stderr}`);
+        process.exit(1);
+      }
+      success(`✅ PR created: ${fillResult.stdout.trim()}`);
+      return;
+    }
+
+    // submitAction === 'create-pr'
     if (!prTitle) {
       error('No PR title provided.');
       process.exit(1);

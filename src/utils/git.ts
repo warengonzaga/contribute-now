@@ -108,14 +108,111 @@ export async function rebase(branch: string): Promise<GitResult> {
 
 /** Returns the upstream tracking ref for the current branch (e.g. "origin/feature/git-add"), or null if none. */
 export async function getUpstreamRef(): Promise<string | null> {
-  const { exitCode, stdout } = await run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  const { exitCode, stdout } = await run([
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{u}',
+  ]);
   if (exitCode !== 0) return null;
   return stdout.trim() || null;
+}
+
+/** Unset the upstream tracking ref for the current branch. */
+export async function unsetUpstream(): Promise<GitResult> {
+  return run(['branch', '--unset-upstream']);
 }
 
 /** Rebases commits not in `oldBase` onto `newBase` (git rebase --onto newBase oldBase). */
 export async function rebaseOnto(newBase: string, oldBase: string): Promise<GitResult> {
   return run(['rebase', '--onto', newBase, oldBase]);
+}
+
+/**
+ * Returns the merge-base (common ancestor) of two refs.
+ * This is the commit where the branch originally forked from.
+ */
+export async function getMergeBase(ref1: string, ref2: string): Promise<string | null> {
+  const { exitCode, stdout } = await run(['merge-base', ref1, ref2]);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/**
+ * Returns the full commit hash for a ref.
+ */
+export async function getCommitHash(ref: string): Promise<string | null> {
+  const { exitCode, stdout } = await run(['rev-parse', ref]);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/**
+ * Determine the correct rebase strategy for updating a feature branch.
+ *
+ * Scenarios:
+ * 1. No upstream tracking ref → plain rebase onto syncRef
+ * 2. Upstream is the remote copy of the same branch (e.g. origin/feature/xyz)
+ *    → plain rebase onto syncRef (the branch was created from the base branch)
+ * 3. Upstream tracks a DIFFERENT branch (e.g. branch was based on another feature
+ *    that has since been merged) → use --onto to only replay commits unique to this branch
+ *
+ * The key insight: we use merge-base to find where the branch actually forked from.
+ * If the fork point is reachable from the base branch, a plain rebase is safe.
+ * If not, we need --onto to avoid replaying already-merged commits.
+ */
+export async function determineRebaseStrategy(
+  currentBranch: string,
+  syncRef: string,
+): Promise<{ strategy: 'plain' | 'onto'; ontoOldBase?: string }> {
+  const upstreamRef = await getUpstreamRef();
+
+  // No upstream tracking → plain rebase
+  if (!upstreamRef) {
+    return { strategy: 'plain' };
+  }
+
+  // Validate the upstream ref still resolves to a real commit.
+  // After branch rename from a stale branch, the upstream may point to a
+  // deleted remote branch (e.g. origin/feature/old-branch that was pruned).
+  const upstreamHash = await getCommitHash(upstreamRef);
+  if (!upstreamHash) {
+    // Upstream ref is stale/gone — treat as no upstream
+    return { strategy: 'plain' };
+  }
+
+  // Extract the branch name from the upstream ref (e.g. "origin/feature/xyz" → "feature/xyz")
+  const slashIdx = upstreamRef.indexOf('/');
+  const upstreamBranchName = slashIdx !== -1 ? upstreamRef.slice(slashIdx + 1) : upstreamRef;
+
+  // If upstream is just the remote copy of the same branch → plain rebase
+  // e.g. branch "feature/xyz" tracking "origin/feature/xyz"
+  if (upstreamBranchName === currentBranch) {
+    return { strategy: 'plain' };
+  }
+
+  // Upstream tracks a different branch. Check if our fork point is still
+  // reachable from the sync target (meaning our base hasn't changed).
+  const [forkFromUpstream, forkFromSync] = await Promise.all([
+    getMergeBase('HEAD', upstreamRef),
+    getMergeBase('HEAD', syncRef),
+  ]);
+
+  // If both merge-bases are the same, the branch history is compatible → plain rebase
+  if (forkFromUpstream && forkFromSync && forkFromUpstream === forkFromSync) {
+    return { strategy: 'plain' };
+  }
+
+  // The branch was forked from somewhere that's not the current sync target.
+  // Use --onto to transplant only our unique commits.
+  // Use the merge-base with the upstream ref as the old base, so we only replay
+  // commits that are unique to this branch (not the ones from the old base).
+  if (forkFromUpstream) {
+    return { strategy: 'onto', ontoOldBase: forkFromUpstream };
+  }
+
+  // Fallback: can't determine — play it safe with plain rebase
+  return { strategy: 'plain' };
 }
 
 export async function getStagedDiff(): Promise<string> {
@@ -221,7 +318,10 @@ export async function renameBranch(oldName: string, newName: string): Promise<Gi
  * Returns true if there are uncommitted changes OR unpushed commits
  * (commits ahead of the remote tracking branch).
  */
-export async function hasLocalWork(remote: string, branch: string): Promise<{
+export async function hasLocalWork(
+  remote: string,
+  branch: string,
+): Promise<{
   uncommitted: boolean;
   unpushedCommits: number;
 }> {

@@ -9,13 +9,19 @@ import {
 } from '../utils/branch.js';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
-import { checkCopilotAvailable, suggestBranchName, suggestConflictResolution } from '../utils/copilot.js';
+import {
+  checkCopilotAvailable,
+  suggestBranchName,
+  suggestConflictResolution,
+} from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   checkoutBranch,
+  determineRebaseStrategy,
   fetchRemote,
   forceDeleteBranch,
   getChangedFiles,
+  getCommitHash,
   getCurrentBranch,
   getUpstreamRef,
   hasLocalWork,
@@ -24,6 +30,7 @@ import {
   rebase,
   rebaseOnto,
   renameBranch,
+  unsetUpstream,
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
@@ -87,9 +94,7 @@ export default defineCommand({
     // 3. Check if the branch's PR has already been merged (stale branch)
     const mergedPR = await getMergedPRForBranch(currentBranch);
     if (mergedPR) {
-      warn(
-        `PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`,
-      );
+      warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`);
       info(`Link: ${pc.underline(mergedPR.url)}`);
 
       const localWork = await hasLocalWork(syncSource.remote, currentBranch);
@@ -118,7 +123,11 @@ export default defineCommand({
         }
 
         if (action === SAVE_NEW_BRANCH) {
-          info(pc.dim('Tip: Describe what you\'re working on in plain English and we\'ll generate a branch name.'));
+          info(
+            pc.dim(
+              "Tip: Describe what you're working on in plain English and we'll generate a branch name.",
+            ),
+          );
           const description = await inputPrompt('What are you working on?');
 
           let newBranchName = description;
@@ -128,8 +137,12 @@ export default defineCommand({
             if (suggested) {
               spinner.success('Branch name suggestion ready.');
               console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-              const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-              newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+              const accepted = await confirmPrompt(
+                `Use ${pc.bold(suggested)} as your branch name?`,
+              );
+              newBranchName = accepted
+                ? suggested
+                : await inputPrompt('Enter branch name', description);
             } else {
               spinner.fail('AI did not return a suggestion.');
               newBranchName = await inputPrompt('Enter branch name', description);
@@ -145,9 +158,17 @@ export default defineCommand({
           }
 
           if (!isValidBranchName(newBranchName)) {
-            error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+            error(
+              'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+            );
             process.exit(1);
           }
+
+          // Capture stale upstream hash BEFORE rename so we know where old work ends.
+          // After a merged PR, commits before this point are already in the base branch.
+          // Only commits after this point (user's new work) need to be replayed.
+          const staleUpstream = await getUpstreamRef();
+          const staleUpstreamHash = staleUpstream ? await getCommitHash(staleUpstream) : null;
 
           const renameResult = await renameBranch(currentBranch, newBranchName);
           if (renameResult.exitCode !== 0) {
@@ -156,14 +177,26 @@ export default defineCommand({
           }
           success(`Renamed ${pc.bold(currentBranch)} → ${pc.bold(newBranchName)}`);
 
+          // Clear the stale upstream tracking (points to the old deleted remote branch)
+          await unsetUpstream();
+
           // Rebase onto latest base so saved work is up-to-date.
-          // Use --onto if upstream tracking ref differs to avoid replaying already-merged commits.
           await fetchRemote(syncSource.remote);
-          const savedUpstreamRef = await getUpstreamRef();
-          const rebaseResult =
-            savedUpstreamRef && savedUpstreamRef !== syncSource.ref
-              ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
-              : await rebase(syncSource.ref);
+
+          // If we captured the stale upstream hash, use --onto to only replay
+          // commits after the old branch tip (skipping already-merged PR commits).
+          // Otherwise fall back to smart strategy detection.
+          let rebaseResult: { exitCode: number; stdout: string; stderr: string };
+          if (staleUpstreamHash) {
+            rebaseResult = await rebaseOnto(syncSource.ref, staleUpstreamHash);
+          } else {
+            const savedStrategy = await determineRebaseStrategy(newBranchName, syncSource.ref);
+            rebaseResult =
+              savedStrategy.strategy === 'onto' && savedStrategy.ontoOldBase
+                ? await rebaseOnto(syncSource.ref, savedStrategy.ontoOldBase)
+                : await rebase(syncSource.ref);
+          }
+
           if (rebaseResult.exitCode !== 0) {
             warn('Rebase encountered conflicts. Resolve them manually, then run:');
             info(`  ${pc.bold('git rebase --continue')}`);
@@ -205,13 +238,19 @@ export default defineCommand({
     await fetchRemote(syncSource.remote);
     await updateLocalBranch(baseBranch, syncSource.ref);
 
-    // 5. Rebase onto the sync target, using --onto if the upstream tracking ref differs
-    //    (e.g. branch was based on feature/X which is now merged into dev — plain rebase
-    //    would re-apply already-merged commits and cause conflicts).
-    const upstreamRef = await getUpstreamRef();
+    // 5. Smart rebase: determine whether plain rebase or --onto is needed.
+    //    Uses merge-base analysis to avoid false conflicts:
+    //    - Plain rebase: branch was created from (or tracks) the base branch
+    //    - --onto rebase: branch was based on another feature branch that's since been merged
+    const rebaseStrategy = await determineRebaseStrategy(currentBranch, syncSource.ref);
+
+    if (rebaseStrategy.strategy === 'onto' && rebaseStrategy.ontoOldBase) {
+      info(pc.dim(`Using --onto rebase (branch was based on a different ref)`));
+    }
+
     const rebaseResult =
-      upstreamRef && upstreamRef !== syncSource.ref
-        ? await rebaseOnto(syncSource.ref, upstreamRef)
+      rebaseStrategy.strategy === 'onto' && rebaseStrategy.ontoOldBase
+        ? await rebaseOnto(syncSource.ref, rebaseStrategy.ontoOldBase)
         : await rebase(syncSource.ref);
 
     if (rebaseResult.exitCode !== 0) {
