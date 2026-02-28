@@ -106,6 +106,18 @@ export async function rebase(branch: string): Promise<GitResult> {
   return run(['rebase', branch]);
 }
 
+/** Returns the upstream tracking ref for the current branch (e.g. "origin/feature/git-add"), or null if none. */
+export async function getUpstreamRef(): Promise<string | null> {
+  const { exitCode, stdout } = await run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/** Rebases commits not in `oldBase` onto `newBase` (git rebase --onto newBase oldBase). */
+export async function rebaseOnto(newBase: string, oldBase: string): Promise<GitResult> {
+  return run(['rebase', '--onto', newBase, oldBase]);
+}
+
 export async function getStagedDiff(): Promise<string> {
   const { stdout } = await run(['diff', '--cached']);
   return stdout;
