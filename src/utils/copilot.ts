@@ -50,7 +50,8 @@ Rules: lowercase, kebab-case, 2-5 words after the prefix, no punctuation.
 CRITICAL: Output ONLY the branch name on a single line. No explanation. No markdown. No questions. No other text.
 Examples: fix/login-timeout | feature/user-profile-page | docs/update-readme | chore/update-pr-title`;
 
-const PR_DESCRIPTION_SYSTEM_PROMPT_BASE = `GitHub PR description generator. Return JSON: {"title":"<72 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}`;
+const PR_DESCRIPTION_SYSTEM_PROMPT_BASE = `GitHub PR description generator. Return JSON: {"title":"<72 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}
+IMPORTANT: The title must capture the overall theme or goal of the PR — NOT enumerate individual changes. Think: what problem does this PR solve or what capability does it add? Keep it focused and specific but high-level.`;
 
 function getPRDescriptionSystemPrompt(convention: CommitConvention): string {
   if (convention === 'clean-commit') {
@@ -58,17 +59,17 @@ function getPRDescriptionSystemPrompt(convention: CommitConvention): string {
 CRITICAL: The PR title MUST follow the Clean Commit format exactly: <emoji> <type>: <description>
 Emoji/type table: 📦 new, 🔧 update, 🗑️ remove, 🔒 security, ⚙️ setup, ☕ chore, 🧪 test, 📖 docs, 🚀 release
 Title examples: 📦 new: add user authentication | 🔧 update: improve error handling | 🗑️ remove: drop legacy API
-Rules: title follows convention, present tense, max 72 chars; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+Rules: title follows convention, present tense, max 72 chars, describes the PR theme not individual commits; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
   }
   if (convention === 'conventional') {
     return `${PR_DESCRIPTION_SYSTEM_PROMPT_BASE}
 CRITICAL: The PR title MUST follow Conventional Commits format: <type>[(<scope>)]: <description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
 Title examples: feat: add user authentication | fix(auth): resolve token expiry | docs: update contributing guide
-Rules: title follows convention, present tense, max 72 chars; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+Rules: title follows convention, present tense, max 72 chars, describes the PR theme not individual commits; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
   }
   return `${PR_DESCRIPTION_SYSTEM_PROMPT_BASE}
-Rules: title concise present tense; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
+Rules: title concise present tense, describes the PR theme not individual commits; body has Summary, Changes (bullets), Test Plan sections. Return ONLY the JSON object, no fences.`;
 }
 
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
