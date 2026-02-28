@@ -1,9 +1,20 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from '../utils/branch.js';
 import { readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { suggestBranchName } from '../utils/copilot.js';
 import {
-  checkoutBranch,
+  checkGhAuth,
+  checkGhInstalled,
+  getMergedPRForBranch,
+} from '../utils/gh.js';
+import {
   deleteBranch,
   fetchRemote,
   forceDeleteBranch,
@@ -20,6 +31,7 @@ import {
   updateLocalBranch,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 /**
@@ -60,11 +72,38 @@ async function handleCurrentBranchDeletion(
     if (action === CANCEL) return 'skipped';
 
     if (action === SAVE_NEW_BRANCH) {
-      const suggestedName = currentBranch.replace(/^(feature|fix|docs|chore|test|refactor)\//, '$1/new-');
-      const newBranchName = await inputPrompt(
-        'New branch name',
-        suggestedName !== currentBranch ? suggestedName : `${currentBranch}-v2`,
-      );
+      if (!config) return 'skipped';
+      info(pc.dim("Tip: Describe what you're working on in plain English and we'll generate a branch name."));
+      const description = await inputPrompt('What are you working on?');
+
+      let newBranchName = description;
+      if (looksLikeNaturalLanguage(description)) {
+        const spinner = createSpinner('Generating branch name suggestion...');
+        const suggested = await suggestBranchName(description);
+        if (suggested) {
+          spinner.success('Branch name suggestion ready.');
+          console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
+          const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
+          newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+        } else {
+          spinner.fail('AI did not return a suggestion.');
+          newBranchName = await inputPrompt('Enter branch name', description);
+        }
+      }
+
+      if (!hasPrefix(newBranchName, config.branchPrefixes)) {
+        const prefix = await selectPrompt(
+          `Choose a branch type for ${pc.bold(newBranchName)}:`,
+          config.branchPrefixes,
+        );
+        newBranchName = formatBranchName(prefix, newBranchName);
+      }
+
+      if (!isValidBranchName(newBranchName)) {
+        error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+        return 'skipped';
+      }
+
       const renameResult = await renameBranch(currentBranch, newBranchName);
       if (renameResult.exitCode !== 0) {
         error(`Failed to rename branch: ${renameResult.stderr}`);
@@ -166,7 +205,27 @@ export default defineCommand({
       (b) => !protectedBranches.has(b) && !mergedCandidates.includes(b),
     );
 
-    // 4. Delete merged branches (safe delete with -d)
+    // 4. GitHub-aware check: detect if current branch's PR was merged (catches squash-merges
+    //    where the remote branch still exists or git hasn't detected [gone] yet)
+    if (
+      currentBranch &&
+      !protectedBranches.has(currentBranch) &&
+      !mergedCandidates.includes(currentBranch) &&
+      !goneCandidates.includes(currentBranch)
+    ) {
+      const ghInstalled = await checkGhInstalled();
+      const ghAuthed = ghInstalled && (await checkGhAuth());
+      if (ghInstalled && ghAuthed) {
+        const mergedPR = await getMergedPRForBranch(currentBranch);
+        if (mergedPR) {
+          warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`);
+          info(`Link: ${pc.underline(mergedPR.url)}`);
+          goneCandidates.push(currentBranch);
+        }
+      }
+    }
+
+
     if (mergedCandidates.length > 0) {
       console.log(`\n${pc.bold('Merged branches to delete:')}`);
       for (const b of mergedCandidates) {

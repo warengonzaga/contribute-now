@@ -1,12 +1,19 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from '../utils/branch.js';
 import type { CommitConvention } from '../types.js';
 import { readConfig } from '../utils/config.js';
-import { inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import {
   checkCopilotAvailable,
   generateCommitMessage,
   generatePRDescription,
+  suggestBranchName,
 } from '../utils/copilot.js';
 import {
   checkGhAuth,
@@ -224,11 +231,36 @@ export default defineCommand({
           }
 
           if (action === SAVE_NEW_BRANCH) {
-            const suggestedName = currentBranch.replace(/^(feature|fix|docs|chore|test|refactor)\//, '$1/new-');
-            const newBranchName = await inputPrompt(
-              'New branch name',
-              suggestedName !== currentBranch ? suggestedName : `${currentBranch}-v2`,
-            );
+            info(pc.dim("Tip: Describe what you're working on in plain English and we'll generate a branch name."));
+            const description = await inputPrompt('What are you working on?');
+
+            let newBranchName = description;
+            if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
+              const spinner = createSpinner('Generating branch name suggestion...');
+              const suggested = await suggestBranchName(description, args.model);
+              if (suggested) {
+                spinner.success('Branch name suggestion ready.');
+                console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
+                const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
+                newBranchName = accepted ? suggested : await inputPrompt('Enter branch name', description);
+              } else {
+                spinner.fail('AI did not return a suggestion.');
+                newBranchName = await inputPrompt('Enter branch name', description);
+              }
+            }
+
+            if (!hasPrefix(newBranchName, config.branchPrefixes)) {
+              const prefix = await selectPrompt(
+                `Choose a branch type for ${pc.bold(newBranchName)}:`,
+                config.branchPrefixes,
+              );
+              newBranchName = formatBranchName(prefix, newBranchName);
+            }
+
+            if (!isValidBranchName(newBranchName)) {
+              error('Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.');
+              process.exit(1);
+            }
 
             // Rename branch preserves all commits + uncommitted changes
             const renameResult = await renameBranch(currentBranch, newBranchName);
