@@ -18,7 +18,21 @@ import { getVersion, showBanner } from './ui/banner.js';
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 
 if (!isVersion) {
-  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'log', 'branch', 'hook', 'validate', 'doctor'];
+  const subCommands = [
+    'setup',
+    'sync',
+    'start',
+    'commit',
+    'update',
+    'submit',
+    'clean',
+    'status',
+    'log',
+    'branch',
+    'hook',
+    'validate',
+    'doctor',
+  ];
   const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
   const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
   const useBigBanner = isHelp || !hasSubCommand;

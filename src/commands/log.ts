@@ -1,12 +1,7 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
-import {
-  getCurrentBranch,
-  getLogEntries,
-  getLogGraph,
-  isGitRepo,
-} from '../utils/git.js';
+import { getCurrentBranch, getLogEntries, getLogGraph, isGitRepo } from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
 import { getProtectedBranches } from '../utils/workflow.js';
 
@@ -80,7 +75,9 @@ export default defineCommand({
       console.log();
       for (const entry of entries) {
         const hashStr = pc.yellow(entry.hash);
-        const refsStr = entry.refs ? ` ${colorizeRefs(entry.refs, protectedBranches, currentBranch)}` : '';
+        const refsStr = entry.refs
+          ? ` ${colorizeRefs(entry.refs, protectedBranches, currentBranch)}`
+          : '';
         const subjectStr = colorizeSubject(entry.subject);
         console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
       }
@@ -88,8 +85,16 @@ export default defineCommand({
 
     // Footer with count info
     console.log();
-    console.log(pc.dim(`  Showing ${count} most recent commits${showAll ? ' (all branches)' : targetBranch ? ` (${targetBranch})` : ''}`));
-    console.log(pc.dim(`  Use ${pc.bold('contrib log -n 50')} for more, or ${pc.bold('contrib log --all')} for all branches`));
+    console.log(
+      pc.dim(
+        `  Showing ${count} most recent commits${showAll ? ' (all branches)' : targetBranch ? ` (${targetBranch})` : ''}`,
+      ),
+    );
+    console.log(
+      pc.dim(
+        `  Use ${pc.bold('contrib log -n 50')} for more, or ${pc.bold('contrib log --all')} for all branches`,
+      ),
+    );
     console.log();
   },
 });
@@ -230,7 +235,7 @@ function colorizeRefName(
  */
 function colorizeSubject(subject: string): string {
   // If it starts with an emoji (common in Clean Commit), keep it bright
-  const emojiMatch = subject.match(/^([\p{Emoji_Presentation}\p{Emoji}\uFE0F]+\s*)/u);
+  const emojiMatch = subject.match(/^((?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+\s*)/u);
   if (emojiMatch) {
     const emoji = emojiMatch[1];
     const rest = subject.slice(emoji.length);

@@ -124,6 +124,7 @@ async function installHook(): Promise<void> {
   success(`commit-msg hook installed.`);
   info(`Convention: ${pc.bold(CONVENTION_LABELS[config.commitConvention])}`);
   info(`Path: ${pc.dim(hookPath)}`);
+  warn('Note: hooks can be bypassed with `git commit --no-verify`.');
 }
 
 async function uninstallHook(): Promise<void> {

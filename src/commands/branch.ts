@@ -1,12 +1,7 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
-import {
-  getCurrentBranch,
-  getLocalBranches,
-  getRemoteBranches,
-  isGitRepo,
-} from '../utils/git.js';
+import { getCurrentBranch, getLocalBranches, getRemoteBranches, isGitRepo } from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
 import { getProtectedBranches } from '../utils/workflow.js';
 
