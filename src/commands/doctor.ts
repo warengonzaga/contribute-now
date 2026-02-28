@@ -8,8 +8,11 @@ import {
   getCurrentBranch,
   getRemotes,
   getRemoteUrl,
+  hasGitLockFile,
   hasUncommittedChanges,
+  isGitOperationInProgress,
   isGitRepo,
+  isShallowRepo,
 } from '../utils/git.js';
 import { heading } from '../utils/logger.js';
 import { detectForkSetup, parseRepoFromUrl } from '../utils/remote.js';
@@ -238,6 +241,37 @@ async function gitSection(): Promise<SectionReport> {
     ok: true,
     warning: dirty,
   });
+
+  // Shallow clone detection
+  const shallow = await isShallowRepo();
+  if (shallow) {
+    checks.push({
+      label: 'Shallow clone detected',
+      ok: true,
+      warning: true,
+      detail: 'run `git fetch --unshallow` for full history',
+    });
+  }
+
+  // In-progress git operations
+  const inProgressOp = await isGitOperationInProgress();
+  if (inProgressOp) {
+    checks.push({
+      label: `Git ${inProgressOp} in progress`,
+      ok: false,
+      detail: `complete or abort: git ${inProgressOp} --abort`,
+    });
+  }
+
+  // Lock file
+  if (await hasGitLockFile()) {
+    checks.push({
+      label: 'Git lock file detected (index.lock)',
+      ok: true,
+      warning: true,
+      detail: 'another git process may be running, or the lock is stale',
+    });
+  }
 
   return { title: 'Git Environment', checks };
 }
