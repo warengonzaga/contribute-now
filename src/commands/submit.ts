@@ -24,6 +24,7 @@ import {
   getPRForBranch,
 } from '../utils/gh.js';
 import {
+  branchExists,
   checkoutBranch,
   commitWithMessage,
   createBranch,
@@ -110,7 +111,16 @@ async function performSquashMerge(
   }
 
   const fallback = message || `squash merge ${featureBranch}`;
-  const finalMsg = await inputPrompt('Commit message', fallback);
+
+  // If AI generated a message, auto-accept it; only prompt if no AI message available
+  let finalMsg: string;
+  if (message) {
+    console.log(`  ${pc.dim('Commit message:')} ${pc.bold(message)}`);
+    finalMsg = message;
+  } else {
+    finalMsg = await inputPrompt('Commit message', fallback);
+  }
+
   const commitResult = await commitWithMessage(finalMsg);
   if (commitResult.exitCode !== 0) {
     error(`Commit failed: ${commitResult.stderr}`);
@@ -132,11 +142,15 @@ async function performSquashMerge(
     warn(`Could not delete local branch: ${delLocal.stderr.trim()}`);
   }
 
-  // 6. Delete feature branch remotely
-  info(`Deleting remote branch ${pc.bold(featureBranch)}...`);
-  const delRemote = await deleteRemoteBranch(origin, featureBranch);
-  if (delRemote.exitCode !== 0) {
-    warn(`Could not delete remote branch: ${delRemote.stderr.trim()}`);
+  // 6. Delete feature branch remotely (only if it exists on the remote)
+  const remoteBranchRef = `${origin}/${featureBranch}`;
+  const remoteExists = await branchExists(remoteBranchRef);
+  if (remoteExists) {
+    info(`Deleting remote branch ${pc.bold(featureBranch)}...`);
+    const delRemote = await deleteRemoteBranch(origin, featureBranch);
+    if (delRemote.exitCode !== 0) {
+      warn(`Could not delete remote branch: ${delRemote.stderr.trim()}`);
+    }
   }
 
   success(`✅ Squash merged ${pc.bold(featureBranch)} into ${pc.bold(baseBranch)} and pushed.`);
