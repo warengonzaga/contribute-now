@@ -71,10 +71,10 @@ async function handleCurrentBranchDeletion(
       if (!config) return 'skipped';
       info(
         pc.dim(
-          "Tip: Describe what you're working on in plain English and we'll generate a branch name.",
+          "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
         ),
       );
-      const description = await inputPrompt('What are you working on?');
+      const description = await inputPrompt('What are you going to work on?');
 
       let newBranchName = description;
       if (looksLikeNaturalLanguage(description)) {

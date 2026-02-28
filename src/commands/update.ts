@@ -17,7 +17,9 @@ import {
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   checkoutBranch,
+  createBranch,
   determineRebaseStrategy,
+  fetchAll,
   fetchRemote,
   forceDeleteBranch,
   getChangedFiles,
@@ -77,10 +79,114 @@ export default defineCommand({
     }
 
     if (protectedBranches.includes(currentBranch)) {
-      error(
-        `Use \`contrib sync\` to update ${protectedBranches.map((b) => pc.bold(b)).join(' or ')} branches.`,
+      heading('🔃 contrib update');
+      warn(
+        `You're on ${pc.bold(currentBranch)}, which is a protected branch. Updates (rebase) apply to feature branches.`,
       );
-      process.exit(1);
+
+      // Check if the user has local commits or uncommitted changes worth saving
+      await fetchAll();
+      const { origin } = config;
+      const remoteRef = `${origin}/${currentBranch}`;
+      const localWork = await hasLocalWork(origin, currentBranch);
+      const dirty = await hasUncommittedChanges();
+      const hasCommits = localWork.unpushedCommits > 0;
+      const hasAnything = hasCommits || dirty;
+
+      if (!hasAnything) {
+        info(`No local changes found on ${pc.bold(currentBranch)}.`);
+        info(`Use ${pc.bold('contrib sync')} to sync protected branches, or ${pc.bold('contrib start')} to create a feature branch.`);
+        process.exit(1);
+      }
+
+      // Tell them what we found
+      if (hasCommits) {
+        info(
+          `Found ${pc.bold(String(localWork.unpushedCommits))} unpushed commit${localWork.unpushedCommits !== 1 ? 's' : ''} on ${pc.bold(currentBranch)}.`,
+        );
+      }
+      if (dirty) {
+        info('You also have uncommitted changes in the working tree.');
+      }
+
+      console.log();
+
+      const MOVE_BRANCH = 'Move my changes to a new feature branch';
+      const CANCEL = 'Cancel (stay on this branch)';
+
+      const action = await selectPrompt(
+        "Let's get you back on track. What would you like to do?",
+        [MOVE_BRANCH, CANCEL],
+      );
+
+      if (action === CANCEL) {
+        info('No changes made. You are still on your current branch.');
+        return;
+      }
+
+      // ── Move to a new feature branch ──
+      info(
+        pc.dim(
+          "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
+        ),
+      );
+      const description = await inputPrompt('What are you going to work on?');
+
+      let newBranchName = description;
+      if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
+        const copilotError = await checkCopilotAvailable();
+        if (!copilotError) {
+          const spinner = createSpinner('Generating branch name suggestion...');
+          const suggested = await suggestBranchName(description, args.model);
+          if (suggested) {
+            spinner.success('Branch name suggestion ready.');
+            console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
+            const accepted = await confirmPrompt(
+              `Use ${pc.bold(suggested)} as your branch name?`,
+            );
+            newBranchName = accepted
+              ? suggested
+              : await inputPrompt('Enter branch name', description);
+          } else {
+            spinner.fail('AI did not return a suggestion.');
+            newBranchName = await inputPrompt('Enter branch name', description);
+          }
+        }
+      }
+
+      if (!hasPrefix(newBranchName, config.branchPrefixes)) {
+        const prefix = await selectPrompt(
+          `Choose a branch type for ${pc.bold(newBranchName)}:`,
+          config.branchPrefixes,
+        );
+        newBranchName = formatBranchName(prefix, newBranchName);
+      }
+
+      if (!isValidBranchName(newBranchName)) {
+        error(
+          'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
+        );
+        process.exit(1);
+      }
+
+      // Create the new branch from current HEAD (carries all commits + working tree)
+      const branchResult = await createBranch(newBranchName);
+      if (branchResult.exitCode !== 0) {
+        error(`Failed to create branch: ${branchResult.stderr}`);
+        process.exit(1);
+      }
+      success(`Created ${pc.bold(newBranchName)} with your changes.`);
+
+      // Reset the protected branch back to its remote state
+      await updateLocalBranch(currentBranch, remoteRef);
+      info(
+        `Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`,
+      );
+
+      console.log();
+      success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
+      info(`Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`);
+      return;
     }
 
     // 2. Check for uncommitted changes
@@ -125,10 +231,10 @@ export default defineCommand({
         if (action === SAVE_NEW_BRANCH) {
           info(
             pc.dim(
-              "Tip: Describe what you're working on in plain English and we'll generate a branch name.",
+              "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
             ),
           );
-          const description = await inputPrompt('What are you working on?');
+          const description = await inputPrompt('What are you going to work on?');
 
           let newBranchName = description;
           if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {

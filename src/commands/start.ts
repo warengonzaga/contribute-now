@@ -28,8 +28,8 @@ export default defineCommand({
   args: {
     name: {
       type: 'positional',
-      description: 'Branch name or description',
-      required: true,
+      description: 'Branch name or description (prompted if omitted)',
+      required: false,
     },
     model: {
       type: 'string',
@@ -64,6 +64,18 @@ export default defineCommand({
     let branchName = args.name;
 
     heading('🌿 contrib start');
+
+    // If no name provided, prompt interactively
+    if (!branchName) {
+      branchName = await inputPrompt(
+        'What are you going to work on?',
+      );
+      if (!branchName || branchName.trim().length === 0) {
+        error('A branch name or description is required.');
+        process.exit(1);
+      }
+      branchName = branchName.trim();
+    }
 
     // AI enhancement: if name looks like natural language, suggest a branch name
     const useAI = !args['no-ai'] && looksLikeNaturalLanguage(branchName);
