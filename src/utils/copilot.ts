@@ -43,10 +43,12 @@ Rules:
 - Return ONLY the JSON array, nothing else`;
 }
 
-const BRANCH_NAME_SYSTEM_PROMPT = `Git branch name generator. Format: <prefix>/<kebab-case-name>
-Prefixes: feature, fix, docs, chore, test, refactor
-Rules: lowercase kebab-case, 2-5 words max. Return ONLY the branch name.
-Examples: fix/login-timeout | feature/user-profile-page | docs/update-readme`;
+const BRANCH_NAME_SYSTEM_PROMPT = `You are a git branch name generator. Your ONLY job is to output a single git branch name. NOTHING ELSE.
+Output format: <prefix>/<kebab-case-name>
+Valid prefixes: feature, fix, docs, chore, test, refactor
+Rules: lowercase, kebab-case, 2-5 words after the prefix, no punctuation.
+CRITICAL: Output ONLY the branch name on a single line. No explanation. No markdown. No questions. No other text.
+Examples: fix/login-timeout | feature/user-profile-page | docs/update-readme | chore/update-pr-title`;
 
 const PR_DESCRIPTION_SYSTEM_PROMPT_BASE = `GitHub PR description generator. Return JSON: {"title":"<72 chars>","body":"## Summary\\n...\\n\\n## Changes\\n- ...\\n\\n## Test Plan\\n..."}`;
 
@@ -270,7 +272,12 @@ export async function suggestBranchName(
 ): Promise<string | null> {
   try {
     const result = await callCopilot(BRANCH_NAME_SYSTEM_PROMPT, description, model);
-    return result?.trim() ?? null;
+    const trimmed = result?.trim() ?? null;
+    // Validate it looks like an actual branch name, not a conversational response
+    if (trimmed && /^[a-z]+\/[a-z0-9-]+$/.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
   } catch {
     return null;
   }
