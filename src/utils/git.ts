@@ -1,5 +1,5 @@
 import { execFile as execFileCb } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GitResult } from '../types.js';
 
@@ -24,10 +24,114 @@ export async function isGitRepo(): Promise<boolean> {
   return exitCode === 0;
 }
 
+/**
+ * Returns the path to the .git directory for the current repo.
+ * Works with both normal repos (.git directory) and worktrees (.git file).
+ */
+async function getGitDir(): Promise<string | null> {
+  const { exitCode, stdout } = await run(['rev-parse', '--git-dir']);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/**
+ * Checks for lock files and in-progress git operations in a single getGitDir() call.
+ * Returns a structured result to avoid redundant subprocess forks.
+ */
+export async function checkGitState(): Promise<{
+  lockFile: boolean;
+  inProgressOp: string | null;
+  gitDir: string | null;
+}> {
+  const gitDir = await getGitDir();
+  if (!gitDir) return { lockFile: false, inProgressOp: null, gitDir: null };
+
+  const lockFile = existsSync(join(gitDir, 'index.lock'));
+
+  let inProgressOp: string | null = null;
+  if (existsSync(join(gitDir, 'rebase-merge')) || existsSync(join(gitDir, 'rebase-apply'))) {
+    inProgressOp = 'rebase';
+  } else if (existsSync(join(gitDir, 'MERGE_HEAD'))) {
+    inProgressOp = 'merge';
+  } else if (existsSync(join(gitDir, 'CHERRY_PICK_HEAD'))) {
+    inProgressOp = 'cherry-pick';
+  } else if (existsSync(join(gitDir, 'BISECT_LOG'))) {
+    inProgressOp = 'bisect';
+  }
+
+  return { lockFile, inProgressOp, gitDir };
+}
+
+/**
+ * Detects if a git operation (rebase, merge, cherry-pick, bisect) is in progress.
+ * Prefer `checkGitState()` when you also need to check for lock files.
+ */
+export async function isGitOperationInProgress(): Promise<string | null> {
+  const { inProgressOp } = await checkGitState();
+  return inProgressOp;
+}
+
+/**
+ * Detects if another git process is running by checking for index.lock.
+ * Prefer `checkGitState()` when you also need to check for in-progress operations.
+ */
+export async function hasGitLockFile(): Promise<boolean> {
+  const { lockFile } = await checkGitState();
+  return lockFile;
+}
+
+/**
+ * Guard helper: asserts that no lock file or in-progress git operation exists.
+ * Calls `process.exit(1)` with actionable error messages if the repo is not
+ * in a clean state. Also warns if the repo is a shallow clone.
+ *
+ * @param action - verb describing the blocked command (e.g. "syncing", "committing")
+ */
+export async function assertCleanGitState(action: string): Promise<void> {
+  const { lockFile, inProgressOp, gitDir } = await checkGitState();
+
+  if (lockFile) {
+    const lockPath = gitDir ? `${gitDir}/index.lock` : '.git/index.lock';
+    console.error(
+      '\x1b[31m✖\x1b[0m A git lock file exists (index.lock). Another git process may be running.',
+    );
+    console.error(`\x1b[36mℹ\x1b[0m If no other git process is running, remove it: rm ${lockPath}`);
+    process.exit(1);
+  }
+
+  if (inProgressOp) {
+    console.error(
+      `\x1b[31m✖\x1b[0m A git ${inProgressOp} is in progress. Complete or abort it before ${action}.`,
+    );
+    console.error(`\x1b[36mℹ\x1b[0m   To abort: git ${inProgressOp} --abort`);
+    process.exit(1);
+  }
+
+  if (await isShallowRepo()) {
+    console.error(
+      '\x1b[33m⚠\x1b[0m This is a shallow clone — some operations may behave unexpectedly.',
+    );
+    console.error('\x1b[36mℹ\x1b[0m Consider running `git fetch --unshallow` for full history.');
+  }
+}
+
+/**
+ * Detects if the repo is a shallow clone (limited history).
+ * Shallow clones can cause incorrect results for merge-base, rev-list, etc.
+ */
+export async function isShallowRepo(): Promise<boolean> {
+  const { exitCode, stdout } = await run(['rev-parse', '--is-shallow-repository']);
+  if (exitCode !== 0) return false;
+  return stdout.trim() === 'true';
+}
+
 export async function getCurrentBranch(): Promise<string | null> {
   const { exitCode, stdout } = await run(['rev-parse', '--abbrev-ref', 'HEAD']);
   if (exitCode !== 0) return null;
-  return stdout.trim() || null;
+  const branch = stdout.trim();
+  // Detached HEAD returns literal "HEAD" — treat as no branch
+  if (!branch || branch === 'HEAD') return null;
+  return branch;
 }
 
 export async function getRemotes(): Promise<string[]> {
@@ -48,7 +152,9 @@ export async function getRemoteUrl(remote: string): Promise<string | null> {
 
 export async function hasUncommittedChanges(): Promise<boolean> {
   const { exitCode, stdout } = await run(['status', '--porcelain']);
-  if (exitCode !== 0) return false;
+  // Safe default: if git status fails (corrupted index, lock file, etc.),
+  // assume there ARE uncommitted changes to prevent destructive operations.
+  if (exitCode !== 0) return true;
   return stdout.trim().length > 0;
 }
 
@@ -65,6 +171,11 @@ export async function commitsBetween(base: string, head: string): Promise<string
 
 export async function fetchRemote(remote: string): Promise<GitResult> {
   return run(['fetch', remote]);
+}
+
+/** Add a new git remote. */
+export async function addRemote(name: string, url: string): Promise<GitResult> {
+  return run(['remote', 'add', name, url]);
 }
 
 export async function fetchAll(): Promise<GitResult> {
@@ -104,6 +215,11 @@ export async function pushSetUpstream(remote: string, branch: string): Promise<G
 
 export async function rebase(branch: string): Promise<GitResult> {
   return run(['rebase', branch]);
+}
+
+/** Abort an in-progress rebase. */
+export async function rebaseAbort(): Promise<GitResult> {
+  return run(['rebase', '--abort']);
 }
 
 /** Returns the upstream tracking ref for the current branch (e.g. "origin/feature/git-add"), or null if none. */
@@ -240,8 +356,9 @@ export async function getChangedFiles(): Promise<string[]> {
       const match = line.match(/^..\s+(.*)/);
       if (!match) return '';
       const file = match[1];
-      // Handle renames: "old -> new" — use the new name
-      const renameIdx = file.indexOf(' -> ');
+      // Handle renames: porcelain shows "old -> new"
+      // Use last occurrence of ' -> ' to handle filenames containing that string
+      const renameIdx = file.lastIndexOf(' -> ');
       return renameIdx !== -1 ? file.slice(renameIdx + 4) : file;
     })
     .filter(Boolean);
@@ -288,7 +405,11 @@ export async function getGoneBranches(): Promise<string[]> {
   return stdout
     .trimEnd()
     .split('\n')
-    .filter((line) => line.includes(': gone]'))
+    .filter((line) => {
+      // Match the tracking-info bracket pattern precisely to avoid
+      // false positives from branch names containing ': gone]'
+      return /\[\S+: gone\]/.test(line);
+    })
     .map((line) => line.replace(/^\*?\s+/, '').split(/\s+/)[0])
     .filter(Boolean);
 }
@@ -366,6 +487,24 @@ export async function getLog(base: string, head: string): Promise<string[]> {
 
 export async function pullBranch(remote: string, branch: string): Promise<GitResult> {
   return run(['pull', remote, branch]);
+}
+
+/**
+ * Pull with --ff-only to prevent merge commits.
+ * Use this for sync operations where linear history is required.
+ * Returns a non-zero exit code if fast-forward is not possible.
+ */
+export async function pullFastForwardOnly(remote: string, branch: string): Promise<GitResult> {
+  return run(['pull', '--ff-only', remote, branch]);
+}
+
+/**
+ * Check if a ref (branch, tag, remote ref) resolves to a valid object.
+ * Useful for validating remote refs like "origin/main" before using them.
+ */
+export async function refExists(ref: string): Promise<boolean> {
+  const { exitCode } = await run(['rev-parse', '--verify', '--quiet', ref]);
+  return exitCode === 0;
 }
 
 export async function stageFiles(files: string[]): Promise<GitResult> {
@@ -464,7 +603,7 @@ export async function getFileStatus(): Promise<FileStatus> {
     const workTreeStatus = line[1];
     const pathPart = line.slice(3);
     // Handle renames: "old -> new"
-    const renameIdx = pathPart.indexOf(' -> ');
+    const renameIdx = pathPart.lastIndexOf(' -> ');
     const file = renameIdx !== -1 ? pathPart.slice(renameIdx + 4) : pathPart;
 
     if (indexStatus === '?' && workTreeStatus === '?') {
@@ -529,11 +668,7 @@ export async function getLogEntries(options?: {
   branch?: string;
 }): Promise<{ hash: string; subject: string; refs: string }[]> {
   const count = options?.count ?? 20;
-  const args = [
-    'log',
-    `--format=%h||%s||%D`,
-    `--max-count=${count}`,
-  ];
+  const args = ['log', `--format=%h||%s||%D`, `--max-count=${count}`];
   if (options?.all) {
     args.push('--all');
   }
