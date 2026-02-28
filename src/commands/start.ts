@@ -12,8 +12,10 @@ import { suggestBranchName } from '../utils/copilot.js';
 import {
   assertCleanGitState,
   branchExists,
+  countCommitsAhead,
   createBranch,
   fetchRemote,
+  getCurrentBranch,
   hasUncommittedChanges,
   isGitRepo,
   refExists,
@@ -136,6 +138,26 @@ export default defineCommand({
       warn(
         `Remote ref ${pc.bold(syncSource.ref)} not found. Creating branch from local ${pc.bold(baseBranch)}.`,
       );
+    }
+
+    // Guard: if the user is sitting on the base branch and has local commits
+    // that would be destroyed by the hard-reset path, warn before proceeding.
+    const currentBranch = await getCurrentBranch();
+    if (currentBranch === baseBranch && (await refExists(syncSource.ref))) {
+      const ahead = await countCommitsAhead(baseBranch, syncSource.ref);
+      if (ahead > 0) {
+        warn(
+          `You are on ${pc.bold(baseBranch)} with ${pc.bold(String(ahead))} local commit${ahead > 1 ? 's' : ''} not in ${pc.bold(syncSource.ref)}.`,
+        );
+        info(
+          '  Syncing will discard those commits. Consider backing them up first (e.g. create a branch).',
+        );
+        const proceed = await confirmPrompt('Discard local commits and sync to remote?');
+        if (!proceed) {
+          info('Aborted. Your local commits are untouched.');
+          process.exit(0);
+        }
+      }
     }
 
     // Update local base branch ref to match remote (without switching to it)
