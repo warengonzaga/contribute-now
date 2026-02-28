@@ -10,10 +10,12 @@ import {
   getCurrentBranch,
   getGoneBranches,
   getMergedBranches,
+  getUpstreamRef,
   hasLocalWork,
   isGitRepo,
   pruneRemote,
   rebase,
+  rebaseOnto,
   renameBranch,
   updateLocalBranch,
 } from '../utils/git.js';
@@ -73,7 +75,11 @@ async function handleCurrentBranchDeletion(
       // Rebase saved branch onto latest base so the work is up-to-date
       const syncSource = getSyncSource(config);
       await fetchRemote(syncSource.remote);
-      const rebaseResult = await rebase(syncSource.ref);
+      const savedUpstreamRef = await getUpstreamRef();
+      const rebaseResult =
+        savedUpstreamRef && savedUpstreamRef !== syncSource.ref
+          ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
+          : await rebase(syncSource.ref);
       if (rebaseResult.exitCode !== 0) {
         warn('Rebase encountered conflicts. Resolve them after cleanup:');
         info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase --continue`)}`);

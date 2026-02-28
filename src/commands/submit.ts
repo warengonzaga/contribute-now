@@ -34,8 +34,10 @@ import {
   pushBranch,
   pushSetUpstream,
   rebase,
+  rebaseOnto,
   renameBranch,
   updateLocalBranch,
+  getUpstreamRef,
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
@@ -240,7 +242,11 @@ export default defineCommand({
             const syncSource = getSyncSource(config);
             info(`Syncing ${pc.bold(newBranchName)} with latest ${pc.bold(baseBranch)}...`);
             await fetchRemote(syncSource.remote);
-            const rebaseResult = await rebase(syncSource.ref);
+            const savedUpstreamRef = await getUpstreamRef();
+            const rebaseResult =
+              savedUpstreamRef && savedUpstreamRef !== syncSource.ref
+                ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
+                : await rebase(syncSource.ref);
             if (rebaseResult.exitCode !== 0) {
               warn('Rebase encountered conflicts. Resolve them manually, then run:');
               info(`  ${pc.bold('git rebase --continue')}`);

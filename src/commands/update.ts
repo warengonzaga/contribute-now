@@ -17,10 +17,12 @@ import {
   forceDeleteBranch,
   getChangedFiles,
   getCurrentBranch,
+  getUpstreamRef,
   hasLocalWork,
   hasUncommittedChanges,
   isGitRepo,
   rebase,
+  rebaseOnto,
   renameBranch,
   updateLocalBranch,
 } from '../utils/git.js';
@@ -154,9 +156,14 @@ export default defineCommand({
           }
           success(`Renamed ${pc.bold(currentBranch)} → ${pc.bold(newBranchName)}`);
 
-          // Rebase onto latest base so saved work is up-to-date
+          // Rebase onto latest base so saved work is up-to-date.
+          // Use --onto if upstream tracking ref differs to avoid replaying already-merged commits.
           await fetchRemote(syncSource.remote);
-          const rebaseResult = await rebase(syncSource.ref);
+          const savedUpstreamRef = await getUpstreamRef();
+          const rebaseResult =
+            savedUpstreamRef && savedUpstreamRef !== syncSource.ref
+              ? await rebaseOnto(syncSource.ref, savedUpstreamRef)
+              : await rebase(syncSource.ref);
           if (rebaseResult.exitCode !== 0) {
             warn('Rebase encountered conflicts. Resolve them manually, then run:');
             info(`  ${pc.bold('git rebase --continue')}`);
@@ -198,8 +205,14 @@ export default defineCommand({
     await fetchRemote(syncSource.remote);
     await updateLocalBranch(baseBranch, syncSource.ref);
 
-    // 5. git rebase base branch
-    const rebaseResult = await rebase(baseBranch);
+    // 5. Rebase onto the sync target, using --onto if the upstream tracking ref differs
+    //    (e.g. branch was based on feature/X which is now merged into dev — plain rebase
+    //    would re-apply already-merged commits and cause conflicts).
+    const upstreamRef = await getUpstreamRef();
+    const rebaseResult =
+      upstreamRef && upstreamRef !== syncSource.ref
+        ? await rebaseOnto(syncSource.ref, upstreamRef)
+        : await rebase(syncSource.ref);
 
     if (rebaseResult.exitCode !== 0) {
       // 6. On conflict: AI suggestions
