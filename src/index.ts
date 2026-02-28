@@ -13,8 +13,15 @@ import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
 
-const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
-showBanner(isHelp);
+const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
+
+if (!isVersion) {
+  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'hook', 'validate', 'doctor'];
+  const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
+  const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
+  const useBigBanner = isHelp || !hasSubCommand;
+  showBanner(useBigBanner ? 'big' : 'small');
+}
 
 const main = defineCommand({
   meta: {
