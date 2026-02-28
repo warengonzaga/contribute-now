@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { defineCommand, runMain } from 'citty';
+import branch from './commands/branch.js';
 import clean from './commands/clean.js';
 import commit from './commands/commit.js';
 import doctor from './commands/doctor.js';
@@ -17,7 +18,7 @@ import { getVersion, showBanner } from './ui/banner.js';
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 
 if (!isVersion) {
-  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'log', 'hook', 'validate', 'doctor'];
+  const subCommands = ['setup', 'sync', 'start', 'commit', 'update', 'submit', 'clean', 'status', 'log', 'branch', 'hook', 'validate', 'doctor'];
   const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
   const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
   const useBigBanner = isHelp || !hasSubCommand;
@@ -45,6 +46,7 @@ const main = defineCommand({
     commit,
     update,
     submit,
+    branch,
     clean,
     status,
     log,

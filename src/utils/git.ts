@@ -551,3 +551,59 @@ export async function getLogEntries(options?: {
       return { hash: hash.trim(), subject: subject.trim(), refs: refs.trim() };
     });
 }
+
+export interface LocalBranchInfo {
+  name: string;
+  isCurrent: boolean;
+  upstream: string | null;
+  gone: boolean;
+}
+
+/**
+ * List all local branches with tracking info.
+ * Parses `git branch -vv` to extract branch name, current marker,
+ * upstream tracking ref, and whether the remote is [gone].
+ */
+export async function getLocalBranches(): Promise<LocalBranchInfo[]> {
+  const { exitCode, stdout } = await run(['branch', '-vv', '--no-color']);
+  if (exitCode !== 0) return [];
+  return stdout
+    .trimEnd()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const isCurrent = line.startsWith('*');
+      // Strip leading "* " or "  "
+      const trimmed = line.slice(2);
+      // Format: "branchname  hash [upstream/ref: status] subject"
+      const nameMatch = trimmed.match(/^(\S+)/);
+      const name = nameMatch?.[1] ?? '';
+      // Extract upstream ref from [brackets]
+      const upstreamMatch = trimmed.match(/\[([^\]]+)\]/);
+      let upstream: string | null = null;
+      let gone = false;
+      if (upstreamMatch) {
+        const bracketContent = upstreamMatch[1];
+        // Could be "origin/branch", "origin/branch: ahead 1", or "origin/branch: gone"
+        gone = bracketContent.includes(': gone');
+        upstream = bracketContent.split(':')[0].trim();
+      }
+      return { name, isCurrent, upstream, gone };
+    })
+    .filter((b) => b.name.length > 0);
+}
+
+/**
+ * List all remote-tracking branches.
+ * Parses `git branch -r --no-color` to get remote refs like "origin/main".
+ * Excludes HEAD pointer references (e.g. "origin/HEAD -> origin/main").
+ */
+export async function getRemoteBranches(): Promise<string[]> {
+  const { exitCode, stdout } = await run(['branch', '-r', '--no-color']);
+  if (exitCode !== 0) return [];
+  return stdout
+    .trimEnd()
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.includes(' -> '));
+}
