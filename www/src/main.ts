@@ -66,6 +66,9 @@ window.addEventListener('DOMContentLoaded', () => {
     '.prereq-card',
     '.ai-table-wrap',
     '.solution-callout',
+    '.cmd-card',
+    '.cmd-category',
+    '.workflow-flow',
   ];
   selectors.forEach((sel) => {
     document.querySelectorAll(sel).forEach((el, i) => {

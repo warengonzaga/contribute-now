@@ -510,6 +510,7 @@ code {
   transform: translateY(-2px);
 }
 .prereq-card--required { border: 1px solid var(--accent); }
+.prereq-card--recommended { border: 1px solid var(--orange); }
 .prereq-card--optional { border: 1px solid var(--border-2); }
 .prereq-badge {
   position: absolute; top: 18px; right: 18px;
@@ -523,6 +524,10 @@ code {
 .prereq-card--required .prereq-badge {
   background: rgba(88, 166, 255, 0.1);
   color: var(--accent);
+}
+.prereq-card--recommended .prereq-badge {
+  background: rgba(227, 179, 65, 0.1);
+  color: var(--orange);
 }
 .prereq-card--optional .prereq-badge {
   background: var(--bg-3);
@@ -956,4 +961,326 @@ code {
     max-width: 100%;
   }
   .showcase-section { padding: 80px 0; }
+}
+
+/* ─── Command Reference ──────────────────────────────────────────────── */
+.commands-section {
+  padding: 120px 0;
+  border-top: 1px solid var(--border);
+  position: relative;
+  background: linear-gradient(180deg, var(--bg) 0%, rgba(22, 27, 34, 0.4) 50%, var(--bg) 100%);
+}
+.commands-section .section-sub {
+  margin-bottom: 64px;
+}
+
+/* Category blocks */
+.cmd-category {
+  margin-bottom: 56px;
+}
+.cmd-category:last-child {
+  margin-bottom: 0;
+}
+.cmd-category-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.cmd-category-icon {
+  font-size: 1.6rem;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+.cmd-category-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.cmd-category-sub {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Workflow pipeline */
+.workflow-flow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 28px;
+  padding: 28px 24px 20px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.flow-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0d1117;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+}
+.flow-step:hover .flow-dot {
+  transform: scale(1.2);
+  box-shadow: 0 0 24px rgba(88, 166, 255, 0.45);
+}
+.flow-step span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.flow-line {
+  width: 36px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+  flex-shrink: 0;
+  opacity: 0.35;
+  margin-top: 17px;
+}
+
+/* Command card grid */
+.cmd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.cmd-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+}
+.cmd-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.cmd-card:hover {
+  border-color: var(--border-2);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.cmd-card:hover::before {
+  opacity: 1;
+}
+
+/* AI-powered card variant */
+.cmd-card--ai {
+  border-color: rgba(188, 140, 255, 0.12);
+}
+.cmd-card--ai::before {
+  background: linear-gradient(90deg, transparent, var(--purple), transparent);
+}
+.cmd-card--ai:hover {
+  border-color: rgba(188, 140, 255, 0.35);
+  box-shadow: 0 16px 48px rgba(188, 140, 255, 0.08);
+}
+
+/* Card internals */
+.cmd-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cmd-icon {
+  font-size: 1.3rem;
+}
+.cmd-name {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+}
+.cmd-ai-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(188, 140, 255, 0.12);
+  color: var(--purple);
+  border: 1px solid rgba(188, 140, 255, 0.25);
+  margin-left: auto;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.cmd-card:hover .cmd-ai-badge {
+  background: rgba(188, 140, 255, 0.2);
+  box-shadow: 0 0 12px rgba(188, 140, 255, 0.2);
+}
+.cmd-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.cmd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cmd-tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  transition: color 0.2s, border-color 0.2s;
+}
+.cmd-card:hover .cmd-tag {
+  color: var(--text-muted);
+  border-color: var(--border-2);
+}
+
+/* Docs link */
+.cmd-docs-link {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+.cmd-docs-link a {
+  font-weight: 600;
+}
+
+/* Command section responsive */
+@media (max-width: 768px) {
+  .cmd-grid {
+    grid-template-columns: 1fr;
+  }
+  .commands-section { padding: 80px 0; }
+  .workflow-flow {
+    justify-content: flex-start;
+    padding: 20px 16px 16px;
+  }
+  .flow-line { width: 24px; }
+}
+
+/* ─── Beauty Enhancements ────────────────────────────────────────────── */
+
+/* Gradient section separators */
+.showcase-section::after,
+.commands-section::after,
+.quickstart::after,
+.prereqs::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 800px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(88, 166, 255, 0.3) 30%, rgba(188, 140, 255, 0.3) 70%, transparent);
+  pointer-events: none;
+}
+.quickstart,
+.prereqs {
+  position: relative;
+}
+
+/* Terminal window glow */
+.terminal-window {
+  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.terminal-window:hover {
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(88, 166, 255, 0.06);
+}
+
+/* Showcase visual subtle glow */
+.showcase-visual::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70%;
+  height: 70%;
+  background: radial-gradient(ellipse, rgba(88, 166, 255, 0.04), transparent);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.showcase-visual .terminal-window {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero terminal snippet glow */
+.terminal-snippet {
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.terminal-snippet:hover {
+  border-color: rgba(88, 166, 255, 0.5);
+  box-shadow: 0 0 24px rgba(88, 166, 255, 0.12);
+}
+
+/* Enhanced card hover glows */
+.prereq-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+.prereq-card--required:hover {
+  box-shadow: 0 12px 40px rgba(88, 166, 255, 0.08);
+}
+.prereq-card--recommended:hover {
+  box-shadow: 0 12px 40px rgba(227, 179, 65, 0.08);
+}
+
+/* CTA box enhanced interaction */
+.cta-box {
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+.cta-box:hover {
+  border-color: rgba(88, 166, 255, 0.35);
+  box-shadow: 0 0 64px rgba(88, 166, 255, 0.06);
+}
+
+/* Smoother animation curves */
+[data-animate] {
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
