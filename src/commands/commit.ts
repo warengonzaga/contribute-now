@@ -9,8 +9,8 @@ import {
   validateCommitMessage,
 } from '../utils/convention.js';
 import {
-  checkCopilotAvailable,
   BATCH_CONFIG,
+  checkCopilotAvailable,
   generateCommitGroups,
   generateCommitMessage,
   regenerateAllGroupMessages,
