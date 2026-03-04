@@ -10,6 +10,7 @@ import {
 } from '../utils/convention.js';
 import {
   checkCopilotAvailable,
+  BATCH_CONFIG,
   generateCommitGroups,
   generateCommitMessage,
   regenerateAllGroupMessages,
@@ -144,7 +145,7 @@ export default defineCommand({
         warn('Falling back to manual commit message entry.');
       } else {
         const spinnerMsg =
-          stagedFiles.length >= 15
+          stagedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
             ? `Generating commit message with AI (${stagedFiles.length} files — using optimized batching)...`
             : 'Generating commit message with AI...';
         const spinner = createSpinner(spinnerMsg);
@@ -265,7 +266,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   }
 
   const spinner = createSpinner(
-    changedFiles.length >= 15
+    changedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
       ? `Asking AI to group ${changedFiles.length} file(s) into logical commits (using optimized batching)...`
       : `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
   );
