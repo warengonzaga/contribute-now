@@ -105,7 +105,7 @@ const COPILOT_LONG_TIMEOUT_MS = 90_000;
 // ── Batch processing for large changesets ──────────────────────────
 
 /** Thresholds for intelligent batching when many files change at once. */
-const BATCH_CONFIG = {
+export const BATCH_CONFIG = {
   /** File count above which compact diff representation is used */
   LARGE_CHANGESET_THRESHOLD: 15,
   /** Max chars per file in compact diff mode */
@@ -119,24 +119,31 @@ const BATCH_CONFIG = {
 /**
  * Parse a raw unified diff into per-file sections.
  * Keys are file paths, values are the full diff text for that file.
+ * @internal exported for testing
  */
-function parseDiffByFile(rawDiff: string): Map<string, string> {
+export function parseDiffByFile(rawDiff: string): Map<string, string> {
   const sections = new Map<string, string>();
-  const headerPattern = /^diff --git a\/(.+?) b\//gm;
-  const positions: { file: string; start: number }[] = [];
+  const headerPattern = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  const positions: { aFile: string; bFile: string; start: number }[] = [];
 
   for (
     let match = headerPattern.exec(rawDiff);
     match !== null;
     match = headerPattern.exec(rawDiff)
   ) {
-    positions.push({ file: match[1], start: match.index });
+    const aFile = match[1];
+    const bFile = match[2] ?? aFile;
+    positions.push({ aFile, bFile, start: match.index });
   }
 
   for (let i = 0; i < positions.length; i++) {
-    const { file, start } = positions[i];
+    const { aFile, bFile, start } = positions[i];
     const end = i + 1 < positions.length ? positions[i + 1].start : rawDiff.length;
-    sections.set(file, rawDiff.slice(start, end));
+    const section = rawDiff.slice(start, end);
+    sections.set(aFile, section);
+    if (bFile && bFile !== aFile) {
+      sections.set(bFile, section);
+    }
   }
 
   return sections;
@@ -144,8 +151,9 @@ function parseDiffByFile(rawDiff: string): Map<string, string> {
 
 /**
  * Extract quick add/remove line counts from a per-file diff section.
+ * @internal exported for testing
  */
-function extractDiffStats(diffSection: string): { added: number; removed: number } {
+export function extractDiffStats(diffSection: string): { added: number; removed: number } {
   let added = 0;
   let removed = 0;
   for (const line of diffSection.split('\n')) {
@@ -159,8 +167,9 @@ function extractDiffStats(diffSection: string): { added: number; removed: number
  * Create a compact, budget-aware diff representation that ensures ALL files
  * get coverage. Distributes the character budget evenly across files instead
  * of blindly truncating the combined diff (which loses most files).
+ * @internal exported for testing
  */
-function createCompactDiff(
+export function createCompactDiff(
   files: string[],
   rawDiff: string,
   maxTotalChars = BATCH_CONFIG.MAX_COMPACT_PAYLOAD,
@@ -183,8 +192,14 @@ function createCompactDiff(
         parts.push(`${header}\n${section}`);
       } else {
         // Keep diff header + first hunks within budget
-        const truncated = section.slice(0, perFileBudget - header.length - 20);
-        parts.push(`${header}\n${truncated}\n...(truncated)`);
+        const availableForBody = perFileBudget - header.length - 20;
+        if (availableForBody <= 0) {
+          // Budget too small for diff body; fall back to header only
+          parts.push(header);
+        } else {
+          const truncated = section.slice(0, availableForBody);
+          parts.push(`${header}\n${truncated}\n...(truncated)`);
+        }
       }
     } else {
       parts.push(`[${file}] (new/binary file — no diff available)`);
@@ -505,13 +520,28 @@ async function generateCommitGroupsInBatches(
       if (Array.isArray(parsed)) {
         for (const group of parsed) {
           if (Array.isArray(group.files) && typeof group.message === 'string') {
-            allGroups.push(group);
+            // Constrain files to only those in the current batch to prevent cross-batch leakage
+            const batchFileSet = new Set(batchFiles);
+            const filteredFiles = group.files.filter((f) => batchFileSet.has(f));
+            if (filteredFiles.length > 0) {
+              allGroups.push({ ...group, files: filteredFiles });
+            }
           }
         }
       }
     } catch {
       // Skip failed batches — remaining batches may still succeed
     }
+  }
+
+  // Detect ungrouped files and add them as a final catch-all group
+  const groupedFiles = new Set(allGroups.flatMap((g) => g.files));
+  const ungrouped = files.filter((f) => !groupedFiles.has(f));
+  if (ungrouped.length > 0) {
+    allGroups.push({
+      files: ungrouped,
+      message: `chore: update ${ungrouped.length} remaining file${ungrouped.length !== 1 ? 's' : ''}`,
+    });
   }
 
   if (allGroups.length === 0) {
