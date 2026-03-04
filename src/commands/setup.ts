@@ -75,6 +75,9 @@ export async function shouldContinueSetupWithExistingConfig(
     onWarn('Found .contributerc.json but it appears invalid.');
     const shouldContinue = await confirm('Continue setup and overwrite invalid config?');
     if (!shouldContinue) {
+      if (ensureIgnored()) {
+        onInfo('Added .contributerc.json to .gitignore to avoid committing personal config.');
+      }
       onInfo('Keeping existing file. Run setup again when ready to repair it.');
       return false;
     }
