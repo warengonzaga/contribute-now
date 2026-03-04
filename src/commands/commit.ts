@@ -143,7 +143,11 @@ export default defineCommand({
         warn(`AI unavailable: ${copilotError}`);
         warn('Falling back to manual commit message entry.');
       } else {
-        const spinner = createSpinner('Generating commit message with AI...');
+        const spinnerMsg =
+          stagedFiles.length >= 15
+            ? `Generating commit message with AI (${stagedFiles.length} files — using optimized batching)...`
+            : 'Generating commit message with AI...';
+        const spinner = createSpinner(spinnerMsg);
         commitMessage = await generateCommitMessage(
           diff,
           stagedFiles,
@@ -261,7 +265,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   }
 
   const spinner = createSpinner(
-    `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
+    changedFiles.length >= 15
+      ? `Asking AI to group ${changedFiles.length} file(s) into logical commits (using optimized batching)...`
+      : `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
   );
 
   const diffs = await getFullDiffForFiles(changedFiles);
