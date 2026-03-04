@@ -1,7 +1,7 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import type { CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
-import { getDefaultConfig, isGitignored, writeConfig } from '../utils/config.js';
+import { ensureGitignored, getDefaultConfig, writeConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
 import {
@@ -203,10 +203,9 @@ export default defineCommand({
       }
     }
 
-    // 7. Warn if not in .gitignore
-    if (!isGitignored()) {
-      warn('.contributerc.json is not in .gitignore. Add it to avoid committing personal config.');
-      warn('  echo ".contributerc.json" >> .gitignore');
+    // 7. Ensure config file is ignored
+    if (ensureGitignored()) {
+      info('Added .contributerc.json to .gitignore to avoid committing personal config.');
     }
 
     console.log();
