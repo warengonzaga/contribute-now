@@ -66,6 +66,11 @@ window.addEventListener('DOMContentLoaded', () => {
     '.prereq-card',
     '.ai-table-wrap',
     '.solution-callout',
+    '.cmd-card',
+    '.cmd-category',
+    '.workflow-flow',
+    '.golden-ring',
+    '.sponsor-card',
   ];
   selectors.forEach((sel) => {
     document.querySelectorAll(sel).forEach((el, i) => {
@@ -76,4 +81,21 @@ window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-animate]').forEach((el) => {
     observer.observe(el);
   });
+
+  // Fetch live GitHub star count
+  const starCountEl = document.getElementById('starCount');
+  if (starCountEl) {
+    fetch('https://api.github.com/repos/warengonzaga/contribute-now')
+      .then((r) => r.json())
+      .then((data: { stargazers_count?: number }) => {
+        if (typeof data.stargazers_count === 'number') {
+          const count = data.stargazers_count;
+          starCountEl.textContent = count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
+          starCountEl.classList.add('loaded');
+        }
+      })
+      .catch(() => {
+        // Silent fail — "—" stays as placeholder
+      });
+  }
 });

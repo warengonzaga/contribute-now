@@ -9,6 +9,7 @@ import {
   validateCommitMessage,
 } from '../utils/convention.js';
 import {
+  BATCH_CONFIG,
   checkCopilotAvailable,
   generateCommitGroups,
   generateCommitMessage,
@@ -143,7 +144,11 @@ export default defineCommand({
         warn(`AI unavailable: ${copilotError}`);
         warn('Falling back to manual commit message entry.');
       } else {
-        const spinner = createSpinner('Generating commit message with AI...');
+        const spinnerMsg =
+          stagedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
+            ? `Generating commit message with AI (${stagedFiles.length} files — using optimized batching)...`
+            : 'Generating commit message with AI...';
+        const spinner = createSpinner(spinnerMsg);
         commitMessage = await generateCommitMessage(
           diff,
           stagedFiles,
@@ -261,7 +266,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   }
 
   const spinner = createSpinner(
-    `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
+    changedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
+      ? `Asking AI to group ${changedFiles.length} file(s) into logical commits (using optimized batching)...`
+      : `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
   );
 
   const diffs = await getFullDiffForFiles(changedFiles);

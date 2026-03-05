@@ -102,6 +102,116 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 const COPILOT_TIMEOUT_MS = 30_000;
 const COPILOT_LONG_TIMEOUT_MS = 90_000;
 
+// ── Batch processing for large changesets ──────────────────────────
+
+/** Thresholds for intelligent batching when many files change at once. */
+export const BATCH_CONFIG = {
+  /** File count above which compact diff representation is used */
+  LARGE_CHANGESET_THRESHOLD: 15,
+  /** Max chars per file in compact diff mode */
+  COMPACT_PER_FILE_CHARS: 300,
+  /** Max total chars for compact diff payload sent to AI */
+  MAX_COMPACT_PAYLOAD: 10_000,
+  /** Max files to process per batch when single-call grouping fails */
+  FALLBACK_BATCH_SIZE: 15,
+} as const;
+
+/**
+ * Parse a raw unified diff into per-file sections.
+ * Keys are file paths, values are the full diff text for that file.
+ * @internal exported for testing
+ */
+export function parseDiffByFile(rawDiff: string): Map<string, string> {
+  const sections = new Map<string, string>();
+  const headerPattern = /^diff --git a\/(.+?) b\/(.+?)$/gm;
+  const positions: { aFile: string; bFile: string; start: number }[] = [];
+
+  for (
+    let match = headerPattern.exec(rawDiff);
+    match !== null;
+    match = headerPattern.exec(rawDiff)
+  ) {
+    const aFile = match[1];
+    const bFile = match[2] ?? aFile;
+    positions.push({ aFile, bFile, start: match.index });
+  }
+
+  for (let i = 0; i < positions.length; i++) {
+    const { aFile, bFile, start } = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1].start : rawDiff.length;
+    const section = rawDiff.slice(start, end);
+    sections.set(aFile, section);
+    if (bFile && bFile !== aFile) {
+      sections.set(bFile, section);
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Extract quick add/remove line counts from a per-file diff section.
+ * @internal exported for testing
+ */
+export function extractDiffStats(diffSection: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of diffSection.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) added++;
+    if (line.startsWith('-') && !line.startsWith('---')) removed++;
+  }
+  return { added, removed };
+}
+
+/**
+ * Create a compact, budget-aware diff representation that ensures ALL files
+ * get coverage. Distributes the character budget evenly across files instead
+ * of blindly truncating the combined diff (which loses most files).
+ * @internal exported for testing
+ */
+export function createCompactDiff(
+  files: string[],
+  rawDiff: string,
+  maxTotalChars = BATCH_CONFIG.MAX_COMPACT_PAYLOAD,
+): string {
+  if (files.length === 0) return '';
+
+  const diffSections = parseDiffByFile(rawDiff);
+  const perFileBudget = Math.min(
+    BATCH_CONFIG.COMPACT_PER_FILE_CHARS,
+    Math.floor(maxTotalChars / files.length),
+  );
+
+  const parts: string[] = [];
+  for (const file of files) {
+    const section = diffSections.get(file);
+    if (section) {
+      const stats = extractDiffStats(section);
+      const header = `[${file}] (+${stats.added}/-${stats.removed})`;
+      if (section.length <= perFileBudget) {
+        parts.push(`${header}\n${section}`);
+      } else {
+        // Keep diff header + first hunks within budget
+        const availableForBody = perFileBudget - header.length - 20;
+        if (availableForBody <= 0) {
+          // Budget too small for diff body; fall back to header only
+          parts.push(header);
+        } else {
+          const truncated = section.slice(0, availableForBody);
+          parts.push(`${header}\n${truncated}\n...(truncated)`);
+        }
+      }
+    } else {
+      parts.push(`[${file}] (new/binary file — no diff available)`);
+    }
+  }
+
+  const result = parts.join('\n\n');
+  return result.length > maxTotalChars
+    ? `${result.slice(0, maxTotalChars - 15)}\n...(truncated)`
+    : result;
+}
+
 export async function checkCopilotAvailable(): Promise<string | null> {
   try {
     const client = await getManagedClient();
@@ -238,12 +348,22 @@ export async function generateCommitMessage(
   convention: CommitConvention = 'clean-commit',
 ): Promise<string | null> {
   try {
+    const isLarge = stagedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD;
     const multiFileHint =
       stagedFiles.length > 1
         ? '\n\nIMPORTANT: Multiple files are staged. Generate ONE commit message that captures the high-level purpose of ALL changes together. Focus on the overall intent, not individual file changes. Be specific but concise — do not list every file.'
         : '';
-    const userMessage = `Generate a commit message for these staged changes:\n\nFiles: ${stagedFiles.join(', ')}\n\nDiff:\n${diff.slice(0, 4000)}${multiFileHint}`;
-    const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
+
+    // Use compact representation for large changesets so ALL files get coverage
+    const diffContent = isLarge ? createCompactDiff(stagedFiles, diff) : diff.slice(0, 4000);
+
+    const userMessage = `Generate a commit message for these staged changes:\n\nFiles (${stagedFiles.length}): ${stagedFiles.join(', ')}\n\nDiff:\n${diffContent}${multiFileHint}`;
+    const result = await callCopilot(
+      getCommitSystemPrompt(convention),
+      userMessage,
+      model,
+      isLarge ? COPILOT_LONG_TIMEOUT_MS : COPILOT_TIMEOUT_MS,
+    );
     return result?.trim() ?? null;
   } catch {
     return null;
@@ -308,7 +428,16 @@ export async function generateCommitGroups(
   model?: string,
   convention: CommitConvention = 'clean-commit',
 ): Promise<CommitGroup[]> {
-  const userMessage = `Group these changed files into logical atomic commits:\n\nFiles:\n${files.join('\n')}\n\nDiffs (truncated):\n${diffs.slice(0, 6000)}`;
+  const isLarge = files.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD;
+
+  // Use compact diff to ensure ALL files get representation in the prompt
+  const diffContent = isLarge ? createCompactDiff(files, diffs) : diffs.slice(0, 6000);
+
+  const largeHint = isLarge
+    ? `\n\nNOTE: This is a large changeset (${files.length} files). Compact diffs are provided for every file. Focus on creating well-organized logical groups.`
+    : '';
+
+  const userMessage = `Group these changed files into logical atomic commits:\n\nFiles:\n${files.join('\n')}\n\nDiffs:\n${diffContent}${largeHint}`;
   const result = await callCopilot(
     getGroupingSystemPrompt(convention),
     userMessage,
@@ -316,6 +445,8 @@ export async function generateCommitGroups(
     COPILOT_LONG_TIMEOUT_MS,
   );
   if (!result) {
+    // For large changesets, fall back to batch processing before giving up
+    if (isLarge) return generateCommitGroupsInBatches(files, diffs, model, convention);
     throw new Error('AI returned an empty response');
   }
   const cleaned = extractJson(result);
@@ -323,10 +454,12 @@ export async function generateCommitGroups(
   try {
     parsed = JSON.parse(cleaned);
   } catch {
+    if (isLarge) return generateCommitGroupsInBatches(files, diffs, model, convention);
     throw new Error(`AI response is not valid JSON. Raw start: "${result.slice(0, 120)}..."`);
   }
   const groups = parsed as CommitGroup[];
   if (!Array.isArray(groups) || groups.length === 0) {
+    if (isLarge) return generateCommitGroupsInBatches(files, diffs, model, convention);
     throw new Error('AI response was not a valid JSON array of commit groups');
   }
   for (const group of groups) {
@@ -335,6 +468,87 @@ export async function generateCommitGroups(
     }
   }
   return groups;
+}
+
+/**
+ * Fallback: split files into smaller batches and group each batch independently.
+ * Used automatically when a single-call grouping attempt fails for large changesets.
+ *
+ * Each batch gets its own focused diffs so the AI sees meaningful context per file,
+ * avoiding the token-limit issues that caused the initial failure.
+ */
+async function generateCommitGroupsInBatches(
+  files: string[],
+  diffs: string,
+  model?: string,
+  convention: CommitConvention = 'clean-commit',
+): Promise<CommitGroup[]> {
+  const batchSize = BATCH_CONFIG.FALLBACK_BATCH_SIZE;
+  const allGroups: CommitGroup[] = [];
+  const diffSections = parseDiffByFile(diffs);
+
+  for (let i = 0; i < files.length; i += batchSize) {
+    const batchFiles = files.slice(i, i + batchSize);
+
+    // Build a focused diff containing only this batch's files
+    const batchDiff = batchFiles
+      .map((f) => diffSections.get(f) ?? '')
+      .filter(Boolean)
+      .join('\n');
+
+    const batchDiffContent =
+      batchFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
+        ? createCompactDiff(batchFiles, batchDiff)
+        : batchDiff.slice(0, 6000);
+
+    const batchNum = Math.floor(i / batchSize) + 1;
+    const totalBatches = Math.ceil(files.length / batchSize);
+
+    const userMessage = `Group these changed files into logical atomic commits:\n\nFiles:\n${batchFiles.join('\n')}\n\nDiffs:\n${batchDiffContent}\n\nNOTE: Processing batch ${batchNum}/${totalBatches} of a large changeset. Group only the files listed above.`;
+
+    try {
+      const result = await callCopilot(
+        getGroupingSystemPrompt(convention),
+        userMessage,
+        model,
+        COPILOT_LONG_TIMEOUT_MS,
+      );
+      if (!result) continue;
+
+      const cleaned = extractJson(result);
+      const parsed = JSON.parse(cleaned) as CommitGroup[];
+      if (Array.isArray(parsed)) {
+        for (const group of parsed) {
+          if (Array.isArray(group.files) && typeof group.message === 'string') {
+            // Constrain files to only those in the current batch to prevent cross-batch leakage
+            const batchFileSet = new Set(batchFiles);
+            const filteredFiles = group.files.filter((f) => batchFileSet.has(f));
+            if (filteredFiles.length > 0) {
+              allGroups.push({ ...group, files: filteredFiles });
+            }
+          }
+        }
+      }
+    } catch {
+      // Skip failed batches — remaining batches may still succeed
+    }
+  }
+
+  // Detect ungrouped files and add them as a final catch-all group
+  const groupedFiles = new Set(allGroups.flatMap((g) => g.files));
+  const ungrouped = files.filter((f) => !groupedFiles.has(f));
+  if (ungrouped.length > 0) {
+    allGroups.push({
+      files: ungrouped,
+      message: `chore: update ${ungrouped.length} remaining file${ungrouped.length !== 1 ? 's' : ''}`,
+    });
+  }
+
+  if (allGroups.length === 0) {
+    throw new Error('AI could not group any files even with batch processing');
+  }
+
+  return allGroups;
 }
 
 /**
@@ -347,8 +561,18 @@ export async function regenerateAllGroupMessages(
   model?: string,
   convention: CommitConvention = 'clean-commit',
 ): Promise<CommitGroup[]> {
+  const totalFiles = groups.reduce((sum, g) => sum + g.files.length, 0);
+  const isLarge = totalFiles >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD;
+
+  const diffContent = isLarge
+    ? createCompactDiff(
+        groups.flatMap((g) => g.files),
+        diffs,
+      )
+    : diffs.slice(0, 6000);
+
   const groupSummary = groups.map((g, i) => `Group ${i + 1}: [${g.files.join(', ')}]`).join('\n');
-  const userMessage = `Regenerate ONLY the commit messages for these pre-defined file groups. Do NOT change the file groupings.\n\nGroups:\n${groupSummary}\n\nDiffs (truncated):\n${diffs.slice(0, 6000)}`;
+  const userMessage = `Regenerate ONLY the commit messages for these pre-defined file groups. Do NOT change the file groupings.\n\nGroups:\n${groupSummary}\n\nDiffs:\n${diffContent}`;
   const result = await callCopilot(
     getGroupingSystemPrompt(convention),
     userMessage,
@@ -380,7 +604,10 @@ export async function regenerateGroupMessage(
   convention: CommitConvention = 'clean-commit',
 ): Promise<string | null> {
   try {
-    const userMessage = `Generate a single commit message for these files:\n\nFiles: ${files.join(', ')}\n\nDiff:\n${diffs.slice(0, 4000)}`;
+    const isLarge = files.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD;
+    const diffContent = isLarge ? createCompactDiff(files, diffs) : diffs.slice(0, 4000);
+
+    const userMessage = `Generate a single commit message for these files:\n\nFiles: ${files.join(', ')}\n\nDiff:\n${diffContent}`;
     const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
     return result?.trim() ?? null;
   } catch {

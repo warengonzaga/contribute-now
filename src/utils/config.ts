@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ContributeConfig } from '../types.js';
 
@@ -103,6 +103,23 @@ export function isGitignored(cwd = process.cwd()): boolean {
   } catch {
     return false;
   }
+}
+
+export function ensureGitignored(cwd = process.cwd()): boolean {
+  if (isGitignored(cwd)) return false;
+
+  const gitignorePath = join(cwd, '.gitignore');
+  const line = `${CONFIG_FILENAME}\n`;
+
+  if (!existsSync(gitignorePath)) {
+    writeFileSync(gitignorePath, line, 'utf-8');
+    return true;
+  }
+
+  const content = readFileSync(gitignorePath, 'utf-8');
+  const needsLeadingNewline = content.length > 0 && !content.endsWith('\n');
+  appendFileSync(gitignorePath, `${needsLeadingNewline ? '\n' : ''}${line}`, 'utf-8');
+  return true;
 }
 
 export function getDefaultConfig(): ContributeConfig {

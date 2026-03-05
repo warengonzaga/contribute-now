@@ -1,7 +1,7 @@
 {
   "name": "contribute-now",
   "version": "0.4.0",
-  "description": "Git workflow CLI for squash-merge two-branch models. Keeps dev in sync with main after squash merges.",
+  "description": "Developer CLI that automates git workflows — branching, syncing, committing, and PRs — with multi-workflow and commit convention support.",
   "type": "module",
   "bin": {
     "contrib": "dist/index.js",

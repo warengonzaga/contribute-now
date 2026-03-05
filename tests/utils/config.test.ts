@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ContributeConfig } from '../../src/types.js';
 import {
   configExists,
+  ensureGitignored,
   getDefaultConfig,
   isGitignored,
   readConfig,
@@ -70,6 +71,35 @@ describe('config utilities', () => {
   it('isGitignored returns false when .contributerc.json not in .gitignore', () => {
     writeFileSync(join(TEST_DIR, '.gitignore'), 'node_modules\ndist\n');
     expect(isGitignored(TEST_DIR)).toBe(false);
+  });
+
+  it('ensureGitignored creates .gitignore with .contributerc.json when missing', () => {
+    expect(existsSync(join(TEST_DIR, '.gitignore'))).toBe(false);
+
+    const changed = ensureGitignored(TEST_DIR);
+
+    expect(changed).toBe(true);
+    expect(isGitignored(TEST_DIR)).toBe(true);
+  });
+
+  it('ensureGitignored appends .contributerc.json when .gitignore exists', () => {
+    writeFileSync(join(TEST_DIR, '.gitignore'), 'node_modules\ndist');
+
+    const changed = ensureGitignored(TEST_DIR);
+
+    expect(changed).toBe(true);
+    expect(isGitignored(TEST_DIR)).toBe(true);
+  });
+
+  it('ensureGitignored does not duplicate .contributerc.json entry', () => {
+    writeFileSync(join(TEST_DIR, '.gitignore'), '.contributerc.json\n');
+
+    const changed = ensureGitignored(TEST_DIR);
+
+    expect(changed).toBe(false);
+    const content = readFileSync(join(TEST_DIR, '.gitignore'), 'utf-8');
+    const matches = content.split('\n').filter((line) => line.trim() === '.contributerc.json');
+    expect(matches).toHaveLength(1);
   });
 
   it('writeConfig and readConfig round-trip with github-flow (no devBranch)', () => {

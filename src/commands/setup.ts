@@ -1,7 +1,13 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import type { CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
-import { getDefaultConfig, isGitignored, writeConfig } from '../utils/config.js';
+import {
+  configExists,
+  ensureGitignored,
+  getDefaultConfig,
+  readConfig,
+  writeConfig,
+} from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
 import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
 import {
@@ -21,7 +27,64 @@ import {
 } from '../utils/git.js';
 import { error, heading, info, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
+import { createSpinner } from '../utils/spinner.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
+
+export interface ExistingConfigGateOptions {
+  existingConfig: ContributeConfig | null;
+  hasConfigFile: boolean;
+  confirm: (message: string) => Promise<boolean>;
+  ensureIgnored: () => boolean;
+  onInfo: (message: string) => void;
+  onWarn: (message: string) => void;
+  onSuccess: (message: string) => void;
+  summary: (config: ContributeConfig) => void;
+}
+
+export async function shouldContinueSetupWithExistingConfig(
+  options: ExistingConfigGateOptions,
+): Promise<boolean> {
+  const {
+    existingConfig,
+    hasConfigFile,
+    confirm,
+    ensureIgnored,
+    onInfo,
+    onWarn,
+    onSuccess,
+    summary,
+  } = options;
+
+  if (existingConfig) {
+    onInfo('Existing .contributerc.json detected:');
+    summary(existingConfig);
+
+    const shouldContinue = await confirm('Continue setup and overwrite existing config?');
+    if (!shouldContinue) {
+      if (ensureIgnored()) {
+        onInfo('Added .contributerc.json to .gitignore to avoid committing personal config.');
+      }
+      onSuccess('Keeping existing setup.');
+      return false;
+    }
+
+    return true;
+  }
+
+  if (hasConfigFile) {
+    onWarn('Found .contributerc.json but it appears invalid.');
+    const shouldContinue = await confirm('Continue setup and overwrite invalid config?');
+    if (!shouldContinue) {
+      if (ensureIgnored()) {
+        onInfo('Added .contributerc.json to .gitignore to avoid committing personal config.');
+      }
+      onInfo('Keeping existing file. Run setup again when ready to repair it.');
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export default defineCommand({
   meta: {
@@ -36,6 +99,21 @@ export default defineCommand({
     }
 
     heading('🔧 contribute-now setup');
+
+    const existingConfig = readConfig();
+    const shouldContinue = await shouldContinueSetupWithExistingConfig({
+      existingConfig,
+      hasConfigFile: configExists(),
+      confirm: confirmPrompt,
+      ensureIgnored: ensureGitignored,
+      onInfo: info,
+      onWarn: warn,
+      onSuccess: success,
+      summary: logConfigSummary,
+    });
+    if (!shouldContinue) {
+      return;
+    }
 
     // 2. Select workflow mode
     const workflowChoice = await selectPrompt('Which git workflow does this project use?', [
@@ -76,36 +154,47 @@ export default defineCommand({
     // 3. Auto-detect role (layered approach)
     let detectedRole: 'maintainer' | 'contributor' | null = null;
     let detectionSource = '';
-
-    // Layer 1: gh CLI
-    const ghInstalled = await checkGhInstalled();
-    if (ghInstalled && (await checkGhAuth())) {
-      const isFork = await isRepoFork();
-      if (isFork === true) {
-        detectedRole = 'contributor';
-        detectionSource = 'gh CLI (fork detected)';
-      } else if (isFork === false) {
-        // Check permissions
-        const repoInfo = await getCurrentRepoInfo();
-        if (repoInfo) {
-          const perms = await checkRepoPermissions(repoInfo.owner, repoInfo.repo);
-          if (perms?.admin || perms?.push) {
-            detectedRole = 'maintainer';
-            detectionSource = 'gh CLI (admin/push permissions)';
+    const roleSpinner = createSpinner('Detecting your role...');
+    try {
+      // Layer 1: gh CLI
+      roleSpinner.update('Checking GitHub CLI and auth...');
+      const ghInstalled = await checkGhInstalled();
+      if (ghInstalled && (await checkGhAuth())) {
+        roleSpinner.update('Inspecting repository relationship (fork/permissions)...');
+        const isFork = await isRepoFork();
+        if (isFork === true) {
+          detectedRole = 'contributor';
+          detectionSource = 'gh CLI (fork detected)';
+        } else if (isFork === false) {
+          // Check permissions
+          const repoInfo = await getCurrentRepoInfo();
+          if (repoInfo) {
+            const perms = await checkRepoPermissions(repoInfo.owner, repoInfo.repo);
+            if (perms?.admin || perms?.push) {
+              detectedRole = 'maintainer';
+              detectionSource = 'gh CLI (admin/push permissions)';
+            }
           }
         }
       }
-    }
 
-    // Layer 2: Remote heuristics
-    if (detectedRole === null) {
-      if (remotes.includes('upstream')) {
-        detectedRole = 'contributor';
-        detectionSource = 'heuristic (upstream remote exists)';
-      } else if (remotes.includes('origin') && remotes.length === 1) {
-        detectedRole = 'maintainer';
-        detectionSource = 'heuristic (only origin remote)';
+      // Layer 2: Remote heuristics
+      if (detectedRole === null) {
+        roleSpinner.update('Analyzing git remotes...');
+        if (remotes.includes('upstream')) {
+          detectedRole = 'contributor';
+          detectionSource = 'heuristic (upstream remote exists)';
+        } else if (remotes.includes('origin') && remotes.length === 1) {
+          detectedRole = 'maintainer';
+          detectionSource = 'heuristic (only origin remote)';
+        }
       }
+
+      roleSpinner.success('Role detection complete.');
+    } catch {
+      roleSpinner.fail('Role detection failed; falling back to manual selection.');
+      detectedRole = null;
+      detectionSource = '';
     }
 
     // Layer 3: Interactive prompt
@@ -129,19 +218,36 @@ export default defineCommand({
 
     // 4. Confirm branch settings
     const defaultConfig = getDefaultConfig();
-    const mainBranch = await inputPrompt('Main branch name', defaultConfig.mainBranch);
+    info(pc.dim('Tip: press Enter to keep the default branch name shown in each prompt.'));
+
+    const mainBranchDefault = defaultConfig.mainBranch;
+    const mainBranch = await inputPrompt(
+      `Main branch name (default: ${mainBranchDefault} — press Enter to keep)`,
+      mainBranchDefault,
+    );
 
     let devBranch: string | undefined;
     if (hasDevBranch(workflow)) {
       const defaultDev = workflow === 'git-flow' ? 'develop' : 'dev';
-      devBranch = await inputPrompt('Dev/develop branch name', defaultDev);
+      devBranch = await inputPrompt(
+        `Dev/develop branch name (default: ${defaultDev} — press Enter to keep)`,
+        defaultDev,
+      );
     }
 
-    const originRemote = await inputPrompt('Origin remote name', defaultConfig.origin);
+    const originRemoteDefault = defaultConfig.origin;
+    const originRemote = await inputPrompt(
+      `Origin remote name (default: ${originRemoteDefault} — press Enter to keep)`,
+      originRemoteDefault,
+    );
 
     let upstreamRemote = defaultConfig.upstream;
     if (detectedRole === 'contributor') {
-      upstreamRemote = await inputPrompt('Upstream remote name', defaultConfig.upstream);
+      const upstreamRemoteDefault = defaultConfig.upstream;
+      upstreamRemote = await inputPrompt(
+        `Upstream remote name (default: ${upstreamRemoteDefault} — press Enter to keep)`,
+        upstreamRemoteDefault,
+      );
 
       // 5. For contributors without upstream, prompt to add it
       if (!remotes.includes(upstreamRemote)) {
@@ -203,10 +309,9 @@ export default defineCommand({
       }
     }
 
-    // 7. Warn if not in .gitignore
-    if (!isGitignored()) {
-      warn('.contributerc.json is not in .gitignore. Add it to avoid committing personal config.');
-      warn('  echo ".contributerc.json" >> .gitignore');
+    // 7. Ensure config file is ignored
+    if (ensureGitignored()) {
+      info('Added .contributerc.json to .gitignore to avoid committing personal config.');
     }
 
     console.log();
@@ -223,3 +328,17 @@ export default defineCommand({
     );
   },
 });
+
+function logConfigSummary(config: ContributeConfig): void {
+  info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
+  info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
+  info(`Role: ${pc.bold(config.role)}`);
+  if (config.devBranch) {
+    info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
+  } else {
+    info(`Main: ${pc.bold(config.mainBranch)}`);
+  }
+  info(
+    `Origin: ${pc.bold(config.origin)}${config.role === 'contributor' ? ` | Upstream: ${pc.bold(config.upstream)}` : ''}`,
+  );
+}

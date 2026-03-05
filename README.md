@@ -64,7 +64,7 @@ bun install -g contribute-now
 ## Prerequisites
 
 - **[Git](https://git-scm.com/)** — required
-- **[GitHub CLI](https://cli.github.com)** (`gh`) — optional; enables role auto-detection and PR creation
+- **[GitHub CLI](https://cli.github.com)** (`gh`) — recommended; required for PR creation, role detection, and merge status checks
 - **[GitHub Copilot](https://github.com/features/copilot)** — optional; enables AI features
 
 ---
@@ -129,9 +129,12 @@ Stage your changes and create a validated, AI-generated commit message matching 
 contrib commit                     # AI-generated message
 contrib commit --no-ai             # manual entry, still validated
 contrib commit --model gpt-4.1    # specific AI model
+contrib commit --group             # AI groups changes into atomic commits
 ```
 
 After the AI generates a message, you can **accept**, **edit**, **regenerate**, or **write manually**. Messages are always validated against your convention — with a soft warning if they don't match (you can still commit).
+
+**Group commit mode** (`--group`): AI analyzes all staged and unstaged changes, groups related files into logical atomic commits, and generates a commit message for each group. Great for splitting a large set of changes into clean, reviewable commits.
 
 ---
 
@@ -180,6 +183,55 @@ contrib status
 
 ---
 
+### `contrib doctor`
+
+Diagnose the contribute-now CLI environment and configuration. Checks tools, dependencies, config, git state, fork setup, workflow, and environment.
+
+```bash
+contrib doctor          # pretty-printed report
+contrib doctor --json   # machine-readable JSON output
+```
+
+Checks include:
+- CLI version and runtime (Bun/Node)
+- git and GitHub CLI availability and authentication
+- `.contributerc.json` validity and `.gitignore` status
+- Git repo state (uncommitted changes, lock files, shallow clone)
+- Fork and remote configuration
+- Workflow and branch setup
+
+---
+
+### `contrib log`
+
+Show a colorized, workflow-aware commit log with graph visualization.
+
+```bash
+contrib log                # last 20 commits with graph
+contrib log -n 50          # last 50 commits
+contrib log --all          # all branches
+contrib log --no-graph     # flat view without graph lines
+contrib log -b feature/x   # log for a specific branch
+```
+
+Protected branches (main, dev) are highlighted, and the current branch is color-coded for quick orientation.
+
+---
+
+### `contrib branch`
+
+List branches with workflow-aware labels and tracking status.
+
+```bash
+contrib branch             # local branches
+contrib branch --all       # local + remote branches
+contrib branch --remote    # remote branches only
+```
+
+Branches are annotated with workflow labels (e.g., base, dev, feature) and tracking info (upstream, gone, no remote).
+
+---
+
 ### `contrib hook`
 
 Install or uninstall a `commit-msg` git hook that validates every commit against your configured convention — no Husky or lint-staged needed.
@@ -210,8 +262,9 @@ contrib validate "added stuff"                   # exit 1
 All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and are entirely **optional** — every command has a manual fallback.
 
 | Command | AI Feature | Fallback |
-|---------|------------|---------|
+|---------|------------|----------|
 | `commit` | Generate commit message from staged diff | Type manually |
+| `commit --group` | Group related changes into atomic commits | Manual staging + commit |
 | `start` | Suggest branch name from natural language | Prefix picker + manual |
 | `update` | Conflict resolution guidance | Standard git instructions |
 | `submit` | Generate PR title and body | `gh pr create --fill` or manual |
