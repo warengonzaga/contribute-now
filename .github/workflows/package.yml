@@ -19,6 +19,10 @@ permissions:
   packages: write
   pull-requests: write
 
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
