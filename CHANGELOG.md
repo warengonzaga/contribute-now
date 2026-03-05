@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.4.1] - 2026-03-05
+
+### Changed
+
+- replace em dashes with pipes in meta tags and add sponsor nav link
+- sort imports alphabetically
+- update website content and styles
+- handle continuation prompt for invalid existing config
+- replace magic number with BATCH_CONFIG threshold
+- extract batch threshold into BATCH_CONFIG constant
+- add optimized batching for large changesets with spinner feedback
+- add existing config gate and role-detection spinner
+- ensure .contributerc.json is added to .gitignore
+
 ## [0.4.0] - 2026-02-28
 
 ### Added
