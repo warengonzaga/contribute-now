@@ -352,15 +352,40 @@ bun test        # run tests
 bun run lint    # check code quality
 ```
 
-## Contributing
+## 🎯 Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, commit convention, and PR guidelines.
+Contributions are welcome, create a pull request to this repo and I will review your code. Please consider to submit your pull request to the `dev` branch. Thank you!
 
-## License
+Read the project's [contributing guide](./CONTRIBUTING.md) for more info.
 
-[GPL-3.0](LICENSE) © [Waren Gonzaga](https://warengonzaga.com)
+## 🐛 Issues
+
+Please report any issues and bugs by [creating a new issue here](https://github.com/warengonzaga/contribute-now/issues/new/choose), also make sure you're reporting an issue that doesn't exist. Any help to improve the project would be appreciated. Thanks! 🙏✨
+
+## 🙏 Sponsor
+
+Like this project? **Leave a star**! ⭐⭐⭐⭐⭐
+
+Want to support my work and get some perks? [Become a sponsor](https://github.com/sponsors/warengonzaga)! 💖
+
+Or, you just love what I do? [Buy me a coffee](https://buymeacoffee.com/warengonzaga)! ☕
+
+Recognized my open-source contributions? [Nominate me](https://stars.github.com/nominate) as GitHub Star! 💫
+
+## 📋 Code of Conduct
+
+Read the project's [code of conduct](./CODE_OF_CONDUCT.md).
+
+## 📃 License
+
+This project is licensed under [GNU General Public License v3.0](https://opensource.org/licenses/GPL-3.0).
+
+## 📝 Author
+
+This project is created by **[Waren Gonzaga](https://github.com/warengonzaga)**, with the help of awesome [contributors](https://github.com/warengonzaga/contribute-now/graphs/contributors).
+
+[![contributors](https://contrib.rocks/image?repo=warengonzaga/contribute-now)](https://github.com/warengonzaga/contribute-now/graphs/contributors)
 
 ---
 
-💻💖☕ Made with ❤️ by [Waren Gonzaga](https://github.com/warengonzaga)
-
+💻💖☕ by [Waren Gonzaga](https://warengonzaga.com) & [YHWH](https://www.youtube.com/watch?v=VOZbswniA-g) 🙏 — Without *Him*, none of this exists, *even me*.
