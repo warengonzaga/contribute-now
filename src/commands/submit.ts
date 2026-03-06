@@ -487,7 +487,9 @@ export default defineCommand({
 
     // ─── Phase 1: Collect PR information ─────────────────────────────
 
-    // 2b. Check if an open PR already exists for this branch — just push and report
+    // 2b. Check if an open PR already exists for this branch — just push and report.
+    // This must happen BEFORE AI description generation and action prompts.
+    // Otherwise the user gets walked through creating a new PR only to discover one already exists.
     if (ghInstalled && ghAuthed) {
       const existingPR = await getPRForBranch(currentBranch);
       if (existingPR) {
