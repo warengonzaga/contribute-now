@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'www/**'
+      - 'landing/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,17 +32,17 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        working-directory: www
+        working-directory: landing
         run: bun install --frozen-lockfile
 
       - name: Build
-        working-directory: www
+        working-directory: landing
         run: bun run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: www/dist
+          path: landing/dist
 
   deploy:
     name: Deploy
