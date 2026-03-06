@@ -83,7 +83,7 @@ export default defineCommand({
       console.log(branchLine + pc.dim(` (current ${pc.green('*')})`));
 
       // Merged / stale detection for feature branches
-      branchStatus = await detectBranchStatus(currentBranch, baseBranch, config);
+      branchStatus = await detectBranchStatus(currentBranch, baseBranch);
 
       if (branchStatus.merged) {
         console.log(`  ${pc.green('\u2713')}  ${pc.green('Branch merged')} \u2014 ${pc.dim(branchStatus.mergedReason ?? 'all commits reachable from base')}`);
@@ -190,7 +190,6 @@ interface BranchStatus {
 async function detectBranchStatus(
   branch: string,
   baseBranch: string,
-  config: { origin: string },
 ): Promise<BranchStatus> {
   const result: BranchStatus = { merged: false, mergedReason: null, stale: false, staleDaysAgo: null };
 

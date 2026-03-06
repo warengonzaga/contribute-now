@@ -346,6 +346,7 @@ export async function generateCommitMessage(
   stagedFiles: string[],
   model?: string,
   convention: CommitConvention = 'clean-commit',
+  context?: 'squash-merge',
 ): Promise<string | null> {
   try {
     const isLarge = stagedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD;
@@ -354,10 +355,15 @@ export async function generateCommitMessage(
         ? '\n\nIMPORTANT: Multiple files are staged. Generate ONE commit message that captures the high-level purpose of ALL changes together. Focus on the overall intent, not individual file changes. Be specific but concise — do not list every file.'
         : '';
 
+    const squashHint =
+      context === 'squash-merge'
+        ? '\n\nCONTEXT: This is a squash merge of an entire feature branch into the base branch. All commits are being combined into ONE single commit. Generate a single high-level summary that describes the overall feature or change — NOT a list of individual commits. Think: what capability was added or what problem was solved? Be specific but concise.'
+        : '';
+
     // Use compact representation for large changesets so ALL files get coverage
     const diffContent = isLarge ? createCompactDiff(stagedFiles, diff) : diff.slice(0, 4000);
 
-    const userMessage = `Generate a commit message for these staged changes:\n\nFiles (${stagedFiles.length}): ${stagedFiles.join(', ')}\n\nDiff:\n${diffContent}${multiFileHint}`;
+    const userMessage = `Generate a commit message for these staged changes:\n\nFiles (${stagedFiles.length}): ${stagedFiles.join(', ')}\n\nDiff:\n${diffContent}${multiFileHint}${squashHint}`;
     const result = await callCopilot(
       getCommitSystemPrompt(convention),
       userMessage,

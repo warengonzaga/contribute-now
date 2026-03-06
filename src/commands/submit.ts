@@ -99,10 +99,12 @@ async function performSquashMerge(
         stagedFiles,
         options?.model,
         options?.convention ?? 'clean-commit',
+        'squash-merge',
       );
       if (aiMsg) {
         message = aiMsg;
         spinner.success('AI commit message generated.');
+        console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(message))}`);
       } else {
         spinner.fail('AI did not return a commit message.');
       }
@@ -111,15 +113,46 @@ async function performSquashMerge(
     }
   }
 
-  const fallback = message || `squash merge ${featureBranch}`;
-
-  // If AI generated a message, auto-accept it; only prompt if no AI message available
-  let finalMsg: string;
+  // Let user accept / edit / regenerate / write manually (same as contrib commit)
+  let finalMsg: string | null = null;
   if (message) {
-    console.log(`  ${pc.dim('Commit message:')} ${pc.bold(message)}`);
-    finalMsg = message;
+    while (!finalMsg) {
+      const action = await selectPrompt('What would you like to do?', [
+        'Accept this message',
+        'Edit this message',
+        'Regenerate',
+        'Write manually',
+      ]);
+
+      if (action === 'Accept this message') {
+        finalMsg = message;
+      } else if (action === 'Edit this message') {
+        finalMsg = await inputPrompt('Edit commit message', message);
+      } else if (action === 'Regenerate') {
+        const spinner = createSpinner('Regenerating commit message...');
+        const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
+        const regen = await generateCommitMessage(
+          stagedDiff,
+          stagedFiles,
+          options?.model,
+          options?.convention ?? 'clean-commit',
+          'squash-merge',
+        );
+        if (regen) {
+          message = regen;
+          spinner.success('Commit message regenerated.');
+          console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(regen))}`);
+          // Loop back to show the action menu again with the new message
+        } else {
+          spinner.fail('Regeneration failed.');
+          finalMsg = await inputPrompt('Enter commit message');
+        }
+      } else {
+        finalMsg = await inputPrompt('Enter commit message');
+      }
+    }
   } else {
-    finalMsg = await inputPrompt('Commit message', fallback);
+    finalMsg = await inputPrompt('Commit message', `squash merge ${featureBranch}`);
   }
 
   const commitResult = await commitWithMessage(finalMsg);
@@ -655,7 +688,6 @@ export default defineCommand({
     // Handle squash merge locally (has its own push logic)
     if (submitAction === 'squash') {
       await performSquashMerge(origin, baseBranch, currentBranch, {
-        defaultMsg: prTitle ?? undefined,
         model: args.model,
         convention: config.commitConvention,
       });

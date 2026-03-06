@@ -133,6 +133,39 @@ export default defineCommand({
 
     info(`Staged files: ${stagedFiles.join(', ')}`);
 
+    // Warn about large, multi-topic commits and suggest --group mode
+    const LARGE_COMMIT_THRESHOLD = 10;
+    if (stagedFiles.length >= LARGE_COMMIT_THRESHOLD && !args.group) {
+      const dirs = new Set(stagedFiles.map((f) => f.split('/')[0]));
+      if (dirs.size > 1) {
+        console.log();
+        warn(
+          `You're staging ${pc.bold(String(stagedFiles.length))} files across ${pc.bold(String(dirs.size))} directories in a single commit.`,
+        );
+        info(
+          pc.dim(
+            'Large commits mixing different topics make history harder to read and bisect. ' +
+              'For cleaner history, consider splitting into atomic commits.',
+          ),
+        );
+
+        const choice = await selectPrompt('How would you like to proceed?', [
+          'Continue as single commit',
+          'Switch to group mode (AI splits into atomic commits)',
+          'Cancel',
+        ]);
+
+        if (choice === 'Cancel') {
+          process.exit(0);
+        }
+
+        if (choice === 'Switch to group mode (AI splits into atomic commits)') {
+          await runGroupCommit(args.model, config);
+          return;
+        }
+      }
+    }
+
     let commitMessage: string | null = null;
 
     // 3. AI: generate commit message
