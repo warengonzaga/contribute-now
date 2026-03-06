@@ -2,6 +2,7 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import {
+  branchExists,
   getCurrentBranch,
   getLocalCommitsEntries,
   getLocalCommitsGraph,
@@ -13,7 +14,7 @@ import {
   isGitRepo,
 } from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
-import { getProtectedBranches } from '../utils/workflow.js';
+import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 /** Which slice of the log to display. */
 type LogMode = 'local' | 'remote' | 'full' | 'all';
@@ -81,19 +82,31 @@ export default defineCommand({
     const currentBranch = await getCurrentBranch();
     const upstream = await getUpstreamRef();
 
+    // Resolve the comparison ref: upstream tracking branch first,
+    // then fall back to the remote base branch from config (e.g. origin/dev).
+    let compareRef = upstream;
+    let usingFallback = false;
+    if (!compareRef) {
+      const fallback = await resolveBaseBranchRef(config);
+      if (fallback) {
+        compareRef = fallback;
+        usingFallback = true;
+      }
+    }
+
     heading('📜 commit log');
 
     // Show mode context
-    printModeHeader(mode, currentBranch, upstream);
+    printModeHeader(mode, currentBranch, compareRef, usingFallback);
 
     if (mode === 'local' || mode === 'remote') {
-      if (!upstream) {
+      if (!compareRef) {
         console.log();
         console.log(
-          pc.yellow('  ⚠ No upstream tracking branch found for the current branch.'),
+          pc.yellow('  ⚠ Could not determine a comparison branch.'),
         );
         console.log(
-          pc.dim('    This branch may not have been pushed yet, or has no remote tracking set.'),
+          pc.dim('    No upstream tracking set and no remote base branch found.'),
         );
         console.log(
           pc.dim(`    Use ${pc.bold('contrib log --full')} to see the full commit history instead.`),
@@ -103,7 +116,7 @@ export default defineCommand({
         return;
       }
 
-      await renderScopedLog({ mode, count, upstream, showGraph, protectedBranches, currentBranch });
+      await renderScopedLog({ mode, count, upstream: compareRef, showGraph, protectedBranches, currentBranch });
     } else {
       // 'full' or 'all' — use existing full log behavior
       await renderFullLog({ count, all: mode === 'all', showGraph, targetBranch, protectedBranches, currentBranch });
@@ -115,30 +128,62 @@ export default defineCommand({
   },
 });
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Resolve a remote base branch ref from config to use when the current
+ * branch has no upstream tracking set (not pushed yet).
+ * Returns e.g. "origin/dev" or "origin/main".
+ */
+async function resolveBaseBranchRef(
+  config: ReturnType<typeof readConfig>,
+): Promise<string | null> {
+  if (!config) {
+    // No config — try common defaults
+    for (const candidate of ['origin/main', 'origin/master']) {
+      if (await branchExists(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  const baseBranch = getBaseBranch(config);
+  const remote = config.origin ?? 'origin';
+  const candidate = `${remote}/${baseBranch}`;
+  if (await branchExists(candidate)) return candidate;
+
+  // Last resort: try origin/main, origin/master
+  for (const fallback of ['origin/main', 'origin/master']) {
+    if (fallback !== candidate && (await branchExists(fallback))) return fallback;
+  }
+  return null;
+}
+
 // ── Rendering helpers ─────────────────────────────────────────────────
 
 function printModeHeader(
   mode: LogMode,
   currentBranch: string | null,
-  upstream: string | null,
+  compareRef: string | null,
+  usingFallback = false,
 ): void {
   const branch = currentBranch ?? 'HEAD';
+  const fallbackNote = usingFallback ? pc.yellow(' (no upstream — comparing against base branch)') : '';
   console.log();
   switch (mode) {
     case 'local':
       console.log(
-        pc.dim(`  mode: ${pc.bold('local')} — unpushed commits on ${pc.bold(branch)}`),
+        pc.dim(`  mode: ${pc.bold('local')} — unpushed commits on ${pc.bold(branch)}`) + fallbackNote,
       );
-      if (upstream) {
-        console.log(pc.dim(`  comparing: ${pc.bold(upstream)} ➜ ${pc.bold('HEAD')}`));
+      if (compareRef) {
+        console.log(pc.dim(`  comparing: ${pc.bold(compareRef)} ➜ ${pc.bold('HEAD')}`));
       }
       break;
     case 'remote':
       console.log(
-        pc.dim(`  mode: ${pc.bold('remote')} — commits on remote not yet pulled into ${pc.bold(branch)}`),
+        pc.dim(`  mode: ${pc.bold('remote')} — commits on remote not yet pulled into ${pc.bold(branch)}`) + fallbackNote,
       );
-      if (upstream) {
-        console.log(pc.dim(`  comparing: ${pc.bold('HEAD')} ➜ ${pc.bold(upstream)}`));
+      if (compareRef) {
+        console.log(pc.dim(`  comparing: ${pc.bold('HEAD')} ➜ ${pc.bold(compareRef)}`));
       }
       break;
     case 'full':
