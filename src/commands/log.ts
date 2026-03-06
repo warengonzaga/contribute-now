@@ -1,9 +1,22 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
-import { getCurrentBranch, getLogEntries, getLogGraph, isGitRepo } from '../utils/git.js';
+import {
+  getCurrentBranch,
+  getLocalCommitsEntries,
+  getLocalCommitsGraph,
+  getLogEntries,
+  getLogGraph,
+  getRemoteOnlyCommitsEntries,
+  getRemoteOnlyCommitsGraph,
+  getUpstreamRef,
+  isGitRepo,
+} from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
 import { getProtectedBranches } from '../utils/workflow.js';
+
+/** Which slice of the log to display. */
+type LogMode = 'local' | 'remote' | 'full' | 'all';
 
 export default defineCommand({
   meta: {
@@ -19,7 +32,19 @@ export default defineCommand({
     all: {
       type: 'boolean',
       alias: 'a',
-      description: 'Show all branches, not just current',
+      description: 'Show commits from all branches',
+      default: false,
+    },
+    remote: {
+      type: 'boolean',
+      alias: 'r',
+      description: 'Show only remote commits not yet pulled locally',
+      default: false,
+    },
+    full: {
+      type: 'boolean',
+      alias: 'f',
+      description: 'Show full commit history for the current branch',
       default: false,
     },
     graph: {
@@ -42,62 +67,217 @@ export default defineCommand({
 
     const config = readConfig();
     const count = args.count ? Number.parseInt(args.count, 10) : 20;
-    const showAll = args.all;
     const showGraph = args.graph;
     const targetBranch = args.branch;
+
+    // Determine the log mode
+    let mode: LogMode = 'local';
+    if (args.all) mode = 'all';
+    else if (args.remote) mode = 'remote';
+    else if (args.full || targetBranch) mode = 'full';
 
     // Derive protected branches for highlighting
     const protectedBranches = config ? getProtectedBranches(config) : ['main', 'master'];
     const currentBranch = await getCurrentBranch();
+    const upstream = await getUpstreamRef();
 
     heading('📜 commit log');
 
-    if (showGraph) {
-      // Graph mode: colorized git log --graph --oneline --decorate
-      const lines = await getLogGraph({ count, all: showAll, branch: targetBranch });
-      if (lines.length === 0) {
-        console.log(pc.dim('  No commits found.'));
+    // Show mode context
+    printModeHeader(mode, currentBranch, upstream);
+
+    if (mode === 'local' || mode === 'remote') {
+      if (!upstream) {
         console.log();
+        console.log(
+          pc.yellow('  ⚠ No upstream tracking branch found for the current branch.'),
+        );
+        console.log(
+          pc.dim('    This branch may not have been pushed yet, or has no remote tracking set.'),
+        );
+        console.log(
+          pc.dim(`    Use ${pc.bold('contrib log --full')} to see the full commit history instead.`),
+        );
+        console.log();
+        printGuidance();
         return;
       }
-      console.log();
-      for (const line of lines) {
-        console.log(`  ${colorizeGraphLine(line, protectedBranches, currentBranch)}`);
-      }
+
+      await renderScopedLog({ mode, count, upstream, showGraph, protectedBranches, currentBranch });
     } else {
-      // Flat mode: structured entries without graph lines
-      const entries = await getLogEntries({ count, all: showAll, branch: targetBranch });
-      if (entries.length === 0) {
-        console.log(pc.dim('  No commits found.'));
-        console.log();
-        return;
-      }
-      console.log();
-      for (const entry of entries) {
-        const hashStr = pc.yellow(entry.hash);
-        const refsStr = entry.refs
-          ? ` ${colorizeRefs(entry.refs, protectedBranches, currentBranch)}`
-          : '';
-        const subjectStr = colorizeSubject(entry.subject);
-        console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
-      }
+      // 'full' or 'all' — use existing full log behavior
+      await renderFullLog({ count, all: mode === 'all', showGraph, targetBranch, protectedBranches, currentBranch });
     }
 
-    // Footer with count info
-    console.log();
-    console.log(
-      pc.dim(
-        `  Showing ${count} most recent commits${showAll ? ' (all branches)' : targetBranch ? ` (${targetBranch})` : ''}`,
-      ),
-    );
-    console.log(
-      pc.dim(
-        `  Use ${pc.bold('contrib log -n 50')} for more, or ${pc.bold('contrib log --all')} for all branches`,
-      ),
-    );
-    console.log();
+    // Footer
+    printFooter(mode, count, targetBranch);
+    printGuidance();
   },
 });
+
+// ── Rendering helpers ─────────────────────────────────────────────────
+
+function printModeHeader(
+  mode: LogMode,
+  currentBranch: string | null,
+  upstream: string | null,
+): void {
+  const branch = currentBranch ?? 'HEAD';
+  console.log();
+  switch (mode) {
+    case 'local':
+      console.log(
+        pc.dim(`  mode: ${pc.bold('local')} — unpushed commits on ${pc.bold(branch)}`),
+      );
+      if (upstream) {
+        console.log(pc.dim(`  comparing: ${pc.bold(upstream)} ➜ ${pc.bold('HEAD')}`));
+      }
+      break;
+    case 'remote':
+      console.log(
+        pc.dim(`  mode: ${pc.bold('remote')} — commits on remote not yet pulled into ${pc.bold(branch)}`),
+      );
+      if (upstream) {
+        console.log(pc.dim(`  comparing: ${pc.bold('HEAD')} ➜ ${pc.bold(upstream)}`));
+      }
+      break;
+    case 'full':
+      console.log(
+        pc.dim(`  mode: ${pc.bold('full')} — complete commit history for ${pc.bold(branch)}`),
+      );
+      break;
+    case 'all':
+      console.log(
+        pc.dim(`  mode: ${pc.bold('all')} — commits across all branches`),
+      );
+      break;
+  }
+}
+
+async function renderScopedLog(options: {
+  mode: 'local' | 'remote';
+  count: number;
+  upstream: string;
+  showGraph: boolean;
+  protectedBranches: string[];
+  currentBranch: string | null;
+}): Promise<void> {
+  const { mode, count, upstream, showGraph, protectedBranches, currentBranch } = options;
+
+  if (showGraph) {
+    const graphFn = mode === 'local' ? getLocalCommitsGraph : getRemoteOnlyCommitsGraph;
+    const lines = await graphFn({ count, upstream });
+    if (lines.length === 0) {
+      printEmptyState(mode);
+      return;
+    }
+    console.log();
+    for (const line of lines) {
+      console.log(`  ${colorizeGraphLine(line, protectedBranches, currentBranch)}`);
+    }
+  } else {
+    const entryFn = mode === 'local' ? getLocalCommitsEntries : getRemoteOnlyCommitsEntries;
+    const entries = await entryFn({ count, upstream });
+    if (entries.length === 0) {
+      printEmptyState(mode);
+      return;
+    }
+    console.log();
+    for (const entry of entries) {
+      const hashStr = pc.yellow(entry.hash);
+      const refsStr = entry.refs
+        ? ` ${colorizeRefs(entry.refs, protectedBranches, currentBranch)}`
+        : '';
+      const subjectStr = colorizeSubject(entry.subject);
+      console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
+    }
+  }
+}
+
+function printEmptyState(mode: 'local' | 'remote'): void {
+  console.log();
+  if (mode === 'local') {
+    console.log(pc.dim('  No local unpushed commits — you\'re up to date with remote!'));
+  } else {
+    console.log(pc.dim('  No remote-only commits — your local branch is up to date!'));
+  }
+  console.log();
+}
+
+async function renderFullLog(options: {
+  count: number;
+  all: boolean;
+  showGraph: boolean;
+  targetBranch?: string;
+  protectedBranches: string[];
+  currentBranch: string | null;
+}): Promise<void> {
+  const { count, all, showGraph, targetBranch, protectedBranches, currentBranch } = options;
+
+  if (showGraph) {
+    const lines = await getLogGraph({ count, all, branch: targetBranch });
+    if (lines.length === 0) {
+      console.log(pc.dim('  No commits found.'));
+      console.log();
+      return;
+    }
+    console.log();
+    for (const line of lines) {
+      console.log(`  ${colorizeGraphLine(line, protectedBranches, currentBranch)}`);
+    }
+  } else {
+    const entries = await getLogEntries({ count, all, branch: targetBranch });
+    if (entries.length === 0) {
+      console.log(pc.dim('  No commits found.'));
+      console.log();
+      return;
+    }
+    console.log();
+    for (const entry of entries) {
+      const hashStr = pc.yellow(entry.hash);
+      const refsStr = entry.refs
+        ? ` ${colorizeRefs(entry.refs, protectedBranches, currentBranch)}`
+        : '';
+      const subjectStr = colorizeSubject(entry.subject);
+      console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
+    }
+  }
+}
+
+function printFooter(mode: LogMode, count: number, targetBranch?: string): void {
+  console.log();
+  switch (mode) {
+    case 'local':
+      console.log(pc.dim(`  Showing up to ${count} unpushed commits`));
+      break;
+    case 'remote':
+      console.log(pc.dim(`  Showing up to ${count} remote-only commits`));
+      break;
+    case 'full':
+      console.log(
+        pc.dim(
+          `  Showing ${count} most recent commits${targetBranch ? ` (${targetBranch})` : ''}`,
+        ),
+      );
+      break;
+    case 'all':
+      console.log(pc.dim(`  Showing ${count} most recent commits (all branches)`));
+      break;
+  }
+}
+
+function printGuidance(): void {
+  console.log();
+  console.log(pc.dim('  ─── quick guide ───'));
+  console.log(pc.dim(`  ${pc.bold('contrib log')}            local unpushed commits (default)`));
+  console.log(pc.dim(`  ${pc.bold('contrib log --remote')}   commits on remote not yet pulled`));
+  console.log(pc.dim(`  ${pc.bold('contrib log --full')}     full history for the current branch`));
+  console.log(pc.dim(`  ${pc.bold('contrib log --all')}      commits across all branches`));
+  console.log(pc.dim(`  ${pc.bold('contrib log -n 50')}      change the commit limit (default: 20)`));
+  console.log(pc.dim(`  ${pc.bold('contrib log -b dev')}     view log for a specific branch`));
+  console.log(pc.dim(`  ${pc.bold('contrib log --no-graph')} flat list without graph lines`));
+  console.log();
+}
 
 /**
  * Colorize a single graph line from `git log --graph --oneline --decorate`.
