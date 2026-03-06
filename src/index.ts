@@ -6,10 +6,12 @@ import commit from './commands/commit.js';
 import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
 import log from './commands/log.js';
+import save from './commands/save.js';
 import setup from './commands/setup.js';
 import start from './commands/start.js';
 import status from './commands/status.js';
 import submit from './commands/submit.js';
+import switchCmd from './commands/switch.js';
 import sync from './commands/sync.js';
 import update from './commands/update.js';
 import validate from './commands/validate.js';
@@ -25,6 +27,8 @@ if (!isVersion) {
     'commit',
     'update',
     'submit',
+    'switch',
+    'save',
     'clean',
     'status',
     'log',
@@ -60,6 +64,8 @@ const main = defineCommand({
     commit,
     update,
     submit,
+    switch: switchCmd,
+    save,
     branch,
     clean,
     status,
