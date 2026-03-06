@@ -25,18 +25,29 @@ function gitRun(args: string[]): Promise<GitResult> {
 export default defineCommand({
   meta: {
     name: 'save',
-    description: 'Save, restore, or manage uncommitted changes',
+    description:
+      'Save uncommitted changes for later. Use --list, --restore, or --drop to manage saves.',
   },
   args: {
-    action: {
-      type: 'positional',
-      description: 'Action: save (default), restore, list, drop',
-      required: false,
+    list: {
+      type: 'boolean',
+      alias: 'l',
+      description: 'List all saved changes',
+    },
+    restore: {
+      type: 'boolean',
+      alias: 'r',
+      description: 'Restore previously saved changes',
+    },
+    drop: {
+      type: 'boolean',
+      alias: 'd',
+      description: 'Discard a specific save entry',
     },
     message: {
       type: 'string',
       alias: 'm',
-      description: 'Description for saved changes',
+      description: 'Description for saved changes (used with default save)',
     },
   },
   async run({ args }) {
@@ -45,24 +56,21 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const action = args.action ?? 'save';
+    // Flag priority: only one action at a time
+    const flags = [args.list, args.restore, args.drop].filter(Boolean);
+    if (flags.length > 1) {
+      error('Please use only one flag at a time: --list, --restore, or --drop.');
+      process.exit(1);
+    }
 
-    switch (action) {
-      case 'save':
-        await handleSave(args.message);
-        break;
-      case 'restore':
-        await handleRestore();
-        break;
-      case 'list':
-        await handleList();
-        break;
-      case 'drop':
-        await handleDrop();
-        break;
-      default:
-        error(`Unknown action: ${action}. Use save, restore, list, or drop.`);
-        process.exit(1);
+    if (args.list) {
+      await handleList();
+    } else if (args.restore) {
+      await handleRestore();
+    } else if (args.drop) {
+      await handleDrop();
+    } else {
+      await handleSave(args.message);
     }
   },
 });
@@ -87,12 +95,12 @@ async function handleSave(message?: string) {
   }
 
   success(`Saved: ${pc.dim(label)}`);
-  info(`Use ${pc.bold('contrib save restore')} to bring them back.`);
+  info(`Use ${pc.bold('contrib save --restore')} to bring them back.`);
 }
 
 // ── Restore ──
 async function handleRestore() {
-  heading('💾 contrib save restore');
+  heading('💾 contrib save --restore');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -128,7 +136,7 @@ async function handleRestore() {
 
 // ── List ──
 async function handleList() {
-  heading('💾 contrib save list');
+  heading('💾 contrib save --list');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -143,13 +151,13 @@ async function handleList() {
     console.log(`  ${idx}  ${msg}`);
   }
   console.log();
-  info(`Use ${pc.bold('contrib save restore')} to bring changes back.`);
-  info(`Use ${pc.bold('contrib save drop')} to discard saved changes.`);
+  info(`Use ${pc.bold('contrib save --restore')} to bring changes back.`);
+  info(`Use ${pc.bold('contrib save --drop')} to discard saved changes.`);
 }
 
 // ── Drop ──
 async function handleDrop() {
-  heading('💾 contrib save drop');
+  heading('💾 contrib save --drop');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
