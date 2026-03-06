@@ -487,7 +487,33 @@ export default defineCommand({
 
     // ─── Phase 1: Collect PR information ─────────────────────────────
 
-    // 2b. Generate AI PR description (before pushing anything)
+    // 2b. Check if an open PR already exists for this branch — just push and report.
+    // This must happen BEFORE AI description generation and action prompts.
+    // Otherwise the user gets walked through creating a new PR only to discover one already exists.
+    if (ghInstalled && ghAuthed) {
+      const existingPR = await getPRForBranch(currentBranch);
+      if (existingPR) {
+        info(`Pushing ${pc.bold(currentBranch)} to ${origin}...`);
+        const pushResult = await pushSetUpstream(origin, currentBranch);
+        if (pushResult.exitCode !== 0) {
+          error(`Failed to push: ${pushResult.stderr}`);
+          if (
+            pushResult.stderr.includes('rejected') ||
+            pushResult.stderr.includes('non-fast-forward')
+          ) {
+            warn('The remote branch has diverged. Try:');
+            info(`  git pull --rebase ${origin} ${currentBranch}`);
+            info('  Then run `contrib submit` again.');
+          }
+          process.exit(1);
+        }
+        success(`Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`);
+        console.log(`  ${pc.cyan(existingPR.url)}`);
+        return;
+      }
+    }
+
+    // 2c. Generate AI PR description (before pushing anything)
     let prTitle: string | null = null;
     let prBody: string | null = null;
 
@@ -665,14 +691,6 @@ export default defineCommand({
       } else {
         info('gh CLI not available. Create your PR manually on GitHub.');
       }
-      return;
-    }
-
-    // Check if a PR already exists for this branch (after push)
-    const existingPR = await getPRForBranch(currentBranch);
-    if (existingPR) {
-      success(`Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`);
-      console.log(`  ${pc.cyan(existingPR.url)}`);
       return;
     }
 
