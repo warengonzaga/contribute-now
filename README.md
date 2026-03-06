@@ -204,17 +204,19 @@ Checks include:
 
 ### `contrib log`
 
-Show a colorized, workflow-aware commit log with graph visualization.
+Show a colorized, workflow-aware commit log. By default it shows only **local unpushed commits** — the changes you've made since the last push (or since branching off the base branch). Use flags to switch between different views.
 
 ```bash
-contrib log                # last 20 commits with graph
-contrib log -n 50          # last 50 commits
-contrib log --all          # all branches
-contrib log --no-graph     # flat view without graph lines
+contrib log                # local unpushed commits (default)
+contrib log --remote       # commits on remote not yet pulled
+contrib log --full         # full history for the current branch
+contrib log --all          # commits across all branches
+contrib log -n 50          # change the commit limit (default: 20)
 contrib log -b feature/x   # log for a specific branch
+contrib log --no-graph     # flat view without graph lines
 ```
 
-Protected branches (main, dev) are highlighted, and the current branch is color-coded for quick orientation.
+When no upstream tracking is set (branch hasn't been pushed yet), the command automatically compares against the base branch from your config (e.g., `origin/dev`). Protected branches are highlighted, and the current branch is color-coded for quick orientation.
 
 ---
 
