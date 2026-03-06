@@ -849,3 +849,24 @@ export async function getRemoteBranches(): Promise<string[]> {
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.includes(' -> '));
 }
+
+/**
+ * Check if a branch has been fully merged into a base ref.
+ * Uses `git merge-base --is-ancestor` which returns 0 if branch tip
+ * is an ancestor of base (i.e. all commits are reachable from base).
+ */
+export async function isBranchMergedInto(branch: string, base: string): Promise<boolean> {
+  const { exitCode } = await run(['merge-base', '--is-ancestor', branch, base]);
+  return exitCode === 0;
+}
+
+/**
+ * Returns the ISO date string of the last commit on the given branch.
+ * Returns null if the branch has no commits or doesn't exist.
+ */
+export async function getLastCommitDate(branch: string): Promise<string | null> {
+  const { exitCode, stdout } = await run(['log', '-1', '--format=%aI', branch]);
+  if (exitCode !== 0) return null;
+  const date = stdout.trim();
+  return date || null;
+}

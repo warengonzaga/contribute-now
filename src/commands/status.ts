@@ -1,16 +1,21 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
+import { checkGhInstalled, getMergedPRForBranch } from '../utils/gh.js';
 import {
   fetchAll,
   getCurrentBranch,
   getDivergence,
   getFileStatus,
+  getGoneBranches,
+  getLastCommitDate,
+  getMergedBranches,
   hasUncommittedChanges,
+  isBranchMergedInto,
   isGitRepo,
 } from '../utils/git.js';
 import { error, heading } from '../utils/logger.js';
-import { getBaseBranch, hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
+import { getBaseBranch, getProtectedBranches, hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -68,10 +73,25 @@ export default defineCommand({
     }
 
     // Current feature branch (if not on a protected branch)
-    if (currentBranch && currentBranch !== mainBranch && currentBranch !== config.devBranch) {
+    const protectedBranches = getProtectedBranches(config);
+    const isFeatureBranch = currentBranch && !protectedBranches.includes(currentBranch);
+    let branchStatus: BranchStatus | null = null;
+
+    if (isFeatureBranch) {
       const branchDiv = await getDivergence(currentBranch, baseBranch);
       const branchLine = formatStatus(currentBranch, baseBranch, branchDiv.ahead, branchDiv.behind);
       console.log(branchLine + pc.dim(` (current ${pc.green('*')})`));
+
+      // Merged / stale detection for feature branches
+      branchStatus = await detectBranchStatus(currentBranch, baseBranch, config);
+
+      if (branchStatus.merged) {
+        console.log(`  ${pc.green('\u2713')}  ${pc.green('Branch merged')} \u2014 ${pc.dim(branchStatus.mergedReason ?? 'all commits reachable from base')}`);
+      }
+
+      if (branchStatus.stale) {
+        console.log(`  ${pc.yellow('\u23f3')}  ${pc.yellow('Branch is stale')} \u2014 ${pc.dim(`last commit ${branchStatus.staleDaysAgo} days ago`)}`);
+      }
     } else if (currentBranch) {
       console.log(pc.dim(`  (on ${pc.bold(currentBranch)} branch)`));
     }
@@ -114,17 +134,21 @@ export default defineCommand({
     if (fileStatus.modified.length > 0 || fileStatus.untracked.length > 0) {
       tips.push(`Run ${pc.bold('contrib commit')} to stage and commit changes`);
     }
-    if (
-      fileStatus.staged.length === 0 &&
-      fileStatus.modified.length === 0 &&
-      fileStatus.untracked.length === 0 &&
-      currentBranch &&
-      currentBranch !== mainBranch &&
-      currentBranch !== config.devBranch
-    ) {
-      const branchDiv = await getDivergence(currentBranch, `${origin}/${currentBranch}`);
-      if (branchDiv.ahead > 0) {
-        tips.push(`Run ${pc.bold('contrib submit')} to push and create/update your PR`);
+
+    if (isFeatureBranch && branchStatus) {
+      if (branchStatus.merged) {
+        tips.push(`Run ${pc.bold('contrib clean')} to delete this merged branch`);
+      } else if (branchStatus.stale) {
+        tips.push(`Run ${pc.bold('contrib sync')} to rebase on latest changes, or ${pc.bold('contrib clean')} if no longer needed`);
+      } else if (
+        fileStatus.staged.length === 0 &&
+        fileStatus.modified.length === 0 &&
+        fileStatus.untracked.length === 0
+      ) {
+        const branchDiv = await getDivergence(currentBranch, `${origin}/${currentBranch}`);
+        if (branchDiv.ahead > 0) {
+          tips.push(`Run ${pc.bold('contrib submit')} to push and create/update your PR`);
+        }
       }
     }
 
@@ -152,4 +176,74 @@ function formatStatus(branch: string, base: string, ahead: number, behind: numbe
     return `  ${pc.red('↓')}  ${label} ${pc.red(`${behind} commit${behind !== 1 ? 's' : ''} behind ${base}`)}`;
   }
   return `  ${pc.red('⚡')}  ${label} ${pc.yellow(`${ahead} ahead`)}${pc.dim(', ')}${pc.red(`${behind} behind`)} ${pc.dim(base)}`;
+}
+
+const STALE_THRESHOLD_DAYS = 14;
+
+interface BranchStatus {
+  merged: boolean;
+  mergedReason: string | null;
+  stale: boolean;
+  staleDaysAgo: number | null;
+}
+
+async function detectBranchStatus(
+  branch: string,
+  baseBranch: string,
+  config: { origin: string },
+): Promise<BranchStatus> {
+  const result: BranchStatus = { merged: false, mergedReason: null, stale: false, staleDaysAgo: null };
+
+  // A branch with 0 commits ahead of the base is just fresh — not merged.
+  // Only run merge detection if the branch has actually diverged with work.
+  const div = await getDivergence(branch, baseBranch);
+  const hasWork = div.ahead > 0;
+
+  if (hasWork) {
+    // 1. Check if branch is fully merged via git ancestry
+    if (await isBranchMergedInto(branch, baseBranch)) {
+      result.merged = true;
+      result.mergedReason = `all commits reachable from ${baseBranch}`;
+      return result;
+    }
+
+    // 2. Check if branch appears in `git branch --merged`
+    const mergedBranches = await getMergedBranches(baseBranch);
+    if (mergedBranches.includes(branch)) {
+      result.merged = true;
+      result.mergedReason = `listed in merged branches of ${baseBranch}`;
+      return result;
+    }
+  }
+
+  // 3. Check if remote tracking branch is gone (squash-merge detection)
+  // This applies even without local commits — remote deletion signals a merge happened
+  const goneBranches = await getGoneBranches();
+  if (goneBranches.includes(branch)) {
+    result.merged = true;
+    result.mergedReason = 'remote branch deleted (likely squash-merged)';
+    return result;
+  }
+
+  // 4. Check if a merged PR exists via gh CLI
+  if (await checkGhInstalled()) {
+    const mergedPR = await getMergedPRForBranch(branch);
+    if (mergedPR) {
+      result.merged = true;
+      result.mergedReason = `PR #${mergedPR.number} was merged`;
+      return result;
+    }
+  }
+
+  // 5. Stale detection — check last commit age
+  const lastDate = await getLastCommitDate(branch);
+  if (lastDate) {
+    const daysAgo = Math.floor((Date.now() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24));
+    if (daysAgo >= STALE_THRESHOLD_DAYS) {
+      result.stale = true;
+      result.staleDaysAgo = daysAgo;
+    }
+  }
+
+  return result;
 }
