@@ -706,7 +706,7 @@ export async function getLocalCommitsGraph(options?: {
   count?: number;
   upstream?: string;
 }): Promise<string[]> {
-  const count = options?.count ?? 50;
+  const count = options?.count ?? 20;
   const upstream = options?.upstream;
   if (!upstream) return [];
   const args = [
@@ -730,7 +730,7 @@ export async function getLocalCommitsEntries(options?: {
   count?: number;
   upstream?: string;
 }): Promise<{ hash: string; subject: string; refs: string }[]> {
-  const count = options?.count ?? 50;
+  const count = options?.count ?? 20;
   const upstream = options?.upstream;
   if (!upstream) return [];
   const args = ['log', `--format=%h||%s||%D`, `--max-count=${count}`, `${upstream}..HEAD`];
@@ -754,7 +754,7 @@ export async function getRemoteOnlyCommitsGraph(options?: {
   count?: number;
   upstream?: string;
 }): Promise<string[]> {
-  const count = options?.count ?? 50;
+  const count = options?.count ?? 20;
   const upstream = options?.upstream;
   if (!upstream) return [];
   const args = [
@@ -778,7 +778,7 @@ export async function getRemoteOnlyCommitsEntries(options?: {
   count?: number;
   upstream?: string;
 }): Promise<{ hash: string; subject: string; refs: string }[]> {
-  const count = options?.count ?? 50;
+  const count = options?.count ?? 20;
   const upstream = options?.upstream;
   if (!upstream) return [];
   const args = ['log', `--format=%h||%s||%D`, `--max-count=${count}`, `HEAD..${upstream}`];

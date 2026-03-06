@@ -116,10 +116,18 @@ export default defineCommand({
         return;
       }
 
-      await renderScopedLog({ mode, count, upstream: compareRef, showGraph, protectedBranches, currentBranch });
+      const hasCommits = await renderScopedLog({ mode, count, upstream: compareRef, showGraph, protectedBranches, currentBranch });
+      if (!hasCommits) {
+        printGuidance();
+        return;
+      }
     } else {
       // 'full' or 'all' — use existing full log behavior
-      await renderFullLog({ count, all: mode === 'all', showGraph, targetBranch, protectedBranches, currentBranch });
+      const hasCommits = await renderFullLog({ count, all: mode === 'all', showGraph, targetBranch, protectedBranches, currentBranch });
+      if (!hasCommits) {
+        printGuidance();
+        return;
+      }
     }
 
     // Footer
@@ -206,7 +214,7 @@ async function renderScopedLog(options: {
   showGraph: boolean;
   protectedBranches: string[];
   currentBranch: string | null;
-}): Promise<void> {
+}): Promise<boolean> {
   const { mode, count, upstream, showGraph, protectedBranches, currentBranch } = options;
 
   if (showGraph) {
@@ -214,7 +222,7 @@ async function renderScopedLog(options: {
     const lines = await graphFn({ count, upstream });
     if (lines.length === 0) {
       printEmptyState(mode);
-      return;
+      return false;
     }
     console.log();
     for (const line of lines) {
@@ -225,7 +233,7 @@ async function renderScopedLog(options: {
     const entries = await entryFn({ count, upstream });
     if (entries.length === 0) {
       printEmptyState(mode);
-      return;
+      return false;
     }
     console.log();
     for (const entry of entries) {
@@ -237,6 +245,7 @@ async function renderScopedLog(options: {
       console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
     }
   }
+  return true;
 }
 
 function printEmptyState(mode: 'local' | 'remote'): void {
@@ -256,7 +265,7 @@ async function renderFullLog(options: {
   targetBranch?: string;
   protectedBranches: string[];
   currentBranch: string | null;
-}): Promise<void> {
+}): Promise<boolean> {
   const { count, all, showGraph, targetBranch, protectedBranches, currentBranch } = options;
 
   if (showGraph) {
@@ -264,7 +273,7 @@ async function renderFullLog(options: {
     if (lines.length === 0) {
       console.log(pc.dim('  No commits found.'));
       console.log();
-      return;
+      return false;
     }
     console.log();
     for (const line of lines) {
@@ -275,7 +284,7 @@ async function renderFullLog(options: {
     if (entries.length === 0) {
       console.log(pc.dim('  No commits found.'));
       console.log();
-      return;
+      return false;
     }
     console.log();
     for (const entry of entries) {
@@ -287,6 +296,7 @@ async function renderFullLog(options: {
       console.log(`  ${hashStr}${refsStr} ${subjectStr}`);
     }
   }
+  return true;
 }
 
 function printFooter(mode: LogMode, count: number, targetBranch?: string): void {
