@@ -1,6 +1,6 @@
 {
   "name": "contribute-now",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Developer CLI that automates git workflows — branching, syncing, committing, and PRs — with multi-workflow and commit convention support.",
   "type": "module",
   "bin": {

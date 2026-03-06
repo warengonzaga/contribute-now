@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.5.0] - 2026-03-06
+
+### Added
+
+- add mobile hamburger nav menu
+
+### Changed
+
+- improve commit ux with large-commit warnings and squash message review
+- add merged and stale branch detection to status
+- enhance log command and rename www/ to landing/ (#8)
+- add concurrency configuration for npm-publish workflow
+
 ## [0.4.1] - 2026-03-05
 
 ### Changed
