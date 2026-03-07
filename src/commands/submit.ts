@@ -580,38 +580,55 @@ export default defineCommand({
       }
     }
 
-    if (!args['no-ai']) {
-      await tryGenerateAI();
-    }
-
     // 2c. Action selection (loop to allow AI regeneration)
     const CANCEL = 'Cancel';
     const SQUASH_LOCAL = `Squash merge to ${baseBranch} locally (no PR)`;
     const REGENERATE = 'Regenerate AI description';
 
     // Tracks what the user decided to do
-    type SubmitAction = 'create-pr' | 'fill' | 'squash' | 'cancel';
+    type SubmitAction = 'create-pr' | 'fill' | 'cancel';
     let submitAction: SubmitAction = 'cancel';
 
     const isMaintainer = config.role === 'maintainer';
 
+    // For maintainers, ask the merge strategy first to avoid wasting tokens on
+    // AI PR description generation when a local squash merge is preferred.
+    if (isMaintainer) {
+      const maintainerChoice = await selectPrompt(
+        'How would you like to submit your changes?',
+        ['Create a PR', SQUASH_LOCAL, CANCEL],
+      );
+      if (maintainerChoice === CANCEL) {
+        warn('Submit cancelled.');
+        return;
+      }
+      if (maintainerChoice === SQUASH_LOCAL) {
+        await performSquashMerge(origin, baseBranch, currentBranch, {
+          model: args.model,
+          convention: config.commitConvention,
+        });
+        return;
+      }
+      // else: maintainer chose PR — fall through to AI generation + PR flow
+    }
+
+    if (!args['no-ai']) {
+      await tryGenerateAI();
+    }
+
     let actionResolved = false;
     while (!actionResolved) {
       if (prTitle && prBody) {
-        // Role-based ordering: maintainer gets squash merge near the top
-        const choices: string[] = ['Use AI description'];
-        if (isMaintainer) choices.push(SQUASH_LOCAL);
-        choices.push(
-          'Edit title',
-          'Write manually',
-          'Use gh --fill (auto-fill from commits)',
-          REGENERATE,
-          CANCEL,
-        );
-
         const action = await selectPrompt(
           'What would you like to do with the PR description?',
-          choices,
+          [
+            'Use AI description',
+            'Edit title',
+            'Write manually',
+            'Use gh --fill (auto-fill from commits)',
+            REGENERATE,
+            CANCEL,
+          ],
         );
 
         if (action === CANCEL) {
@@ -622,9 +639,6 @@ export default defineCommand({
           prBody = null;
           await tryGenerateAI();
           // loop again
-        } else if (action === SQUASH_LOCAL) {
-          submitAction = 'squash';
-          actionResolved = true;
         } else if (action === 'Use AI description') {
           submitAction = 'create-pr';
           actionResolved = true;
@@ -643,9 +657,7 @@ export default defineCommand({
           actionResolved = true;
         }
       } else {
-        // Role-based ordering: maintainer gets squash merge at the top
         const choices: string[] = [];
-        if (isMaintainer) choices.push(SQUASH_LOCAL);
         if (!args['no-ai']) choices.push(REGENERATE);
         choices.push(
           'Write title & body manually',
@@ -661,9 +673,6 @@ export default defineCommand({
         } else if (action === REGENERATE) {
           await tryGenerateAI();
           // loop again
-        } else if (action === SQUASH_LOCAL) {
-          submitAction = 'squash';
-          actionResolved = true;
         } else if (action === 'Write title & body manually') {
           prTitle = await inputPrompt('PR title');
           prBody = await inputPrompt('PR body (markdown)');
@@ -682,15 +691,6 @@ export default defineCommand({
     // Handle cancel (nothing pushed)
     if (submitAction === 'cancel') {
       warn('Submit cancelled.');
-      return;
-    }
-
-    // Handle squash merge locally (has its own push logic)
-    if (submitAction === 'squash') {
-      await performSquashMerge(origin, baseBranch, currentBranch, {
-        model: args.model,
-        convention: config.commitConvention,
-      });
       return;
     }
 
