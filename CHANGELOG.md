@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.0] - 2026-03-07
+
+### Added
+
+- add TinyClaw logo asset
+- add save and switch commands
+
+### Changed
+
+- refresh hero copy and add GitHub button icon
+- add `cn` as shorthand binary alias
+- replace positional actions with flag-based interface
+
 ## [0.5.0] - 2026-03-06
 
 ### Added
