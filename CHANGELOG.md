@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.1] - 2026-03-07
+
+### Changed
+
+- ask maintainers for merge strategy before AI generation
+- replace nav CTA with icon links for Discord, GitHub, and star count
+
 ## [0.6.0] - 2026-03-07
 
 ### Added
