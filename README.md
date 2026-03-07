@@ -47,7 +47,9 @@ npm install -g contribute-now
 contrib setup
 ```
 
-> Both `contrib` and `contribute` invoke the same binary.
+> `contrib`, `contribute`, and `cn` all invoke the same binary — use whichever you prefer.
+>
+> **Fun fact:** `cn` is shorter than `git`. Yes, your workflow command is now faster to type than git itself. 🚀
 
 ---
 
@@ -59,6 +61,14 @@ npm install -g contribute-now
 
 # bun
 bun install -g contribute-now
+```
+
+Once installed, you can use any of the three aliases:
+
+```bash
+contrib setup     # classic
+contribute setup  # spelled out
+cn setup          # shortest — even shorter than git!
 ```
 
 ## Prerequisites

@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "contrib": "dist/index.js",
-    "contribute": "dist/index.js"
+    "contribute": "dist/index.js",
+    "cn": "dist/index.js"
   },
   "files": [
     "dist"
