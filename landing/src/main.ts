@@ -102,6 +102,21 @@ window.addEventListener('DOMContentLoaded', () => {
     observer.observe(el);
   });
 
+  // Fetch live npm version
+  const npmVersionEl = document.getElementById('npmVersion');
+  if (npmVersionEl) {
+    fetch('https://registry.npmjs.org/contribute-now/latest')
+      .then((r) => r.json())
+      .then((data: { version?: string }) => {
+        if (data.version) {
+          npmVersionEl.textContent = `v${data.version}`;
+        }
+      })
+      .catch(() => {
+        // Silent fail — "--" stays as placeholder
+      });
+  }
+
   // Fetch live GitHub star count
   const starCountEl = document.getElementById('starCount');
   if (starCountEl) {
