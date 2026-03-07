@@ -98,16 +98,52 @@ code {
 }
 .nav-links a:hover { color: var(--text); }
 .nav-cta {
-  color: var(--accent) !important;
-  border: 1px solid var(--border-2);
-  padding: 6px 16px;
-  border-radius: 8px;
-  transition: background 0.2s, border-color 0.2s !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-.nav-cta:hover {
-  background: rgba(88, 166, 255, 0.1);
-  border-color: var(--accent) !important;
-  color: var(--accent-2) !important;
+.nav-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--border-2);
+  flex-shrink: 0;
+}
+.nav-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.nav-icon:hover {
+  background: var(--bg-3);
+}
+.nav-icon--star {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.nav-icon .star-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+.nav-icon:hover .star-count {
+  color: var(--text);
+}
+.nav-icon .star-count.loaded {
+  animation: countPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes countPop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* ─── Buttons ───────────────────────────────────────────────────────── */
@@ -264,6 +300,26 @@ code {
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin-bottom: 20px;
+}
+.pen-underline {
+  position: relative;
+  display: inline-block;
+}
+.pen-underline::after {
+  content: '';
+  position: absolute;
+  left: -2%;
+  bottom: -0.05em;
+  width: 104%;
+  height: 0.18em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8 C30 3, 50 10, 80 5 S130 9, 160 4 S185 8, 198 6' fill='none' stroke='%2358a6ff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center;
+  background-size: 100% 100%;
+  opacity: 0.7;
+  animation: penDraw 1s ease-out 0.5s both;
+}
+@keyframes penDraw {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
 }
 .hero-sub {
   font-size: clamp(1rem, 2vw, 1.2rem);
@@ -739,9 +795,30 @@ code {
   .nav-cta {
     margin-top: 12px;
     text-align: center;
-    border: 1px solid var(--border-2) !important;
     padding: 14px 16px !important;
-    border-radius: 8px;
+  }
+  .nav-icon {
+    padding: 16px 0 !important;
+    border-radius: 0 !important;
+  }
+  .nav-icons {
+    display: flex;
+    gap: 0;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .nav-icons .nav-icon {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 0 !important;
+    border-bottom: none !important;
+  }
+  .nav-icon--star {
+    justify-content: center;
+  }
+  .nav-separator {
+    display: none;
   }
 
   /* ── Hero ── */
@@ -750,9 +827,7 @@ code {
   .hero-actions { flex-direction: column; align-items: stretch; }
   .terminal-snippet { justify-content: center; font-size: 0.85rem; }
   .btn-secondary { text-align: center; justify-content: center; }
-  .star-label { display: none; }
-  .star-divider { display: none; }
-  .star-btn { padding: 8px 12px; gap: 6px; justify-content: center; }
+  .btn-discord { text-align: center; justify-content: center; }
 
   /* ── Sections ── */
   .problem { padding: 60px 0; }
@@ -1360,70 +1435,21 @@ code {
   .terminal-body { padding: 16px; font-size: 0.8rem; }
 }
 
-/* ─── Star Button (Hero) ─────────────────────────────────────────── */
-.star-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: var(--font-sans);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  cursor: pointer;
-}
-.star-btn:hover {
-  color: var(--orange);
-  border-color: rgba(227, 179, 65, 0.5);
-  box-shadow: 0 0 24px rgba(227, 179, 65, 0.15);
-  background: rgba(227, 179, 65, 0.08);
-}
-.star-icon {
-  color: var(--orange);
-  flex-shrink: 0;
-}
-.star-label {
-  white-space: nowrap;
-}
-.star-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--border-2);
-}
-.star-count {
-  font-variant-numeric: tabular-nums;
-  min-width: 1.8em;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  transition: color 0.3s;
-}
-.star-btn:hover .star-count {
-  color: var(--orange);
-}
-.star-count.loaded {
-  animation: countPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes countPop {
-  0% { transform: scale(0.6); opacity: 0; }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
 /* ─── Nav Sponsor Link ───────────────────────────────────────────── */
-.nav-sponsor {
-  color: #db61a2 !important;
-  font-weight: 600;
-  transition: all 0.3s;
+/* (now uses .nav-icon — no special color overrides) */
+
+/* ─── Discord Button ─────────────────────────────────────────────── */
+/* (now uses .nav-icon — no special color overrides) */
+.btn-discord {
+  background: transparent;
+  color: #5865f2;
+  border-color: rgba(88, 101, 242, 0.4);
 }
-.nav-sponsor:hover {
-  color: #f778ba !important;
-  text-shadow: 0 0 12px rgba(219, 97, 162, 0.4);
+.btn-discord:hover {
+  background: rgba(88, 101, 242, 0.1);
+  border-color: #5865f2;
+  color: #7289da;
+  transform: translateY(-1px);
 }
 
 /* ─── Used By ────────────────────────────────────────────────────── */
