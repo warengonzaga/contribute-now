@@ -270,7 +270,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    success(`✅ Committed: ${pc.bold(finalMessage)}`);
+    success(`Committed: ${pc.bold(finalMessage)}`);
   },
 });
 
@@ -408,7 +408,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         continue;
       }
       committed++;
-      success(`✅ Committed group ${i + 1}: ${pc.bold(group.message)}`);
+      success(`Committed group ${i + 1}: ${pc.bold(group.message)}`);
     }
   } else {
     // Interactive: review each group individually
@@ -497,7 +497,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         }
 
         committed++;
-        success(`✅ Committed group ${i + 1}: ${pc.bold(message)}`);
+        success(`Committed group ${i + 1}: ${pc.bold(message)}`);
         actionDone = true;
       }
     }
@@ -506,7 +506,8 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   if (committed === 0) {
     warn('No groups were committed.');
   } else {
-    success(`\n🎉 ${committed} of ${validGroups.length} group(s) committed successfully.`);
+    console.log();
+    success(`${committed} of ${validGroups.length} group(s) committed successfully.`, '🎉');
   }
 
   process.exit(0);

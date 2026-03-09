@@ -117,8 +117,8 @@ export default defineCommand({
       }
 
       success(`Switched to ${pc.bold(targetBranch)}`);
-      info(`Your changes from ${pc.bold(currentBranch ?? 'previous branch')} are saved.`);
-      info(`Use ${pc.bold('contrib save --restore')} to bring them back.`);
+      info(`Your changes from ${pc.bold(currentBranch ?? 'previous branch')} are saved.`, '');
+      info(`Use ${pc.bold('contrib save --restore')} to bring them back.`, '');
       return;
     }
 

@@ -99,8 +99,8 @@ export default defineCommand({
     // Validate remote ref exists after fetch
     if (!(await refExists(syncSource.ref))) {
       error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
-      info('This can happen if the branch was renamed or deleted on the remote.');
-      info(`Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`);
+      info('This can happen if the branch was renamed or deleted on the remote.', '');
+      info(`Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`, '');
       process.exit(1);
     }
 
@@ -213,11 +213,12 @@ export default defineCommand({
           await updateLocalBranch(baseBranch, remoteRef);
           success(`Reset ${pc.bold(baseBranch)} to ${pc.bold(remoteRef)}.`);
 
-          success(`✅ ${pc.bold(baseBranch)} is now in sync with ${syncSource.ref}`);
+          success(`${pc.bold(baseBranch)} is now in sync with ${syncSource.ref}`);
           console.log();
-          info(`Your commits are safe on ${pc.bold(newBranchName)}.`);
+          info(`Your commits are safe on ${pc.bold(newBranchName)}.`, '');
           info(
             `Run ${pc.bold(`git checkout ${newBranchName}`)} then ${pc.bold('contrib update')} to rebase onto the synced ${pc.bold(baseBranch)}.`,
+            '',
           );
           return;
         }
@@ -253,12 +254,13 @@ export default defineCommand({
         error(`Fast-forward pull failed. Your local ${pc.bold(baseBranch)} may have diverged.`);
         info(
           `Use ${pc.bold('contrib sync')} again and choose "Move my commits to a new feature branch" to fix this.`,
+          '',
         );
       }
       process.exit(1);
     }
 
-    success(`✅ ${baseBranch} is now in sync with ${syncSource.ref}`);
+    success(`${baseBranch} is now in sync with ${syncSource.ref}`);
 
     // For workflows with dev branch, also sync main if maintainer
     if (hasDevBranch(workflow) && role === 'maintainer') {
@@ -269,7 +271,7 @@ export default defineCommand({
         if (mainCoResult.exitCode === 0) {
           const mainPullResult = await pullFastForwardOnly(origin, config.mainBranch);
           if (mainPullResult.exitCode === 0) {
-            success(`✅ ${config.mainBranch} is now in sync with ${origin}/${config.mainBranch}`);
+            success(`${config.mainBranch} is now in sync with ${origin}/${config.mainBranch}`);
           }
         }
         // Return to base branch

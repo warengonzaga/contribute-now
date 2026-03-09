@@ -187,8 +187,8 @@ async function performSquashMerge(
     }
   }
 
-  success(`✅ Squash merged ${pc.bold(featureBranch)} into ${pc.bold(baseBranch)} and pushed.`);
-  info(`Run ${pc.bold('contrib start')} to begin a new feature.`);
+  success(`Squash merged ${pc.bold(featureBranch)} into ${pc.bold(baseBranch)} and pushed.`);
+  info(`Run ${pc.bold('contrib start')} to begin a new feature.`, '');
 }
 
 export default defineCommand({
@@ -254,7 +254,7 @@ export default defineCommand({
 
       if (!hasAnything) {
         error('No local changes or commits to move. Switch to a feature branch first.');
-        info(`  Run ${pc.bold('contrib start')} to create a new feature branch.`);
+        info(`  Run ${pc.bold('contrib start')} to create a new feature branch.`, '');
         process.exit(1);
       }
 
@@ -342,11 +342,11 @@ export default defineCommand({
       // Reset the protected branch back to its remote state
       // (We're now on the new branch, so this is safe)
       await updateLocalBranch(currentBranch, remoteRef);
-      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`);
+      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`, '');
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
-      info(`Run ${pc.bold('contrib submit')} again to push and create your PR.`);
+      info(`Run ${pc.bold('contrib submit')} again to push and create your PR.`, '');
       return;
     }
 
@@ -473,13 +473,14 @@ export default defineCommand({
 
             if (rebaseResult.exitCode !== 0) {
               warn('Rebase encountered conflicts. Resolve them manually, then run:');
-              info(`  ${pc.bold('git rebase --continue')}`);
+              info(`  ${pc.bold('git rebase --continue')}`, '');
             } else {
               success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
             }
 
             info(
               `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+              '',
             );
             return;
           }
@@ -535,8 +536,8 @@ export default defineCommand({
             pushResult.stderr.includes('non-fast-forward')
           ) {
             warn('The remote branch has diverged. Try:');
-            info(`  git pull --rebase ${origin} ${currentBranch}`);
-            info('  Then run `contrib submit` again.');
+            info(`  git pull --rebase ${origin} ${currentBranch}`, '');
+            info('  Then run `contrib submit` again.', '');
           }
           process.exit(1);
         }
@@ -704,10 +705,10 @@ export default defineCommand({
         pushResult.stderr.includes('non-fast-forward')
       ) {
         warn('The remote branch has diverged. Try:');
-        info(`  git pull --rebase ${origin} ${currentBranch}`);
-        info('  Then run `contrib submit` again.');
-        info('If you need to force push (use with caution):');
-        info(`  git push --force-with-lease ${origin} ${currentBranch}`);
+        info(`  git pull --rebase ${origin} ${currentBranch}`, '');
+        info('  Then run `contrib submit` again.', '');
+        info('If you need to force push (use with caution):', '');
+        info(`  git push --force-with-lease ${origin} ${currentBranch}`, '');
       }
       process.exit(1);
     }
@@ -718,10 +719,10 @@ export default defineCommand({
       if (repoInfo) {
         const prUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}/compare/${baseBranch}...${currentBranch}?expand=1`;
         console.log();
-        info('Create your PR manually:');
+        info('Create your PR manually:', '');
         console.log(`  ${pc.cyan(prUrl)}`);
       } else {
-        info('gh CLI not available. Create your PR manually on GitHub.');
+        info('gh CLI not available. Create your PR manually on GitHub.', '');
       }
       return;
     }
@@ -733,7 +734,7 @@ export default defineCommand({
         error(`Failed to create PR: ${fillResult.stderr}`);
         process.exit(1);
       }
-      success(`✅ PR created: ${fillResult.stdout.trim()}`);
+      success(`PR created: ${fillResult.stdout.trim()}`);
       return;
     }
 
@@ -755,6 +756,6 @@ export default defineCommand({
       process.exit(1);
     }
 
-    success(`✅ PR created: ${prResult.stdout.trim()}`);
+    success(`PR created: ${prResult.stdout.trim()}`);
   },
 });

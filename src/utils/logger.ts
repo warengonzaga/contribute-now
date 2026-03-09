@@ -5,25 +5,25 @@ LogEngine.configure({
   mode: LogMode.INFO,
   format: {
     includeIsoTimestamp: false,
-    includeLocalTime: true,
+    includeLocalTime: false,
     includeEmoji: true,
   },
 });
 
-export function success(msg: string) {
-  LogEngine.log(msg);
+export function success(msg: string, emoji = '✅') {
+  LogEngine.log(msg, undefined, { emoji });
 }
 
-export function error(msg: string) {
-  LogEngine.error(msg);
+export function error(msg: string, emoji = '🚨') {
+  LogEngine.error(msg, undefined, { emoji });
 }
 
-export function warn(msg: string) {
-  LogEngine.warn(msg);
+export function warn(msg: string, emoji = '⚠️') {
+  LogEngine.warn(msg, undefined, { emoji });
 }
 
-export function info(msg: string) {
-  LogEngine.info(msg);
+export function info(msg: string, emoji = 'ℹ️') {
+  LogEngine.info(msg, undefined, { emoji });
 }
 
 export function heading(msg: string) {

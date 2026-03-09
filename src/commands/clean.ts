@@ -142,8 +142,8 @@ async function handleCurrentBranchDeletion(
         // Abort the conflicting rebase so the repo isn't left in a broken state
         await rebaseAbort();
         warn('Rebase had conflicts — aborted to keep the repo in a clean state.');
-        info(`Your work is saved on ${pc.bold(newBranchName)}. After cleanup, rebase manually:`);
-        info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase ${syncSource.ref}`)}`);
+        info(`Your work is saved on ${pc.bold(newBranchName)}. After cleanup, rebase manually:`, '');
+        info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase ${syncSource.ref}`)}`, '');
       } else {
         success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
       }
@@ -247,7 +247,7 @@ export default defineCommand({
         const mergedPR = await getMergedPRForBranch(currentBranch);
         if (mergedPR) {
           warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`);
-          info(`Link: ${pc.underline(mergedPR.url)}`);
+          info(`Link: ${pc.underline(mergedPR.url)}`, '');
           goneCandidates.push(currentBranch);
         }
       }
@@ -336,7 +336,7 @@ export default defineCommand({
     }
 
     if (mergedCandidates.length === 0 && goneCandidates.length === 0) {
-      info('No branches to clean up. Everything is tidy! 🧹');
+      info('No branches to clean up. Everything is tidy!', '🧹');
     }
 
     // Final guidance

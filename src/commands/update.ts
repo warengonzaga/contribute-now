@@ -186,11 +186,11 @@ export default defineCommand({
 
       // Reset the protected branch back to its remote state
       await updateLocalBranch(currentBranch, remoteRef);
-      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`);
+      info(`Reset ${pc.bold(currentBranch)} back to ${pc.bold(remoteRef)} — no damage done.`, '');
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
-      info(`Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`);
+      info(`Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`, '');
       return;
     }
 
@@ -206,7 +206,7 @@ export default defineCommand({
     const mergedPR = await getMergedPRForBranch(currentBranch);
     if (mergedPR) {
       warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`);
-      info(`Link: ${pc.underline(mergedPR.url)}`);
+      info(`Link: ${pc.underline(mergedPR.url)}`, '');
 
       const localWork = await hasLocalWork(syncSource.remote, currentBranch);
       const hasWork = localWork.uncommitted || localWork.unpushedCommits > 0;
@@ -315,13 +315,14 @@ export default defineCommand({
 
           if (rebaseResult.exitCode !== 0) {
             warn('Rebase encountered conflicts. Resolve them manually, then run:');
-            info(`  ${pc.bold('git rebase --continue')}`);
+            info(`  ${pc.bold('git rebase --continue')}`, '');
           } else {
             success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
           }
 
           info(
             `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+            '',
           );
           return;
         }
@@ -345,7 +346,7 @@ export default defineCommand({
       await forceDeleteBranch(currentBranch);
       success(`Deleted ${pc.bold(currentBranch)}.`);
 
-      info(`Run ${pc.bold('contrib start')} to begin a new feature branch.`);
+      info(`Run ${pc.bold('contrib start')} to begin a new feature branch.`, '');
       return;
     }
 
@@ -426,6 +427,6 @@ export default defineCommand({
       process.exit(1);
     }
 
-    success(`✅ ${pc.bold(currentBranch)} has been rebased onto latest ${pc.bold(baseBranch)}`);
+    success(`${pc.bold(currentBranch)} has been rebased onto latest ${pc.bold(baseBranch)}`);
   },
 });

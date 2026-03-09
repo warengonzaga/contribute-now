@@ -270,7 +270,7 @@ export default defineCommand({
           success(`Added remote ${pc.bold(upstreamRemote)} → ${upstreamUrl}`);
         } else {
           error('An upstream remote URL is required for contributors.');
-          info('Add it manually: git remote add upstream <url>');
+          info('Add it manually: git remote add upstream <url>', '');
           process.exit(1);
         }
       }
@@ -289,11 +289,11 @@ export default defineCommand({
     };
 
     writeConfig(config);
-    success(`✅ Config written to .contributerc.json`);
+    success(`Config written to .contributerc.json`);
 
     // Verify configured branches exist on their remotes
     const syncRemote = config.role === 'contributor' ? config.upstream : config.origin;
-    info(`Fetching ${pc.bold(syncRemote)} to verify branch configuration...`);
+    info(`Fetching ${pc.bold(syncRemote)} to verify branch configuration...`, '');
     await fetchRemote(syncRemote);
 
     const mainRef = `${syncRemote}/${config.mainBranch}`;

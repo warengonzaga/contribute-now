@@ -126,6 +126,7 @@ export default defineCommand({
       error(`Branch ${pc.bold(branchName)} already exists.`);
       info(
         `  Use ${pc.bold(`git checkout ${branchName}`)} to switch to it, or choose a different name.`,
+        '',
       );
       process.exit(1);
     }
@@ -170,11 +171,11 @@ export default defineCommand({
           error(`Failed to create branch: ${result.stderr}`);
           process.exit(1);
         }
-        success(`✅ Created ${pc.bold(branchName)} from ${pc.bold(syncSource.ref)}`);
+        success(`Created ${pc.bold(branchName)} from ${pc.bold(syncSource.ref)}`);
         return;
       }
       error(`Failed to update ${pc.bold(baseBranch)}: ${updateResult.stderr}`);
-      info('Make sure your base branch exists locally or the remote ref is available.');
+      info('Make sure your base branch exists locally or the remote ref is available.', '');
       process.exit(1);
     }
 
@@ -185,6 +186,6 @@ export default defineCommand({
       process.exit(1);
     }
 
-    success(`✅ Created ${pc.bold(branchName)} from latest ${pc.bold(baseBranch)}`);
+    success(`Created ${pc.bold(branchName)} from latest ${pc.bold(baseBranch)}`);
   },
 });

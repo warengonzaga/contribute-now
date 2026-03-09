@@ -95,7 +95,7 @@ async function installHook(): Promise<void> {
 
   if (config.commitConvention === 'none') {
     warn('Commit convention is set to "none". No hook to install.');
-    info('Change your convention with `contrib setup` first.');
+    info('Change your convention with `contrib setup` first.', '');
     process.exit(0);
   }
 
@@ -122,8 +122,8 @@ async function installHook(): Promise<void> {
   writeFileSync(hookPath, generateHookScript(), { mode: 0o755 });
 
   success(`commit-msg hook installed.`);
-  info(`Convention: ${pc.bold(CONVENTION_LABELS[config.commitConvention])}`);
-  info(`Path: ${pc.dim(hookPath)}`);
+  info(`Convention: ${pc.bold(CONVENTION_LABELS[config.commitConvention])}`, '');
+  info(`Path: ${pc.dim(hookPath)}`, '');
   warn('Note: hooks can be bypassed with `git commit --no-verify`.');
 }
 
