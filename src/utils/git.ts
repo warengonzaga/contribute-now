@@ -275,6 +275,15 @@ export async function getCommitHash(ref: string): Promise<string | null> {
 }
 
 /**
+ * Returns the subject line (first line) of a commit message for a ref.
+ */
+export async function getCommitSubject(ref: string): Promise<string | null> {
+  const { exitCode, stdout } = await run(['log', '-1', '--format=%s', ref]);
+  if (exitCode !== 0) return null;
+  return stdout.trim() || null;
+}
+
+/**
  * Determine the correct rebase strategy for updating a feature branch.
  *
  * Scenarios:

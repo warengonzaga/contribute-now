@@ -4,6 +4,8 @@ import { readConfig } from '../utils/config.js';
 import { checkGhInstalled, getMergedPRForBranch } from '../utils/gh.js';
 import {
   fetchAll,
+  getCommitHash,
+  getCommitSubject,
   getCurrentBranch,
   getDivergence,
   getFileStatus,
@@ -96,6 +98,59 @@ export default defineCommand({
       console.log(pc.dim(`  (on ${pc.bold(currentBranch)} branch)`));
     }
 
+    // Branch alignment section
+    let branchesAligned = true;
+    {
+      const alignRefs: { name: string; hash: string }[] = [];
+      const devRemote = isContributor ? upstream : origin;
+      const hashResults = await Promise.all([
+        getCommitHash(mainBranch).then((h) => ({ name: mainBranch, hash: h })),
+        getCommitHash(`${origin}/${mainBranch}`).then((h) => ({ name: `${origin}/${mainBranch}`, hash: h })),
+        ...(hasDevBranch(workflow) && config.devBranch
+          ? [
+              getCommitHash(config.devBranch).then((h) => ({ name: config.devBranch!, hash: h })),
+              getCommitHash(`${devRemote}/${config.devBranch}`).then((h) => ({
+                name: `${devRemote}/${config.devBranch!}`,
+                hash: h,
+              })),
+            ]
+          : []),
+      ]);
+
+      for (const { name, hash } of hashResults) {
+        if (hash) alignRefs.push({ name, hash });
+      }
+
+      if (alignRefs.length > 1) {
+        const groups = new Map<string, string[]>();
+        for (const { name, hash } of alignRefs) {
+          if (!groups.has(hash)) groups.set(hash, []);
+          groups.get(hash)!.push(name);
+        }
+
+        branchesAligned = groups.size === 1;
+
+        console.log();
+        console.log(`  ${pc.bold('🔗 Branch Alignment')}`);
+
+        for (const [hash, names] of groups) {
+          const short = hash.slice(0, 7);
+          const nameStr = names.map((n) => pc.bold(n)).join(pc.dim(' · '));
+          console.log(`     ${pc.yellow(short)} ${pc.dim('──')} ${nameStr}`);
+          const subject = await getCommitSubject(hash);
+          if (subject) {
+            console.log(`                ${pc.dim(subject)}`);
+          }
+        }
+
+        if (branchesAligned) {
+          console.log(`     ${pc.green('✓')} ${pc.green('All branches aligned')} ${pc.dim('— ready to start')}`);
+        } else {
+          console.log(`     ${pc.yellow('⚠')} ${pc.yellow('Branches are not fully aligned')}`);
+        }
+      }
+    }
+
     // File status section
     const hasFiles =
       fileStatus.staged.length > 0 ||
@@ -128,6 +183,11 @@ export default defineCommand({
 
     // Contextual tips
     const tips: string[] = [];
+
+    if (!branchesAligned) {
+      tips.push(`Run ${pc.bold('contrib sync')} to align your local branches with the remote`);
+    }
+
     if (fileStatus.staged.length > 0) {
       tips.push(`Run ${pc.bold('contrib commit')} to commit staged changes`);
     }
