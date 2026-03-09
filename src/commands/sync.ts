@@ -15,6 +15,8 @@ import {
   checkoutBranch,
   createBranch,
   fetchRemote,
+  getCommitHash,
+  getCommitSubject,
   getCurrentBranch,
   getDivergence,
   hasUncommittedChanges,
@@ -276,6 +278,52 @@ export default defineCommand({
         }
         // Return to base branch
         await checkoutBranch(baseBranch);
+      } else {
+        success(`${config.mainBranch} already in sync with ${origin}/${config.mainBranch}`);
+      }
+    }
+
+    // Branch alignment summary
+    if (hasDevBranch(workflow) && config.devBranch) {
+      const devRemote = role === 'contributor' ? config.upstream : origin;
+      const [mainHash, devHash, remoteMainHash, remoteDevHash] = await Promise.all([
+        getCommitHash(config.mainBranch),
+        getCommitHash(config.devBranch),
+        getCommitHash(`${origin}/${config.mainBranch}`),
+        getCommitHash(`${devRemote}/${config.devBranch}`),
+      ]);
+
+      const refs: { name: string; hash: string }[] = [];
+      if (mainHash) refs.push({ name: config.mainBranch, hash: mainHash });
+      if (remoteMainHash) refs.push({ name: `${origin}/${config.mainBranch}`, hash: remoteMainHash });
+      if (devHash) refs.push({ name: config.devBranch, hash: devHash });
+      if (remoteDevHash) refs.push({ name: `${devRemote}/${config.devBranch}`, hash: remoteDevHash });
+
+      if (refs.length > 1) {
+        const groups = new Map<string, string[]>();
+        for (const { name, hash } of refs) {
+          if (!groups.has(hash)) groups.set(hash, []);
+          groups.get(hash)!.push(name);
+        }
+
+        console.log();
+        console.log(`  ${pc.bold('\ud83d\udd17 Branch Alignment')}`);
+
+        for (const [hash, names] of groups) {
+          const short = hash.slice(0, 7);
+          const nameStr = names.map((n) => pc.bold(n)).join(pc.dim(' \u00b7 '));
+          console.log(`     ${pc.yellow(short)} ${pc.dim('\u2500\u2500')} ${nameStr}`);
+          const subject = await getCommitSubject(hash);
+          if (subject) {
+            console.log(`                ${pc.dim(subject)}`);
+          }
+        }
+
+        if (groups.size === 1) {
+          console.log(`     ${pc.green('\u2713')} ${pc.green('All branches aligned')} ${pc.dim('\u2014 ready to start')}`);
+        } else {
+          console.log(`     ${pc.yellow('\u26a0')} ${pc.yellow('Branches are not fully aligned')}`);
+        }
       }
     }
   },
