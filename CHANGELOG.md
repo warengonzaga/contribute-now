@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.2] - 2026-03-09
+
+### Changed
+
+- remove `--packages external` flag from bun build script
+- add branch alignment summary after sync
+- add branch alignment section with commit subjects
+- separate emoji from message strings into logger arguments
+
 ## [0.6.1] - 2026-03-07
 
 ### Changed
