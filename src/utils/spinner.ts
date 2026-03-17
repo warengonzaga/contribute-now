@@ -2,6 +2,7 @@ import pc from 'picocolors';
 
 const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const MIN_LINE_WIDTH = 20;
+export const DEFAULT_TIP_INTERVAL_MS = 3960;
 
 interface SpinnerOptions {
   tips?: string[];
@@ -29,7 +30,7 @@ export function formatSpinnerLines(
   }
 
   const normalizedText = text.trim();
-  const normalizedTip = tip?.trim() ?? '';
+  const normalizedTip = formatSpinnerTip(tip);
   const primary = truncateText(normalizedText, Math.max(MIN_LINE_WIDTH, maxWidth));
 
   if (!normalizedTip) {
@@ -54,7 +55,7 @@ export function createSpinner(text: string, options: SpinnerOptions = {}): Spinn
   let lastSecondaryLine = '';
 
   const tips = options.tips?.filter(Boolean) ?? [];
-  const tipIntervalMs = options.tipIntervalMs ?? 2200;
+  const tipIntervalMs = options.tipIntervalMs ?? DEFAULT_TIP_INTERVAL_MS;
 
   const clearBlock = () => {
     if (renderedLineCount === 0) {
@@ -169,6 +170,11 @@ export function createSpinner(text: string, options: SpinnerOptions = {}): Spinn
       stop();
     },
   };
+}
+
+export function formatSpinnerTip(tip: string | undefined): string {
+  const normalizedTip = tip?.trim() ?? '';
+  return normalizedTip ? `💡 TIP: ${normalizedTip}` : '';
 }
 
 function truncateText(text: string, maxWidth: number): string {
