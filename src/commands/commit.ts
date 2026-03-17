@@ -34,6 +34,10 @@ import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
 import { LOADING_TIPS } from '../utils/tips.js';
 
+export function isEmptyGroupCommitResult(detail: string): boolean {
+  return /no changes added to commit|nothing to commit/i.test(detail);
+}
+
 export default defineCommand({
   meta: {
     name: 'commit',
@@ -453,9 +457,21 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
         continue;
       }
+
+      const stagedFiles = new Set(await getStagedFiles());
+      const stagedGroupFiles = stageableFiles.filter((file) => stagedFiles.has(file));
+      if (stagedGroupFiles.length === 0) {
+        warn(`Skipped group ${i + 1}: no files were staged for commit.`);
+        continue;
+      }
+
       const commitResult = await commitWithMessage(group.message);
       if (commitResult.exitCode !== 0) {
         const detail = (commitResult.stderr || commitResult.stdout).trim();
+        if (isEmptyGroupCommitResult(detail)) {
+          warn(`Skipped group ${i + 1}: nothing remained to commit.`);
+          continue;
+        }
         error(`Failed to commit group ${i + 1}: ${detail}`);
         await unstageFiles(stageableFiles);
         continue;
@@ -556,9 +572,22 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
           continue;
         }
 
+        const stagedFiles = new Set(await getStagedFiles());
+        const stagedGroupFiles = stageableFiles.filter((file) => stagedFiles.has(file));
+        if (stagedGroupFiles.length === 0) {
+          warn(`Skipped group ${i + 1}: no files were staged for commit.`);
+          actionDone = true;
+          continue;
+        }
+
         const commitResult = await commitWithMessage(message);
         if (commitResult.exitCode !== 0) {
           const detail = (commitResult.stderr || commitResult.stdout).trim();
+          if (isEmptyGroupCommitResult(detail)) {
+            warn(`Skipped group ${i + 1}: nothing remained to commit.`);
+            actionDone = true;
+            continue;
+          }
           error(`Failed to commit group ${i + 1}: ${detail}`);
           await unstageFiles(stageableFiles);
           actionDone = true;
