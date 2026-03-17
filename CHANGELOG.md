@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.1] - 2026-03-17
+
+### Changed
+
+- refine state handling
+- improve secret handling
+- refine AI provider selection logic
+- improve health check sections
+- adjust config command for removed dependency
+
+### Removed
+
+- remove config-engine dependency
+
 ## [0.7.0] - 2026-03-17
 
 ### Added
