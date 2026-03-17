@@ -114,23 +114,6 @@ export default defineCommand({
       }
     }
 
-    // ── Footer tips ──
-    const tips: string[] = [];
-    if (!showAll && !showRemoteOnly) {
-      tips.push(`Use ${pc.bold('contrib branch -a')} to include remote branches`);
-    }
-    if (!showRemoteOnly) {
-      tips.push(`Use ${pc.bold('contrib start')} to create a new feature branch`);
-      tips.push(`Use ${pc.bold('contrib clean')} to remove merged/stale branches`);
-    }
-
-    if (tips.length > 0) {
-      console.log(`  ${pc.dim('💡 Tip:')}`);
-      for (const tip of tips) {
-        console.log(`     ${pc.dim(tip)}`);
-      }
-    }
-
     console.log();
   },
 });
