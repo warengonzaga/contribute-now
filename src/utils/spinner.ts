@@ -50,6 +50,8 @@ export function createSpinner(text: string, options: SpinnerOptions = {}): Spinn
   let stopped = false;
   let tipIdx = 0;
   let renderedLineCount = 0;
+  let lastPrimaryLine = '';
+  let lastSecondaryLine = '';
 
   const tips = options.tips?.filter(Boolean) ?? [];
   const tipIntervalMs = options.tipIntervalMs ?? 2200;
@@ -67,6 +69,53 @@ export function createSpinner(text: string, options: SpinnerOptions = {}): Spinn
     }
 
     process.stderr.write('\r');
+    lastPrimaryLine = '';
+    lastSecondaryLine = '';
+  };
+
+  const renderNextState = (primaryLine: string, secondaryLine: string | undefined) => {
+    if (renderedLineCount === 0) {
+      process.stderr.write(primaryLine);
+      if (secondaryLine) {
+        process.stderr.write(`\n${secondaryLine}`);
+        renderedLineCount = 2;
+      } else {
+        renderedLineCount = 1;
+      }
+      lastPrimaryLine = primaryLine;
+      lastSecondaryLine = secondaryLine ?? '';
+      return;
+    }
+
+    if (renderedLineCount === 1) {
+      if (lastPrimaryLine !== primaryLine) {
+        process.stderr.write(`\r\x1b[2K${primaryLine}`);
+      }
+
+      if (secondaryLine) {
+        process.stderr.write(`\n${secondaryLine}`);
+        renderedLineCount = 2;
+      }
+
+      lastPrimaryLine = primaryLine;
+      lastSecondaryLine = secondaryLine ?? '';
+      return;
+    }
+
+    process.stderr.write(`\x1b[1A\r\x1b[2K${primaryLine}\n`);
+
+    if (secondaryLine) {
+      if (lastSecondaryLine !== secondaryLine) {
+        process.stderr.write(`\r\x1b[2K${secondaryLine}`);
+      }
+      renderedLineCount = 2;
+    } else {
+      process.stderr.write('\r\x1b[2K\x1b[1A\r');
+      renderedLineCount = 1;
+    }
+
+    lastPrimaryLine = primaryLine;
+    lastSecondaryLine = secondaryLine ?? '';
   };
 
   const render = () => {
@@ -77,14 +126,12 @@ export function createSpinner(text: string, options: SpinnerOptions = {}): Spinn
       (process.stderr.columns ?? process.stdout.columns ?? 100) - 4,
     );
     const lines = formatSpinnerLines(currentText, tips[tipIdx % tips.length], width);
-    clearBlock();
 
-    process.stderr.write(`${frame} ${pc.cyan(lines[0] ?? '')}`);
-    if (lines[1]) {
-      process.stderr.write(`\n  ${pc.dim(lines[1])}`);
-    }
+    renderNextState(
+      `${frame} ${pc.cyan(lines[0] ?? '')}`,
+      lines[1] ? `  ${pc.dim(lines[1])}` : undefined,
+    );
 
-    renderedLineCount = lines.length;
     frameIdx++;
   };
 

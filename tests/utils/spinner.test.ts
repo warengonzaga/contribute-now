@@ -12,14 +12,13 @@ describe('spinner formatting', () => {
     const result = formatSpinnerLines(
       'Asking AI to group 52 file(s) into logical commits (using optimized batching)...',
       'Tip: use cn start "describe your task" to let the CLI help with branch naming.',
-      90,
+      60,
     );
 
     expect(result[0]?.endsWith('…')).toBe(true);
-    expect(result[0]?.length).toBeLessThanOrEqual(90);
-    expect(result[1]).toBe(
-      'Tip: use cn start "describe your task" to let the CLI help with branch naming.',
-    );
+    expect(result[0]?.length).toBeLessThanOrEqual(60);
+    expect(result[1]?.endsWith('…')).toBe(true);
+    expect(result[1]?.length).toBeLessThanOrEqual(58);
   });
 
   it('truncates the tip line when it is too wide', () => {
