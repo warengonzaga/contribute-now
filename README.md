@@ -99,6 +99,8 @@ Steps:
 
 If you want to disable AI completely for a repo, run `contrib setup` and turn AI off, or set `"aiEnabled": false` in `.contributerc.json`. Per-command `--no-ai` flags still work as one-off overrides when AI is enabled globally.
 
+If you want a cleaner output once you're familiar with the CLI, set `"showTips": false` in `.contributerc.json` to hide the beginner quick guides and loading tips.
+
 ---
 
 ### `contrib sync`
