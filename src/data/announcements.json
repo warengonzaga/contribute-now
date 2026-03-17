@@ -1,0 +1,9 @@
+[
+  {
+    "id": "legacy-config-migration",
+    "kind": "notice",
+    "title": "Legacy Config Detected",
+    "message": "Run cn setup to migrate this clone to local Git config, then delete .contributerc.json.",
+    "when": "legacy-config-present"
+  }
+]
