@@ -362,7 +362,7 @@ async function promptForConfigEdits(
       );
     } else if (hasExistingOllamaApiKey) {
       const shouldDeleteStoredKey = await confirmPrompt(
-        'Delete the stored Ollama Cloud API key from secrets-engine?',
+        'Delete the stored Ollama Cloud API key from the local secrets store?',
       );
       if (shouldDeleteStoredKey) {
         ollamaApiKeyAction = 'delete';
@@ -370,7 +370,7 @@ async function promptForConfigEdits(
     }
   } else if (hasExistingOllamaApiKey) {
     const shouldDeleteStoredKey = await confirmPrompt(
-      'AI is disabled. Delete the stored Ollama Cloud API key from secrets-engine?',
+      'AI is disabled. Delete the stored Ollama Cloud API key from the local secrets store?',
     );
     if (shouldDeleteStoredKey) {
       ollamaApiKeyAction = 'delete';
@@ -400,7 +400,7 @@ async function promptForConfigEdits(
 async function applyOllamaApiKeyEdit(result: ConfigEditResult): Promise<void> {
   if (result.ollamaApiKeyAction === 'set' && result.ollamaApiKey) {
     await setOllamaCloudApiKey(result.ollamaApiKey);
-    success('Stored Ollama Cloud API key in secrets-engine.');
+    success('Stored Ollama Cloud API key in the local secrets store.');
     info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
     return;
   }
