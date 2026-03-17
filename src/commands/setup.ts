@@ -183,7 +183,7 @@ export default defineCommand({
     if (enableAI) {
       const providerChoice = await selectPrompt('Which AI provider should this clone use?', [
         'GitHub Copilot — use your existing GitHub/Copilot auth',
-        'Ollama Cloud — use an API key stored with secrets-engine',
+        'Ollama Cloud — use an API key stored in the local secrets store',
       ]);
 
       aiProvider = providerChoice.startsWith('Ollama Cloud') ? 'ollama-cloud' : 'copilot';
@@ -199,7 +199,7 @@ export default defineCommand({
 
         try {
           await setOllamaCloudApiKey(apiKey);
-          success('Stored Ollama Cloud API key in secrets-engine.');
+          success('Stored Ollama Cloud API key in the local secrets store.');
           info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
