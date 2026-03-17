@@ -428,6 +428,60 @@ export interface CommitGroup {
   message: string;
 }
 
+export interface NormalizedCommitGroups {
+  groups: CommitGroup[];
+  unknownFiles: string[];
+  duplicateFiles: string[];
+  unassignedFiles: string[];
+}
+
+export function normalizeCommitGroups(
+  changedFiles: string[],
+  groups: CommitGroup[],
+): NormalizedCommitGroups {
+  const changedSet = new Set(changedFiles);
+  const assignedFiles = new Set<string>();
+  const unknownFiles = new Set<string>();
+  const duplicateFiles = new Set<string>();
+
+  const normalizedGroups = groups
+    .map((group) => {
+      const uniqueFiles = new Set<string>();
+      const files: string[] = [];
+
+      for (const file of group.files) {
+        if (!changedSet.has(file)) {
+          unknownFiles.add(file);
+          continue;
+        }
+
+        if (uniqueFiles.has(file) || assignedFiles.has(file)) {
+          duplicateFiles.add(file);
+          continue;
+        }
+
+        uniqueFiles.add(file);
+        assignedFiles.add(file);
+        files.push(file);
+      }
+
+      return {
+        ...group,
+        files,
+      };
+    })
+    .filter((group) => group.files.length > 0);
+
+  const unassignedFiles = changedFiles.filter((file) => !assignedFiles.has(file));
+
+  return {
+    groups: normalizedGroups,
+    unknownFiles: [...unknownFiles],
+    duplicateFiles: [...duplicateFiles],
+    unassignedFiles,
+  };
+}
+
 export async function generateCommitGroups(
   files: string[],
   diffs: string,

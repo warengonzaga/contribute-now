@@ -13,6 +13,7 @@ import {
   checkCopilotAvailable,
   generateCommitGroups,
   generateCommitMessage,
+  normalizeCommitGroups,
   regenerateAllGroupMessages,
   regenerateGroupMessage,
 } from '../utils/copilot.js';
@@ -276,6 +277,18 @@ export default defineCommand({
 
 // ── Group Commit Mode ────────────────────────────────────────────────
 
+function getFallbackGroupMessage(convention: ContributeConfig['commitConvention']): string {
+  if (convention === 'conventional') {
+    return 'chore: commit remaining changes';
+  }
+
+  if (convention === 'clean-commit') {
+    return '☕ chore: commit remaining changes';
+  }
+
+  return 'commit remaining changes';
+}
+
 async function runGroupCommit(model: string | undefined, config: ContributeConfig): Promise<void> {
   // Parallelize: check Copilot + gather changed files concurrently
   const [copilotError, changedFiles] = await Promise.all([
@@ -325,17 +338,40 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     process.exit(1);
   }
 
-  // Validate AI-returned filenames against actual changed files
-  const changedSet = new Set(changedFiles);
-  for (const group of groups) {
-    const invalid = group.files.filter((f) => !changedSet.has(f));
-    if (invalid.length > 0) {
-      warn(`AI suggested unknown file(s): ${invalid.join(', ')} — removed from group.`);
-    }
-    group.files = group.files.filter((f) => changedSet.has(f));
+  const normalized = normalizeCommitGroups(changedFiles, groups);
+
+  if (normalized.unknownFiles.length > 0) {
+    warn(`AI suggested unknown file(s): ${normalized.unknownFiles.join(', ')} — removed from groups.`);
   }
-  // Remove empty groups after filtering
-  let validGroups = groups.filter((g) => g.files.length > 0);
+
+  if (normalized.duplicateFiles.length > 0) {
+    warn(
+      `AI assigned duplicate file(s) across groups: ${normalized.duplicateFiles.join(', ')} — keeping the first assignment only.`,
+    );
+  }
+
+  let validGroups = normalized.groups;
+
+  if (normalized.unassignedFiles.length > 0) {
+    warn(
+      `AI left ${normalized.unassignedFiles.length} file(s) ungrouped: ${normalized.unassignedFiles.join(', ')}. Creating a fallback group.`,
+    );
+    const fallbackMessage =
+      (await regenerateGroupMessage(
+        normalized.unassignedFiles,
+        diffs,
+        model,
+        config.commitConvention,
+      )) ?? getFallbackGroupMessage(config.commitConvention);
+    validGroups = [
+      ...validGroups,
+      {
+        files: normalized.unassignedFiles,
+        message: fallbackMessage,
+      },
+    ];
+  }
+
   if (validGroups.length === 0) {
     error('No valid groups remain after validation. Try committing files manually.');
     process.exit(1);
@@ -395,7 +431,20 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     // Batch commit: stage + commit each group without prompting
     for (let i = 0; i < validGroups.length; i++) {
       const group = validGroups[i];
-      const stageResult = await stageFiles(group.files);
+      const remainingChangedFiles = new Set(await getChangedFiles());
+      const stageableFiles = group.files.filter((file) => remainingChangedFiles.has(file));
+      const skippedFiles = group.files.filter((file) => !remainingChangedFiles.has(file));
+
+      if (skippedFiles.length > 0) {
+        warn(`Group ${i + 1} file(s) no longer have changes: ${skippedFiles.join(', ')}`);
+      }
+
+      if (stageableFiles.length === 0) {
+        warn(`Skipped group ${i + 1}: no files remain to commit.`);
+        continue;
+      }
+
+      const stageResult = await stageFiles(stageableFiles);
       if (stageResult.exitCode !== 0) {
         error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
         continue;
@@ -404,7 +453,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
       if (commitResult.exitCode !== 0) {
         const detail = (commitResult.stderr || commitResult.stdout).trim();
         error(`Failed to commit group ${i + 1}: ${detail}`);
-        await unstageFiles(group.files);
+        await unstageFiles(stageableFiles);
         continue;
       }
       committed++;
@@ -480,7 +529,21 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         }
 
         // Stage only this group's files, then commit
-        const stageResult = await stageFiles(group.files);
+        const remainingChangedFiles = new Set(await getChangedFiles());
+        const stageableFiles = group.files.filter((file) => remainingChangedFiles.has(file));
+        const skippedFiles = group.files.filter((file) => !remainingChangedFiles.has(file));
+
+        if (skippedFiles.length > 0) {
+          warn(`Group ${i + 1} file(s) no longer have changes: ${skippedFiles.join(', ')}`);
+        }
+
+        if (stageableFiles.length === 0) {
+          warn(`Skipped group ${i + 1}: no files remain to commit.`);
+          actionDone = true;
+          continue;
+        }
+
+        const stageResult = await stageFiles(stageableFiles);
         if (stageResult.exitCode !== 0) {
           error(`Failed to stage group ${i + 1}: ${stageResult.stderr}`);
           actionDone = true;
@@ -491,7 +554,7 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         if (commitResult.exitCode !== 0) {
           const detail = (commitResult.stderr || commitResult.stdout).trim();
           error(`Failed to commit group ${i + 1}: ${detail}`);
-          await unstageFiles(group.files);
+          await unstageFiles(stageableFiles);
           actionDone = true;
           continue;
         }

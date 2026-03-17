@@ -3,6 +3,7 @@ import {
   BATCH_CONFIG,
   createCompactDiff,
   extractDiffStats,
+  normalizeCommitGroups,
   parseDiffByFile,
 } from '../../src/utils/copilot.js';
 
@@ -204,5 +205,51 @@ describe('BATCH_CONFIG', () => {
 
   it('LARGE_CHANGESET_THRESHOLD equals 15', () => {
     expect(BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD).toBe(15);
+  });
+});
+
+// ── normalizeCommitGroups ──────────────────────────────────────────
+
+describe('normalizeCommitGroups', () => {
+  it('removes unknown files and duplicate assignments across groups', () => {
+    const result = normalizeCommitGroups(
+      ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+      [
+        {
+          files: ['src/a.ts', 'src/a.ts', 'missing.ts'],
+          message: 'group 1',
+        },
+        {
+          files: ['src/a.ts', 'src/b.ts'],
+          message: 'group 2',
+        },
+      ],
+    );
+
+    expect(result.groups).toEqual([
+      { files: ['src/a.ts'], message: 'group 1' },
+      { files: ['src/b.ts'], message: 'group 2' },
+    ]);
+    expect(result.unknownFiles).toEqual(['missing.ts']);
+    expect(result.duplicateFiles).toEqual(['src/a.ts']);
+    expect(result.unassignedFiles).toEqual(['src/c.ts']);
+  });
+
+  it('preserves valid group order when all files are uniquely assigned', () => {
+    const result = normalizeCommitGroups(
+      ['src/a.ts', 'src/b.ts'],
+      [
+        { files: ['src/b.ts'], message: 'group 1' },
+        { files: ['src/a.ts'], message: 'group 2' },
+      ],
+    );
+
+    expect(result.groups).toEqual([
+      { files: ['src/b.ts'], message: 'group 1' },
+      { files: ['src/a.ts'], message: 'group 2' },
+    ]);
+    expect(result.unknownFiles).toEqual([]);
+    expect(result.duplicateFiles).toEqual([]);
+    expect(result.unassignedFiles).toEqual([]);
   });
 });
