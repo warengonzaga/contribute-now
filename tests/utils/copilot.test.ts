@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   BATCH_CONFIG,
   createCompactDiff,
+  createRecoveryCommitGroups,
   extractDiffStats,
   normalizeCommitGroups,
   parseDiffByFile,
@@ -206,6 +207,57 @@ describe('BATCH_CONFIG', () => {
 
   it('LARGE_CHANGESET_THRESHOLD equals 15', () => {
     expect(BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD).toBe(15);
+  });
+});
+
+describe('createRecoveryCommitGroups', () => {
+  it('splits stranded files into smaller area-based recovery groups', () => {
+    const groups = createRecoveryCommitGroups(
+      [
+        'src/utils/logger.ts',
+        'src/utils/spinner.ts',
+        'tests/utils/spinner.test.ts',
+        'docs/index.mdx',
+        'README.md',
+      ],
+      'clean-commit',
+    );
+
+    expect(groups).toEqual([
+      {
+        files: ['src/utils/logger.ts', 'src/utils/spinner.ts'],
+        message: '🔧 update (utils): update 2 source files',
+      },
+      {
+        files: ['tests/utils/spinner.test.ts'],
+        message: '🧪 test (utils): update 1 test file',
+      },
+      {
+        files: ['docs/index.mdx'],
+        message: '📖 docs: update 1 documentation file',
+      },
+      {
+        files: ['README.md'],
+        message: '📖 docs: update 1 documentation file',
+      },
+    ]);
+  });
+
+  it('chunks large stranded groups using the fallback batch size', () => {
+    const files = Array.from(
+      { length: BATCH_CONFIG.FALLBACK_BATCH_SIZE + 1 },
+      (_, index) => `src/utils/file-${index + 1}.ts`,
+    );
+
+    const groups = createRecoveryCommitGroups(files, 'conventional');
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.files).toHaveLength(BATCH_CONFIG.FALLBACK_BATCH_SIZE);
+    expect(groups[0]?.message).toBe(
+      `chore(utils): update ${BATCH_CONFIG.FALLBACK_BATCH_SIZE} source files`,
+    );
+    expect(groups[1]?.files).toEqual([`src/utils/file-${BATCH_CONFIG.FALLBACK_BATCH_SIZE + 1}.ts`]);
+    expect(groups[1]?.message).toBe('chore(utils): update 1 source file');
   });
 });
 
