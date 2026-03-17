@@ -17,6 +17,25 @@ import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
 
+function normalizeCliArgs(argv: string[]): string[] {
+  return argv.map((arg, index) => {
+    const previous = argv[index - 1];
+    const isSubmitCommand = previous === 'submit' || argv.includes('submit');
+
+    if (!isSubmitCommand) {
+      return arg;
+    }
+
+    if (arg === '-pr' || arg === '--pr') {
+      return '--pullrequest';
+    }
+
+    return arg;
+  });
+}
+
+process.argv = normalizeCliArgs(process.argv);
+
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 
 if (!isVersion) {

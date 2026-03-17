@@ -222,6 +222,18 @@ export default defineCommand({
       description: 'Create PR as draft',
       default: false,
     },
+    pullrequest: {
+      type: 'boolean',
+      alias: 'pr',
+      description: 'Submit directly to PR flow without prompting for mode',
+      default: false,
+    },
+    local: {
+      type: 'boolean',
+      alias: 'l',
+      description: 'Squash merge locally without PR (maintainers only)',
+      default: false,
+    },
     'no-ai': {
       type: 'boolean',
       description: 'Skip AI PR description generation',
@@ -612,9 +624,29 @@ export default defineCommand({
 
     const isMaintainer = config.role === 'maintainer';
 
+    if (args.pullrequest && args.local) {
+      error(
+        'Use only one submit mode flag at a time: --pullrequest/--pr/-pr or -l for local squash merge.',
+      );
+      process.exit(1);
+    }
+
+    if (args.local && !isMaintainer) {
+      error('The -l flag is only available for maintainers. Contributors must submit via PR.');
+      process.exit(1);
+    }
+
     // For maintainers, ask the merge strategy first to avoid wasting tokens on
     // AI PR description generation when a local squash merge is preferred.
-    if (isMaintainer) {
+    if (args.local) {
+      await performSquashMerge(origin, baseBranch, currentBranch, {
+        model: args.model,
+        convention: config.commitConvention,
+      });
+      return;
+    }
+
+    if (isMaintainer && !args.pullrequest) {
       const maintainerChoice = await selectPrompt(
         'How would you like to submit your changes?',
         ['Create a PR', SQUASH_LOCAL, CANCEL],
