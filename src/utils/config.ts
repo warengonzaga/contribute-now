@@ -1,28 +1,66 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import type { ContributeConfig } from '../types.js';
 
 const CONFIG_FILENAME = '.contributerc.json';
+const LOCAL_CONFIG_DIRNAME = 'contribute-now';
+const LOCAL_CONFIG_FILENAME = 'config.json';
 
-export function getConfigPath(cwd = process.cwd()): string {
-  return join(cwd, CONFIG_FILENAME);
+function findRepoRoot(cwd = process.cwd()): string | null {
+  let current = resolve(cwd);
+
+  while (true) {
+    if (existsSync(join(current, '.git'))) {
+      return current;
+    }
+
+    const parent = dirname(current);
+    if (parent === current) {
+      return null;
+    }
+
+    current = parent;
+  }
 }
 
-export function configExists(cwd = process.cwd()): boolean {
-  return existsSync(getConfigPath(cwd));
+function resolveGitDir(cwd = process.cwd()): string | null {
+  const repoRoot = findRepoRoot(cwd);
+  if (!repoRoot) {
+    return null;
+  }
+
+  const dotGitPath = join(repoRoot, '.git');
+
+  try {
+    const stat = statSync(dotGitPath);
+    if (stat.isDirectory()) {
+      return dotGitPath;
+    }
+
+    if (!stat.isFile()) {
+      return null;
+    }
+
+    const content = readFileSync(dotGitPath, 'utf-8').trim();
+    const match = /^gitdir:\s*(.+)$/i.exec(content);
+    if (!match) {
+      return null;
+    }
+
+    return resolve(repoRoot, match[1].trim());
+  } catch {
+    return null;
+  }
 }
 
-const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
-const VALID_ROLES = ['maintainer', 'contributor'];
-const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
-
-export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
-  return config.aiEnabled !== false && !cliNoAI;
-}
-
-export function readConfig(cwd = process.cwd()): ContributeConfig | null {
-  const path = getConfigPath(cwd);
-  if (!existsSync(path)) return null;
+function parseConfigFile(path: string): ContributeConfig | null {
   try {
     const raw = readFileSync(path, 'utf-8');
     const parsed = JSON.parse(raw);
@@ -41,63 +79,136 @@ export function readConfig(cwd = process.cwd()): ContributeConfig | null {
       return null;
     }
 
-    // Validate enum values to catch hand-edited or corrupted config
     if (!VALID_WORKFLOWS.includes(parsed.workflow)) {
       console.error(
-        `Invalid workflow "${parsed.workflow}" in .contributerc.json. Valid: ${VALID_WORKFLOWS.join(', ')}`,
+        `Invalid workflow "${parsed.workflow}" in ${path.endsWith(CONFIG_FILENAME) ? CONFIG_FILENAME : LOCAL_CONFIG_FILENAME}. Valid: ${VALID_WORKFLOWS.join(', ')}`,
       );
       return null;
     }
     if (!VALID_ROLES.includes(parsed.role)) {
       console.error(
-        `Invalid role "${parsed.role}" in .contributerc.json. Valid: ${VALID_ROLES.join(', ')}`,
+        `Invalid role "${parsed.role}" in ${path.endsWith(CONFIG_FILENAME) ? CONFIG_FILENAME : LOCAL_CONFIG_FILENAME}. Valid: ${VALID_ROLES.join(', ')}`,
       );
       return null;
     }
     if (!VALID_CONVENTIONS.includes(parsed.commitConvention)) {
       console.error(
-        `Invalid commitConvention "${parsed.commitConvention}" in .contributerc.json. Valid: ${VALID_CONVENTIONS.join(', ')}`,
+        `Invalid commitConvention "${parsed.commitConvention}" in ${path.endsWith(CONFIG_FILENAME) ? CONFIG_FILENAME : LOCAL_CONFIG_FILENAME}. Valid: ${VALID_CONVENTIONS.join(', ')}`,
       );
       return null;
     }
 
-    // Validate non-empty strings for critical fields
     if (!parsed.mainBranch.trim()) {
-      console.error('Invalid .contributerc.json: mainBranch must not be empty.');
+      console.error(`Invalid config (${path}): mainBranch must not be empty.`);
       return null;
     }
     if (!parsed.origin.trim()) {
-      console.error('Invalid .contributerc.json: origin must not be empty.');
+      console.error(`Invalid config (${path}): origin must not be empty.`);
       return null;
     }
     if (parsed.role === 'contributor' && !parsed.upstream.trim()) {
-      console.error('Invalid .contributerc.json: upstream must not be empty for contributors.');
+      console.error(`Invalid config (${path}): upstream must not be empty for contributors.`);
       return null;
     }
 
-    // Validate branch prefixes are all non-empty strings
     if (parsed.branchPrefixes.length === 0) {
-      console.error('Invalid .contributerc.json: branchPrefixes must not be empty.');
+      console.error(`Invalid config (${path}): branchPrefixes must not be empty.`);
       return null;
     }
     if (
       !parsed.branchPrefixes.every((p: unknown) => typeof p === 'string' && p.trim().length > 0)
     ) {
-      console.error('Invalid .contributerc.json: all branchPrefixes must be non-empty strings.');
+      console.error(`Invalid config (${path}): all branchPrefixes must be non-empty strings.`);
       return null;
     }
 
     return {
       ...(parsed as ContributeConfig),
       aiEnabled: parsed.aiEnabled !== false,
+      showTips: parsed.showTips !== false,
+      guideRotation:
+        parsed.guideRotation && typeof parsed.guideRotation === 'object'
+          ? parsed.guideRotation
+          : {},
     };
   } catch {
     return null;
   }
 }
 
+export function getConfigPath(cwd = process.cwd()): string {
+  return getLocalConfigPath(cwd) ?? getLegacyConfigPath(cwd);
+}
+
+export function getLegacyConfigPath(cwd = process.cwd()): string {
+  return join(findRepoRoot(cwd) ?? cwd, CONFIG_FILENAME);
+}
+
+export function getLocalConfigPath(cwd = process.cwd()): string | null {
+  const gitDir = resolveGitDir(cwd);
+  if (!gitDir) {
+    return null;
+  }
+
+  return join(gitDir, LOCAL_CONFIG_DIRNAME, LOCAL_CONFIG_FILENAME);
+}
+
+export function getConfigSource(cwd = process.cwd()): 'local' | 'legacy' | null {
+  const localPath = getLocalConfigPath(cwd);
+  if (localPath && existsSync(localPath)) {
+    return 'local';
+  }
+
+  if (existsSync(getLegacyConfigPath(cwd))) {
+    return 'legacy';
+  }
+
+  return null;
+}
+
+export function hasLegacyConfig(cwd = process.cwd()): boolean {
+  return existsSync(getLegacyConfigPath(cwd));
+}
+
+export function getConfigLocationLabel(cwd = process.cwd()): string {
+  const source = getConfigSource(cwd);
+  if (source === 'legacy') {
+    return CONFIG_FILENAME;
+  }
+
+  return getLocalConfigPath(cwd)
+    ? `.git/${LOCAL_CONFIG_DIRNAME}/${LOCAL_CONFIG_FILENAME}`
+    : CONFIG_FILENAME;
+}
+
+export function configExists(cwd = process.cwd()): boolean {
+  return getConfigSource(cwd) !== null;
+}
+
+const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
+const VALID_ROLES = ['maintainer', 'contributor'];
+const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
+
+export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
+  return config.aiEnabled !== false && !cliNoAI;
+}
+
+export function shouldShowTips(config: ContributeConfig | null | undefined): boolean {
+  return config?.showTips !== false;
+}
+
+export function readConfig(cwd = process.cwd()): ContributeConfig | null {
+  const source = getConfigSource(cwd);
+  if (!source) return null;
+
+  const path = source === 'local' ? getLocalConfigPath(cwd) : getLegacyConfigPath(cwd);
+  if (!path) return null;
+  return parseConfigFile(path);
+}
+
 export function writeConfig(config: ContributeConfig, cwd = process.cwd()): void {
   const path = getConfigPath(cwd);
+  mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
 }
 
@@ -140,5 +251,7 @@ export function getDefaultConfig(): ContributeConfig {
     branchPrefixes: ['feature', 'fix', 'docs', 'chore', 'test', 'refactor'],
     commitConvention: 'clean-commit',
     aiEnabled: true,
+    showTips: true,
+    guideRotation: {},
   };
 }
