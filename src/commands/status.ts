@@ -17,7 +17,12 @@ import {
   isGitRepo,
 } from '../utils/git.js';
 import { error, projectHeading } from '../utils/logger.js';
-import { getBaseBranch, getProtectedBranches, hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
+import {
+  getBaseBranch,
+  getProtectedBranches,
+  hasDevBranch,
+  WORKFLOW_DESCRIPTIONS,
+} from '../utils/workflow.js';
 
 export default defineCommand({
   meta: {
@@ -32,7 +37,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 
@@ -88,11 +93,15 @@ export default defineCommand({
       branchStatus = await detectBranchStatus(currentBranch, baseBranch);
 
       if (branchStatus.merged) {
-        console.log(`  ${pc.green('\u2713')}  ${pc.green('Branch merged')} \u2014 ${pc.dim(branchStatus.mergedReason ?? 'all commits reachable from base')}`);
+        console.log(
+          `  ${pc.green('\u2713')}  ${pc.green('Branch merged')} \u2014 ${pc.dim(branchStatus.mergedReason ?? 'all commits reachable from base')}`,
+        );
       }
 
       if (branchStatus.stale) {
-        console.log(`  ${pc.yellow('\u23f3')}  ${pc.yellow('Branch is stale')} \u2014 ${pc.dim(`last commit ${branchStatus.staleDaysAgo} days ago`)}`);
+        console.log(
+          `  ${pc.yellow('\u23f3')}  ${pc.yellow('Branch is stale')} \u2014 ${pc.dim(`last commit ${branchStatus.staleDaysAgo} days ago`)}`,
+        );
       }
     } else if (currentBranch) {
       console.log(pc.dim(`  (on ${pc.bold(currentBranch)} branch)`));
@@ -103,14 +112,18 @@ export default defineCommand({
     {
       const alignRefs: { name: string; hash: string }[] = [];
       const devRemote = isContributor ? upstream : origin;
+      const devBranch = hasDevBranch(workflow) ? config.devBranch : undefined;
       const hashResults = await Promise.all([
         getCommitHash(mainBranch).then((h) => ({ name: mainBranch, hash: h })),
-        getCommitHash(`${origin}/${mainBranch}`).then((h) => ({ name: `${origin}/${mainBranch}`, hash: h })),
-        ...(hasDevBranch(workflow) && config.devBranch
+        getCommitHash(`${origin}/${mainBranch}`).then((h) => ({
+          name: `${origin}/${mainBranch}`,
+          hash: h,
+        })),
+        ...(devBranch
           ? [
-              getCommitHash(config.devBranch).then((h) => ({ name: config.devBranch!, hash: h })),
-              getCommitHash(`${devRemote}/${config.devBranch}`).then((h) => ({
-                name: `${devRemote}/${config.devBranch!}`,
+              getCommitHash(devBranch).then((h) => ({ name: devBranch, hash: h })),
+              getCommitHash(`${devRemote}/${devBranch}`).then((h) => ({
+                name: `${devRemote}/${devBranch}`,
                 hash: h,
               })),
             ]
@@ -125,7 +138,10 @@ export default defineCommand({
         const groups = new Map<string, string[]>();
         for (const { name, hash } of alignRefs) {
           if (!groups.has(hash)) groups.set(hash, []);
-          groups.get(hash)!.push(name);
+          const group = groups.get(hash);
+          if (group) {
+            group.push(name);
+          }
         }
 
         branchesAligned = groups.size === 1;
@@ -144,7 +160,9 @@ export default defineCommand({
         }
 
         if (branchesAligned) {
-          console.log(`     ${pc.green('✓')} ${pc.green('All branches aligned')} ${pc.dim('— ready to start')}`);
+          console.log(
+            `     ${pc.green('✓')} ${pc.green('All branches aligned')} ${pc.dim('— ready to start')}`,
+          );
         } else {
           console.log(`     ${pc.yellow('⚠')} ${pc.yellow('Branches are not fully aligned')}`);
         }
@@ -181,45 +199,6 @@ export default defineCommand({
       console.log(`  ${pc.green('✓')}  ${pc.dim('Working tree clean')}`);
     }
 
-    // Contextual tips
-    const tips: string[] = [];
-
-    if (!branchesAligned) {
-      tips.push(`Run ${pc.bold('contrib sync')} to align your local branches with the remote`);
-    }
-
-    if (fileStatus.staged.length > 0) {
-      tips.push(`Run ${pc.bold('contrib commit')} to commit staged changes`);
-    }
-    if (fileStatus.modified.length > 0 || fileStatus.untracked.length > 0) {
-      tips.push(`Run ${pc.bold('contrib commit')} to stage and commit changes`);
-    }
-
-    if (isFeatureBranch && branchStatus) {
-      if (branchStatus.merged) {
-        tips.push(`Run ${pc.bold('contrib clean')} to delete this merged branch`);
-      } else if (branchStatus.stale) {
-        tips.push(`Run ${pc.bold('contrib sync')} to rebase on latest changes, or ${pc.bold('contrib clean')} if no longer needed`);
-      } else if (
-        fileStatus.staged.length === 0 &&
-        fileStatus.modified.length === 0 &&
-        fileStatus.untracked.length === 0
-      ) {
-        const branchDiv = await getDivergence(currentBranch, `${origin}/${currentBranch}`);
-        if (branchDiv.ahead > 0) {
-          tips.push(`Run ${pc.bold('contrib submit')} to push and create/update your PR`);
-        }
-      }
-    }
-
-    if (tips.length > 0) {
-      console.log();
-      console.log(`  ${pc.dim('💡 Tip:')}`);
-      for (const tip of tips) {
-        console.log(`     ${pc.dim(tip)}`);
-      }
-    }
-
     console.log();
   },
 });
@@ -247,11 +226,13 @@ interface BranchStatus {
   staleDaysAgo: number | null;
 }
 
-async function detectBranchStatus(
-  branch: string,
-  baseBranch: string,
-): Promise<BranchStatus> {
-  const result: BranchStatus = { merged: false, mergedReason: null, stale: false, staleDaysAgo: null };
+async function detectBranchStatus(branch: string, baseBranch: string): Promise<BranchStatus> {
+  const result: BranchStatus = {
+    merged: false,
+    mergedReason: null,
+    stale: false,
+    staleDaysAgo: null,
+  };
 
   // A branch with 0 commits ahead of the base is just fresh — not merged.
   // Only run merge detection if the branch has actually diverged with work.
