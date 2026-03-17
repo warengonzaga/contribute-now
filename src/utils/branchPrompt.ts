@@ -1,10 +1,16 @@
 import pc from 'picocolors';
-import { branchExists } from './git.js';
-import { formatBranchName, hasPrefix, isValidBranchName, looksLikeNaturalLanguage } from './branch.js';
+import {
+  formatBranchName,
+  hasPrefix,
+  isValidBranchName,
+  looksLikeNaturalLanguage,
+} from './branch.js';
 import { inputPrompt, selectPrompt } from './confirm.js';
 import { checkCopilotAvailable, suggestBranchName } from './copilot.js';
+import { branchExists } from './git.js';
 import { warn } from './logger.js';
 import { createSpinner } from './spinner.js';
+import { LOADING_TIPS } from './tips.js';
 
 interface PromptForBranchNameOptions {
   branchPrefixes: string[];
@@ -38,7 +44,9 @@ export async function promptForBranchName(
       warn(`AI unavailable: ${copilotError}`);
     } else {
       while (true) {
-        const spinner = createSpinner('Generating branch name suggestion...');
+        const spinner = createSpinner('Generating branch name suggestion...', {
+          tips: LOADING_TIPS,
+        });
         const suggested = await suggestBranchName(branchInput, options.model);
 
         if (suggested) {
@@ -77,12 +85,15 @@ export async function promptForBranchName(
 
         spinner.fail('AI did not return a branch name suggestion.');
 
-        const action = await selectPrompt('AI could not generate a branch name. What would you like to do?', [
-          'Try again with AI',
-          'Enter branch name manually',
-          'Use my original description',
-          'Cancel',
-        ]);
+        const action = await selectPrompt(
+          'AI could not generate a branch name. What would you like to do?',
+          [
+            'Try again with AI',
+            'Enter branch name manually',
+            'Use my original description',
+            'Cancel',
+          ],
+        );
 
         if (action === 'Try again with AI') {
           continue;
