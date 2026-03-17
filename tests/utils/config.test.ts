@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ContributeConfig } from '../../src/types.js';
 import {
   configExists,
   ensureGitignored,
+  getConfigLocationLabel,
   getDefaultConfig,
   isAIEnabled,
   isGitignored,
@@ -12,10 +14,11 @@ import {
   writeConfig,
 } from '../../src/utils/config.js';
 
-const TEST_DIR = join(import.meta.dir, '__config_test_tmp__');
+const TEST_DIR = join(tmpdir(), 'contribute-now-config-test');
 
 beforeEach(() => {
-  if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true });
+  if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true, force: true });
+  mkdirSync(TEST_DIR, { recursive: true });
 });
 
 afterEach(() => {
@@ -34,6 +37,8 @@ describe('config utilities', () => {
     expect(Array.isArray(cfg.branchPrefixes)).toBe(true);
     expect(cfg.commitConvention).toBe('clean-commit');
     expect(cfg.aiEnabled).toBe(true);
+    expect(cfg.showTips).toBe(true);
+    expect(cfg.guideRotation).toEqual({});
   });
 
   it('configExists returns false when no config', () => {
@@ -51,11 +56,38 @@ describe('config utilities', () => {
       branchPrefixes: ['feature', 'fix'],
       commitConvention: 'clean-commit',
       aiEnabled: false,
+      showTips: true,
+      guideRotation: {},
     };
     writeConfig(cfg, TEST_DIR);
     expect(configExists(TEST_DIR)).toBe(true);
     const read = readConfig(TEST_DIR);
     expect(read).toEqual(cfg);
+  });
+
+  it('writeConfig stores config in local git metadata when repo exists', () => {
+    mkdirSync(join(TEST_DIR, '.git'), { recursive: true });
+
+    const cfg: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      showTips: true,
+      guideRotation: {},
+    };
+
+    writeConfig(cfg, TEST_DIR);
+
+    expect(existsSync(join(TEST_DIR, '.git', 'contribute-now', 'config.json'))).toBe(true);
+    expect(existsSync(join(TEST_DIR, '.contributerc.json'))).toBe(false);
+    expect(getConfigLocationLabel(TEST_DIR)).toBe('.git/contribute-now/config.json');
+    expect(readConfig(TEST_DIR)).toEqual(cfg);
   });
 
   it('readConfig returns null for missing config', () => {
@@ -115,6 +147,8 @@ describe('config utilities', () => {
       branchPrefixes: ['feature', 'fix'],
       commitConvention: 'clean-commit',
       aiEnabled: true,
+      showTips: true,
+      guideRotation: {},
     };
     writeConfig(cfg, TEST_DIR);
     const read = readConfig(TEST_DIR);
