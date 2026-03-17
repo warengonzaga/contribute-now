@@ -92,21 +92,40 @@ async function performSquashMerge(
     // After squash merge, changes are staged — use AI to generate a commit message
     const copilotError = await checkCopilotAvailable();
     if (!copilotError) {
-      const spinner = createSpinner('Generating AI commit message for squash merge...');
-      const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
-      const aiMsg = await generateCommitMessage(
-        stagedDiff,
-        stagedFiles,
-        options?.model,
-        options?.convention ?? 'clean-commit',
-        'squash-merge',
-      );
-      if (aiMsg) {
-        message = aiMsg;
-        spinner.success('AI commit message generated.');
-        console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(message))}`);
-      } else {
+      while (!message) {
+        const spinner = createSpinner('Generating AI commit message for squash merge...');
+        const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
+        const aiMsg = await generateCommitMessage(
+          stagedDiff,
+          stagedFiles,
+          options?.model,
+          options?.convention ?? 'clean-commit',
+          'squash-merge',
+        );
+        if (aiMsg) {
+          message = aiMsg;
+          spinner.success('AI commit message generated.');
+          console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(message))}`);
+          break;
+        }
+
         spinner.fail('AI did not return a commit message.');
+
+        const retryAction = await selectPrompt(
+          'AI could not generate a commit message. What would you like to do?',
+          ['Try again with AI', 'Write manually', 'Cancel'],
+        );
+
+        if (retryAction === 'Try again with AI') {
+          continue;
+        }
+
+        if (retryAction === 'Cancel') {
+          warn('Squash merge commit cancelled.');
+          process.exit(0);
+        }
+
+        break;
       }
     } else {
       warn(`AI unavailable: ${copilotError}`);
@@ -145,7 +164,8 @@ async function performSquashMerge(
           // Loop back to show the action menu again with the new message
         } else {
           spinner.fail('Regeneration failed.');
-          finalMsg = await inputPrompt('Enter commit message');
+          // Keep the current suggestion and let the user choose again.
+          continue;
         }
       } else {
         finalMsg = await inputPrompt('Enter commit message');
