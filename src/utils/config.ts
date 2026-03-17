@@ -137,7 +137,12 @@ function parseConfigFile(path: string): ContributeConfig | null {
 }
 
 export function getConfigPath(cwd = process.cwd()): string {
-  return getLocalConfigPath(cwd) ?? getLegacyConfigPath(cwd);
+  const legacyPath = getLegacyConfigPath(cwd);
+  if (existsSync(legacyPath)) {
+    return legacyPath;
+  }
+
+  return getLocalConfigPath(cwd) ?? legacyPath;
 }
 
 export function getLegacyConfigPath(cwd = process.cwd()): string {
@@ -154,13 +159,13 @@ export function getLocalConfigPath(cwd = process.cwd()): string | null {
 }
 
 export function getConfigSource(cwd = process.cwd()): 'local' | 'legacy' | null {
+  if (existsSync(getLegacyConfigPath(cwd))) {
+    return 'legacy';
+  }
+
   const localPath = getLocalConfigPath(cwd);
   if (localPath && existsSync(localPath)) {
     return 'local';
-  }
-
-  if (existsSync(getLegacyConfigPath(cwd))) {
-    return 'legacy';
   }
 
   return null;
@@ -168,6 +173,11 @@ export function getConfigSource(cwd = process.cwd()): 'local' | 'legacy' | null 
 
 export function hasLegacyConfig(cwd = process.cwd()): boolean {
   return existsSync(getLegacyConfigPath(cwd));
+}
+
+export function hasLocalConfig(cwd = process.cwd()): boolean {
+  const localPath = getLocalConfigPath(cwd);
+  return !!localPath && existsSync(localPath);
 }
 
 export function getConfigLocationLabel(cwd = process.cwd()): string {
