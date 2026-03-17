@@ -1,17 +1,10 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import {
-  formatBranchName,
-  hasPrefix,
-  isValidBranchName,
-  looksLikeNaturalLanguage,
-} from '../utils/branch.js';
-import { readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
-import { checkCopilotAvailable, suggestBranchName } from '../utils/copilot.js';
+import { promptForBranchName } from '../utils/branchPrompt.js';
+import { isAIEnabled, readConfig } from '../utils/config.js';
+import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
 import {
   assertCleanGitState,
-  branchExists,
   checkoutBranch,
   createBranch,
   fetchRemote,
@@ -26,8 +19,7 @@ import {
   refExists,
   updateLocalBranch,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
-import { createSpinner } from '../utils/spinner.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import {
   getBaseBranch,
   getProtectedBranches,
@@ -80,7 +72,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading(`🔄 contrib sync (${workflow}, ${role})`);
+    projectHeading(`sync (${workflow}, ${role})`, '🔄');
 
     const baseBranch = getBaseBranch(config);
     const syncSource = getSyncSource(config);
@@ -147,56 +139,18 @@ export default defineCommand({
         }
 
         if (action === MOVE_BRANCH) {
-          info(
-            pc.dim(
-              "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
-            ),
-          );
-          const description = await inputPrompt('What are you going to work on?');
+          const newBranchName = await promptForBranchName({
+            branchPrefixes: config.branchPrefixes,
+            useAI: isAIEnabled(config, args['no-ai']),
+            model: args.model,
+          });
 
-          let newBranchName = description;
-          if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
-            const copilotError = await checkCopilotAvailable();
-            if (!copilotError) {
-              const spinner = createSpinner('Generating branch name suggestion...');
-              const suggested = await suggestBranchName(description, args.model);
-              if (suggested) {
-                spinner.success('Branch name suggestion ready.');
-                console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-                const accepted = await confirmPrompt(
-                  `Use ${pc.bold(suggested)} as your branch name?`,
-                );
-                newBranchName = accepted
-                  ? suggested
-                  : await inputPrompt('Enter branch name', description);
-              } else {
-                spinner.fail('AI did not return a suggestion.');
-                newBranchName = await inputPrompt('Enter branch name', description);
-              }
-            }
-          }
-
-          if (!hasPrefix(newBranchName, config.branchPrefixes)) {
-            const prefix = await selectPrompt(
-              `Choose a branch type for ${pc.bold(newBranchName)}:`,
-              config.branchPrefixes,
-            );
-            newBranchName = formatBranchName(prefix, newBranchName);
-          }
-
-          if (!isValidBranchName(newBranchName)) {
-            error(
-              'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
-            );
-            process.exit(1);
+          if (!newBranchName) {
+            info('No changes made.');
+            return;
           }
 
           // Create feature branch from current HEAD (carries commits)
-          if (await branchExists(newBranchName)) {
-            error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
-            process.exit(1);
-          }
-
           const branchResult = await createBranch(newBranchName);
           if (branchResult.exitCode !== 0) {
             error(`Failed to create branch: ${branchResult.stderr}`);

@@ -92,9 +92,12 @@ contrib setup
 Steps:
 1. Choose **workflow mode** — Clean Flow, GitHub Flow, or Git Flow
 2. Choose **commit convention** — Clean Commit, Conventional Commits, or None
-3. Detect remotes and auto-detect your **role** (maintainer or contributor)
-4. Confirm branch and remote names
-5. Write `.contributerc.json`
+3. Choose whether **AI features** should be enabled for this repo
+4. Detect remotes and auto-detect your **role** (maintainer or contributor)
+5. Confirm branch and remote names
+6. Write `.contributerc.json`
+
+If you want to disable AI completely for a repo, run `contrib setup` and turn AI off, or set `"aiEnabled": false` in `.contributerc.json`. Per-command `--no-ai` flags still work as one-off overrides when AI is enabled globally.
 
 ---
 
@@ -145,6 +148,8 @@ contrib commit --group             # AI groups changes into atomic commits
 After the AI generates a message, you can **accept**, **edit**, **regenerate**, or **write manually**. Messages are always validated against your convention — with a soft warning if they don't match (you can still commit).
 
 **Group commit mode** (`--group`): AI analyzes all staged and unstaged changes, groups related files into logical atomic commits, and generates a commit message for each group. Great for splitting a large set of changes into clean, reviewable commits.
+
+If `aiEnabled` is set to `false` in `.contributerc.json`, `contrib commit` stays manual and `--group` is unavailable.
 
 ---
 

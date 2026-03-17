@@ -14,7 +14,7 @@ import {
   isGitRepo,
   isShallowRepo,
 } from '../utils/git.js';
-import { heading } from '../utils/logger.js';
+import { projectHeading } from '../utils/logger.js';
 import { detectForkSetup, parseRepoFromUrl } from '../utils/remote.js';
 import {
   getBaseBranch,
@@ -389,7 +389,7 @@ export default defineCommand({
       return;
     }
 
-    heading('🩺 contribute-now doctor');
+    projectHeading('doctor', '🩺');
     printReport(report);
 
     // Summary line

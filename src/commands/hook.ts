@@ -5,7 +5,7 @@ import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import { CONVENTION_LABELS } from '../utils/convention.js';
 import { isGitRepo } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 
 const HOOK_MARKER = '# managed by contribute-now';
 
@@ -85,7 +85,7 @@ export default defineCommand({
 });
 
 async function installHook(): Promise<void> {
-  heading('🪝 hook install');
+  projectHeading('hook install', '🪝');
 
   const config = readConfig();
   if (!config) {
@@ -128,7 +128,7 @@ async function installHook(): Promise<void> {
 }
 
 async function uninstallHook(): Promise<void> {
-  heading('🪝 hook uninstall');
+  projectHeading('hook uninstall', '🪝');
 
   const hookPath = getHookPath();
 

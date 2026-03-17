@@ -2,7 +2,7 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import { getCurrentBranch, getLocalBranches, getRemoteBranches, isGitRepo } from '../utils/git.js';
-import { error, heading } from '../utils/logger.js';
+import { error, projectHeading } from '../utils/logger.js';
 import { getProtectedBranches } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -36,7 +36,7 @@ export default defineCommand({
     const showRemoteOnly = args.remote;
     const showAll = args.all;
 
-    heading('🌿 branches');
+    projectHeading('branch', '🌿');
     console.log();
 
     // ── Local branches ──

@@ -16,7 +16,7 @@ import {
   isBranchMergedInto,
   isGitRepo,
 } from '../utils/git.js';
-import { error, heading } from '../utils/logger.js';
+import { error, projectHeading } from '../utils/logger.js';
 import { getBaseBranch, getProtectedBranches, hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -36,7 +36,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading('📊 contribute-now status');
+    projectHeading('status', '📊');
 
     // Show workflow mode
     console.log(`  ${pc.dim('Workflow:')} ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);

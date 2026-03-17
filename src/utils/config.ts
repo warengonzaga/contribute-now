@@ -16,6 +16,10 @@ const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
 const VALID_ROLES = ['maintainer', 'contributor'];
 const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
 
+export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
+  return config.aiEnabled !== false && !cliNoAI;
+}
+
 export function readConfig(cwd = process.cwd()): ContributeConfig | null {
   const path = getConfigPath(cwd);
   if (!existsSync(path)) return null;
@@ -83,7 +87,10 @@ export function readConfig(cwd = process.cwd()): ContributeConfig | null {
       return null;
     }
 
-    return parsed as ContributeConfig;
+    return {
+      ...(parsed as ContributeConfig),
+      aiEnabled: parsed.aiEnabled !== false,
+    };
   } catch {
     return null;
   }
@@ -132,5 +139,6 @@ export function getDefaultConfig(): ContributeConfig {
     origin: 'origin',
     branchPrefixes: ['feature', 'fix', 'docs', 'chore', 'test', 'refactor'],
     commitConvention: 'clean-commit',
+    aiEnabled: true,
   };
 }

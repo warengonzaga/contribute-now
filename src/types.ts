@@ -11,6 +11,7 @@ export interface ContributeConfig {
   origin: string;
   branchPrefixes: string[];
   commitConvention: CommitConvention;
+  aiEnabled?: boolean;
 }
 
 export interface GitResult {

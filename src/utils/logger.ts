@@ -1,6 +1,8 @@
 import { LogEngine, LogMode } from '@wgtechlabs/log-engine';
 import pc from 'picocolors';
 
+export const PROJECT_DISPLAY_NAME = 'Contribute Now';
+
 LogEngine.configure({
   mode: LogMode.INFO,
   format: {
@@ -28,6 +30,13 @@ export function info(msg: string, emoji = 'ℹ️') {
 
 export function heading(msg: string) {
   console.log(`\n${pc.bold(msg)}`);
+}
+
+export function projectHeading(command: string, emoji?: string) {
+  const prefix = emoji ? `${pc.bold(emoji)} ` : '';
+  console.log(
+    `\n${prefix}${pc.bold(pc.cyan(PROJECT_DISPLAY_NAME))} ${pc.dim('—')} ${pc.bold(command)}`,
+  );
 }
 
 export function dim(msg: string) {

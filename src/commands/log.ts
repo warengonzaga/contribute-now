@@ -13,7 +13,7 @@ import {
   getUpstreamRef,
   isGitRepo,
 } from '../utils/git.js';
-import { error, heading } from '../utils/logger.js';
+import { error, projectHeading } from '../utils/logger.js';
 import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 /** Which slice of the log to display. */
@@ -94,7 +94,7 @@ export default defineCommand({
       }
     }
 
-    heading('📜 commit log');
+    projectHeading('log', '📜');
 
     // Show mode context
     printModeHeader(mode, currentBranch, compareRef, usingFallback);

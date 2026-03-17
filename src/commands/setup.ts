@@ -5,6 +5,7 @@ import {
   configExists,
   ensureGitignored,
   getDefaultConfig,
+  isAIEnabled,
   readConfig,
   writeConfig,
 } from '../utils/config.js';
@@ -25,7 +26,7 @@ import {
   isGitRepo,
   refExists,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
 import { createSpinner } from '../utils/spinner.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
@@ -98,7 +99,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading('🔧 contribute-now setup');
+    projectHeading('setup', '🔧');
 
     const existingConfig = readConfig();
     const shouldContinue = await shouldContinueSetupWithExistingConfig({
@@ -141,6 +142,10 @@ export default defineCommand({
     let commitConvention: CommitConvention = 'clean-commit';
     if (conventionChoice.includes('Conventional Commits')) commitConvention = 'conventional';
     else if (conventionChoice.includes('No commit')) commitConvention = 'none';
+
+    const enableAI = await confirmPrompt(
+      'Enable AI-assisted features like commit messages, branch naming, PR text, and conflict guidance?',
+    );
 
     // 3. Detect remotes
     const remotes = await getRemotes();
@@ -286,6 +291,7 @@ export default defineCommand({
       origin: originRemote,
       branchPrefixes: defaultConfig.branchPrefixes,
       commitConvention,
+      aiEnabled: enableAI,
     };
 
     writeConfig(config);
@@ -317,6 +323,7 @@ export default defineCommand({
     console.log();
     info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
     info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
+    info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
     info(`Role: ${pc.bold(config.role)}`);
     if (config.devBranch) {
       info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
@@ -332,6 +339,7 @@ export default defineCommand({
 function logConfigSummary(config: ContributeConfig): void {
   info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
   info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
+  info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
   info(`Role: ${pc.bold(config.role)}`);
   if (config.devBranch) {
     info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);

@@ -2,7 +2,7 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { selectPrompt } from '../utils/confirm.js';
 import { getCurrentBranch, isGitRepo } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import type { GitResult } from '../types.js';
 import { execFile as execFileCb } from 'node:child_process';
 
@@ -77,7 +77,7 @@ export default defineCommand({
 
 // ── Save ──
 async function handleSave(message?: string) {
-  heading('💾 contrib save');
+  projectHeading('save', '💾');
 
   const currentBranch = await getCurrentBranch();
   const label = message ?? `work-in-progress on ${currentBranch ?? 'unknown'}`;
@@ -100,7 +100,7 @@ async function handleSave(message?: string) {
 
 // ── Restore ──
 async function handleRestore() {
-  heading('💾 contrib save --restore');
+  projectHeading('save --restore', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -136,7 +136,7 @@ async function handleRestore() {
 
 // ── List ──
 async function handleList() {
-  heading('💾 contrib save --list');
+  projectHeading('save --list', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -157,7 +157,7 @@ async function handleList() {
 
 // ── Drop ──
 async function handleDrop() {
-  heading('💾 contrib save --drop');
+  projectHeading('save --drop', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {

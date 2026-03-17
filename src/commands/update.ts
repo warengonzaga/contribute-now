@@ -1,19 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import {
-  formatBranchName,
-  hasPrefix,
-  isValidBranchName,
-  looksLikeNaturalLanguage,
-} from '../utils/branch.js';
-import { readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
-import {
-  checkCopilotAvailable,
-  suggestBranchName,
-  suggestConflictResolution,
-} from '../utils/copilot.js';
+import { promptForBranchName } from '../utils/branchPrompt.js';
+import { isAIEnabled, readConfig } from '../utils/config.js';
+import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
+import { suggestConflictResolution } from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   assertCleanGitState,
@@ -39,7 +30,7 @@ import {
   unsetUpstream,
   updateLocalBranch,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
@@ -86,7 +77,7 @@ export default defineCommand({
     }
 
     if (protectedBranches.includes(currentBranch)) {
-      heading('🔃 contrib update');
+      projectHeading('update', '🔃');
       warn(
         `You're on ${pc.bold(currentBranch)}, which is a protected branch. Updates (rebase) apply to feature branches.`,
       );
@@ -133,47 +124,15 @@ export default defineCommand({
         return;
       }
 
-      // ── Move to a new feature branch ──
-      info(
-        pc.dim(
-          "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
-        ),
-      );
-      const description = await inputPrompt('What are you going to work on?');
+      const newBranchName = await promptForBranchName({
+        branchPrefixes: config.branchPrefixes,
+        useAI: isAIEnabled(config, args['no-ai']),
+        model: args.model,
+      });
 
-      let newBranchName = description;
-      if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
-        const copilotError = await checkCopilotAvailable();
-        if (!copilotError) {
-          const spinner = createSpinner('Generating branch name suggestion...');
-          const suggested = await suggestBranchName(description, args.model);
-          if (suggested) {
-            spinner.success('Branch name suggestion ready.');
-            console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-            const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-            newBranchName = accepted
-              ? suggested
-              : await inputPrompt('Enter branch name', description);
-          } else {
-            spinner.fail('AI did not return a suggestion.');
-            newBranchName = await inputPrompt('Enter branch name', description);
-          }
-        }
-      }
-
-      if (!hasPrefix(newBranchName, config.branchPrefixes)) {
-        const prefix = await selectPrompt(
-          `Choose a branch type for ${pc.bold(newBranchName)}:`,
-          config.branchPrefixes,
-        );
-        newBranchName = formatBranchName(prefix, newBranchName);
-      }
-
-      if (!isValidBranchName(newBranchName)) {
-        error(
-          'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
-        );
-        process.exit(1);
+      if (!newBranchName) {
+        info('No changes made. You are still on your current branch.');
+        return;
       }
 
       // Create the new branch from current HEAD (carries all commits + working tree)
@@ -200,7 +159,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading('🔃 contrib update');
+    projectHeading('update', '🔃');
 
     // 3. Check if the branch's PR has already been merged (stale branch)
     const mergedPR = await getMergedPRForBranch(currentBranch);
@@ -234,45 +193,15 @@ export default defineCommand({
         }
 
         if (action === SAVE_NEW_BRANCH) {
-          info(
-            pc.dim(
-              "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
-            ),
-          );
-          const description = await inputPrompt('What are you going to work on?');
+          const newBranchName = await promptForBranchName({
+            branchPrefixes: config.branchPrefixes,
+            useAI: isAIEnabled(config, args['no-ai']),
+            model: args.model,
+          });
 
-          let newBranchName = description;
-          if (!args['no-ai'] && looksLikeNaturalLanguage(description)) {
-            const spinner = createSpinner('Generating branch name suggestion...');
-            const suggested = await suggestBranchName(description, args.model);
-            if (suggested) {
-              spinner.success('Branch name suggestion ready.');
-              console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-              const accepted = await confirmPrompt(
-                `Use ${pc.bold(suggested)} as your branch name?`,
-              );
-              newBranchName = accepted
-                ? suggested
-                : await inputPrompt('Enter branch name', description);
-            } else {
-              spinner.fail('AI did not return a suggestion.');
-              newBranchName = await inputPrompt('Enter branch name', description);
-            }
-          }
-
-          if (!hasPrefix(newBranchName, config.branchPrefixes)) {
-            const prefix = await selectPrompt(
-              `Choose a branch type for ${pc.bold(newBranchName)}:`,
-              config.branchPrefixes,
-            );
-            newBranchName = formatBranchName(prefix, newBranchName);
-          }
-
-          if (!isValidBranchName(newBranchName)) {
-            error(
-              'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
-            );
-            process.exit(1);
+          if (!newBranchName) {
+            info('No changes made. You are still on your current branch.');
+            return;
           }
 
           // Capture stale upstream hash BEFORE rename so we know where old work ends.
@@ -280,11 +209,6 @@ export default defineCommand({
           // Only commits after this point (user's new work) need to be replayed.
           const staleUpstream = await getUpstreamRef();
           const staleUpstreamHash = staleUpstream ? await getCommitHash(staleUpstream) : null;
-
-          if (await branchExists(newBranchName)) {
-            error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
-            process.exit(1);
-          }
 
           const renameResult = await renameBranch(currentBranch, newBranchName);
           if (renameResult.exitCode !== 0) {
@@ -384,7 +308,7 @@ export default defineCommand({
       warn('Rebase hit conflicts. Resolve them manually.');
       console.log();
 
-      if (!args['no-ai']) {
+      if (isAIEnabled(config, args['no-ai'])) {
         const copilotError = await checkCopilotAvailable();
         if (!copilotError) {
           info('Fetching AI conflict resolution suggestions...');

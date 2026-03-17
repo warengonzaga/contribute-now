@@ -6,6 +6,7 @@ import {
   configExists,
   ensureGitignored,
   getDefaultConfig,
+  isAIEnabled,
   isGitignored,
   readConfig,
   writeConfig,
@@ -32,6 +33,7 @@ describe('config utilities', () => {
     expect(cfg.upstream).toBe('upstream');
     expect(Array.isArray(cfg.branchPrefixes)).toBe(true);
     expect(cfg.commitConvention).toBe('clean-commit');
+    expect(cfg.aiEnabled).toBe(true);
   });
 
   it('configExists returns false when no config', () => {
@@ -48,6 +50,7 @@ describe('config utilities', () => {
       origin: 'origin',
       branchPrefixes: ['feature', 'fix'],
       commitConvention: 'clean-commit',
+      aiEnabled: false,
     };
     writeConfig(cfg, TEST_DIR);
     expect(configExists(TEST_DIR)).toBe(true);
@@ -111,11 +114,36 @@ describe('config utilities', () => {
       origin: 'origin',
       branchPrefixes: ['feature', 'fix'],
       commitConvention: 'clean-commit',
+      aiEnabled: true,
     };
     writeConfig(cfg, TEST_DIR);
     const read = readConfig(TEST_DIR);
     expect(read).toEqual(cfg);
     expect(read?.devBranch).toBeUndefined();
+  });
+
+  it('readConfig defaults aiEnabled to true for legacy config files', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+    };
+
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+
+    expect(readConfig(TEST_DIR)?.aiEnabled).toBe(true);
+  });
+
+  it('isAIEnabled honors config and cli overrides', () => {
+    const cfg = getDefaultConfig();
+
+    expect(isAIEnabled(cfg)).toBe(true);
+    expect(isAIEnabled(cfg, true)).toBe(false);
+    expect(isAIEnabled({ ...cfg, aiEnabled: false })).toBe(false);
   });
 
   it('readConfig returns null for invalid workflow enum', () => {

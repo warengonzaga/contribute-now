@@ -1,7 +1,7 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import type { ContributeConfig } from '../types.js';
-import { readConfig } from '../utils/config.js';
+import { isAIEnabled, readConfig } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, multiSelectPrompt, selectPrompt } from '../utils/confirm.js';
 import {
   CONVENTION_FORMAT_HINTS,
@@ -29,7 +29,7 @@ import {
   stageFiles,
   unstageFiles,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
 
 export default defineCommand({
@@ -68,10 +68,18 @@ export default defineCommand({
       process.exit(1);
     }
 
-    heading('💾 contrib commit');
+    projectHeading('commit', '💾');
+
+    const aiEnabled = isAIEnabled(config, args['no-ai']);
 
     // ── Group commit mode ──────────────────────────────────────────────
     if (args.group) {
+      if (!aiEnabled) {
+        error(
+          'AI group commit is unavailable because AI is disabled. Re-run without --group or enable AI in .contributerc.json.',
+        );
+        process.exit(1);
+      }
       await runGroupCommit(args.model, config);
       return;
     }
@@ -170,7 +178,7 @@ export default defineCommand({
     let commitMessage: string | null = null;
 
     // 3. AI: generate commit message
-    const useAI = !args['no-ai'];
+    const useAI = aiEnabled;
     if (useAI) {
       // Parallelize: check Copilot availability while fetching diff
       const [copilotError, diff] = await Promise.all([checkCopilotAvailable(), getStagedDiff()]);

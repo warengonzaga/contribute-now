@@ -1,17 +1,10 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import {
-  formatBranchName,
-  hasPrefix,
-  isValidBranchName,
-  looksLikeNaturalLanguage,
-} from '../utils/branch.js';
-import { readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
-import { suggestBranchName } from '../utils/copilot.js';
+import { promptForBranchName } from '../utils/branchPrompt.js';
+import { isAIEnabled, readConfig } from '../utils/config.js';
+import { confirmPrompt } from '../utils/confirm.js';
 import {
   assertCleanGitState,
-  branchExists,
   countCommitsAhead,
   createBranch,
   fetchRemote,
@@ -21,8 +14,7 @@ import {
   refExists,
   updateLocalBranch,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
-import { createSpinner } from '../utils/spinner.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { getBaseBranch, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -69,67 +61,23 @@ export default defineCommand({
     const { branchPrefixes } = config;
     const baseBranch = getBaseBranch(config);
     const syncSource = getSyncSource(config);
-    let branchName = args.name;
+    let branchName = args.name?.trim();
 
-    heading('🌿 contrib start');
+    projectHeading('start', '🌿');
 
-    // If no name provided, prompt interactively
+    branchName = await promptForBranchName({
+      initialValue: branchName,
+      branchPrefixes,
+      useAI: isAIEnabled(config, args['no-ai']),
+      model: args.model,
+    });
+
     if (!branchName) {
-      branchName = await inputPrompt('What are you going to work on?');
-      if (!branchName || branchName.trim().length === 0) {
-        error('A branch name or description is required.');
-        process.exit(1);
-      }
-      branchName = branchName.trim();
-    }
-
-    // AI enhancement: if name looks like natural language, suggest a branch name
-    const useAI = !args['no-ai'] && looksLikeNaturalLanguage(branchName);
-    if (useAI) {
-      const spinner = createSpinner('Generating branch name suggestion...');
-      const suggested = await suggestBranchName(branchName, args.model);
-      if (suggested) {
-        spinner.success('Branch name suggestion ready.');
-        console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-        const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-        if (accepted) {
-          branchName = suggested;
-        } else {
-          branchName = await inputPrompt('Enter branch name', branchName);
-        }
-      } else {
-        spinner.fail('AI did not return a branch name suggestion.');
-      }
-    }
-
-    // If no prefix, prompt for type
-    if (!hasPrefix(branchName, branchPrefixes)) {
-      const prefix = await selectPrompt(
-        `Choose a branch type for ${pc.bold(branchName)}:`,
-        branchPrefixes,
-      );
-      branchName = formatBranchName(prefix, branchName);
-    }
-
-    // Validate final branch name before any git operations
-    if (!isValidBranchName(branchName)) {
-      error(
-        'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
-      );
-      process.exit(1);
+      warn('Start cancelled.');
+      process.exit(0);
     }
 
     info(`Creating branch: ${pc.bold(branchName)}`);
-
-    // Check if branch already exists locally
-    if (await branchExists(branchName)) {
-      error(`Branch ${pc.bold(branchName)} already exists.`);
-      info(
-        `  Use ${pc.bold(`git checkout ${branchName}`)} to switch to it, or choose a different name.`,
-        '',
-      );
-      process.exit(1);
-    }
 
     // Silently sync base branch first
     await fetchRemote(syncSource.remote);

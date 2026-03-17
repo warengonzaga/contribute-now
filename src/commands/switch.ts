@@ -9,7 +9,7 @@ import {
   hasUncommittedChanges,
   isGitRepo,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { getProtectedBranches } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -34,7 +34,7 @@ export default defineCommand({
     const protectedBranches = config ? getProtectedBranches(config) : ['main', 'master'];
     const currentBranch = await getCurrentBranch();
 
-    heading('🔀 contrib switch');
+    projectHeading('switch', '🔀');
 
     // ── Resolve target branch ──
     let targetBranch = args.name;

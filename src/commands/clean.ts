@@ -1,18 +1,11 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import {
-  formatBranchName,
-  hasPrefix,
-  isValidBranchName,
-  looksLikeNaturalLanguage,
-} from '../utils/branch.js';
-import { readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
-import { suggestBranchName } from '../utils/copilot.js';
+import { promptForBranchName } from '../utils/branchPrompt.js';
+import { isAIEnabled, readConfig } from '../utils/config.js';
+import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
 import { checkGhAuth, checkGhInstalled, getMergedPRForBranch } from '../utils/gh.js';
 import {
   assertCleanGitState,
-  branchExists,
   checkoutBranch,
   deleteBranch,
   fetchRemote,
@@ -31,8 +24,7 @@ import {
   resetHard,
   updateLocalBranch,
 } from '../utils/git.js';
-import { error, heading, info, success, warn } from '../utils/logger.js';
-import { createSpinner } from '../utils/spinner.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import {
   getBaseBranch,
   getProtectedBranches,
@@ -79,47 +71,12 @@ async function handleCurrentBranchDeletion(
 
     if (action === SAVE_NEW_BRANCH) {
       if (!config) return 'skipped';
-      info(
-        pc.dim(
-          "Tip: Describe what you're going to work on in plain English and we'll generate a branch name.",
-        ),
-      );
-      const description = await inputPrompt('What are you going to work on?');
+      const newBranchName = await promptForBranchName({
+        branchPrefixes: config.branchPrefixes,
+        useAI: isAIEnabled(config),
+      });
 
-      let newBranchName = description;
-      if (looksLikeNaturalLanguage(description)) {
-        const spinner = createSpinner('Generating branch name suggestion...');
-        const suggested = await suggestBranchName(description);
-        if (suggested) {
-          spinner.success('Branch name suggestion ready.');
-          console.log(`\n  ${pc.dim('AI suggestion:')} ${pc.bold(pc.cyan(suggested))}`);
-          const accepted = await confirmPrompt(`Use ${pc.bold(suggested)} as your branch name?`);
-          newBranchName = accepted
-            ? suggested
-            : await inputPrompt('Enter branch name', description);
-        } else {
-          spinner.fail('AI did not return a suggestion.');
-          newBranchName = await inputPrompt('Enter branch name', description);
-        }
-      }
-
-      if (!hasPrefix(newBranchName, config.branchPrefixes)) {
-        const prefix = await selectPrompt(
-          `Choose a branch type for ${pc.bold(newBranchName)}:`,
-          config.branchPrefixes,
-        );
-        newBranchName = formatBranchName(prefix, newBranchName);
-      }
-
-      if (!isValidBranchName(newBranchName)) {
-        error(
-          'Invalid branch name. Use only alphanumeric characters, dots, hyphens, underscores, and slashes.',
-        );
-        return 'skipped';
-      }
-
-      if (await branchExists(newBranchName)) {
-        error(`Branch ${pc.bold(newBranchName)} already exists. Choose a different name.`);
+      if (!newBranchName) {
         return 'skipped';
       }
 
@@ -207,7 +164,7 @@ export default defineCommand({
     const baseBranch = getBaseBranch(config);
     let currentBranch = await getCurrentBranch();
 
-    heading('🧹 contrib clean');
+    projectHeading('clean', '🧹');
 
     // 1. Prune remote refs first (so we can detect gone branches)
     info(`Pruning ${origin} remote refs...`);
