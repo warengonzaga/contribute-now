@@ -8,6 +8,7 @@ import {
   ensureGitignored,
   getConfigLocationLabel,
   getDefaultConfig,
+  getLocalConfigPath,
   isAIEnabled,
   isGitignored,
   readConfig,
@@ -88,6 +89,76 @@ describe('config utilities', () => {
     expect(existsSync(join(TEST_DIR, '.contributerc.json'))).toBe(false);
     expect(getConfigLocationLabel(TEST_DIR)).toBe('.git/contribute-now/config.json');
     expect(readConfig(TEST_DIR)).toEqual(cfg);
+  });
+
+  it('readConfig prefers legacy config when both legacy and local config exist', () => {
+    mkdirSync(join(TEST_DIR, '.git'), { recursive: true });
+
+    const legacyConfig: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix', 'docs'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      showTips: true,
+      guideRotation: {},
+    };
+
+    const localConfig: ContributeConfig = {
+      workflow: 'github-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      showTips: true,
+      guideRotation: {},
+    };
+
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(legacyConfig, null, 2));
+    mkdirSync(join(TEST_DIR, '.git', 'contribute-now'), { recursive: true });
+    writeFileSync(
+      join(TEST_DIR, '.git', 'contribute-now', 'config.json'),
+      JSON.stringify(localConfig, null, 2),
+    );
+
+    expect(getConfigLocationLabel(TEST_DIR)).toBe('.contributerc.json');
+    expect(readConfig(TEST_DIR)).toEqual(legacyConfig);
+  });
+
+  it('writeConfig updates the legacy config file when both legacy and local config exist', () => {
+    mkdirSync(join(TEST_DIR, '.git'), { recursive: true });
+
+    const legacyConfig = getDefaultConfig();
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(legacyConfig, null, 2));
+    mkdirSync(join(TEST_DIR, '.git', 'contribute-now'), { recursive: true });
+    writeFileSync(
+      join(TEST_DIR, '.git', 'contribute-now', 'config.json'),
+      JSON.stringify({ ...legacyConfig, workflow: 'github-flow' }, null, 2),
+    );
+
+    const updatedConfig = {
+      ...legacyConfig,
+      guideRotation: { doctor: 1 },
+    };
+
+    writeConfig(updatedConfig, TEST_DIR);
+
+    const legacyRaw = readFileSync(join(TEST_DIR, '.contributerc.json'), 'utf-8');
+    const localConfigPath = getLocalConfigPath(TEST_DIR);
+
+    expect(localConfigPath).not.toBeNull();
+
+    const localRaw = readFileSync(localConfigPath ?? '', 'utf-8');
+
+    expect(JSON.parse(legacyRaw)).toMatchObject(updatedConfig);
+    expect(JSON.parse(localRaw)).toMatchObject({ ...legacyConfig, workflow: 'github-flow' });
   });
 
   it('readConfig returns null for missing config', () => {
