@@ -3,7 +3,7 @@ import pc from 'picocolors';
 import type { CommitConvention } from '../types.js';
 import { promptForBranchName } from '../utils/branchPrompt.js';
 import { isAIEnabled, readConfig } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { inputPrompt, selectPrompt } from '../utils/confirm.js';
 import {
   checkCopilotAvailable,
   generateCommitMessage,
@@ -51,6 +51,7 @@ import {
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { getRepoInfoFromRemote } from '../utils/remote.js';
 import { createSpinner } from '../utils/spinner.js';
+import { LOADING_TIPS } from '../utils/tips.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 /**
@@ -92,7 +93,9 @@ async function performSquashMerge(
     const copilotError = await checkCopilotAvailable();
     if (!copilotError) {
       while (!message) {
-        const spinner = createSpinner('Generating AI commit message for squash merge...');
+        const spinner = createSpinner('Generating AI commit message for squash merge...', {
+          tips: LOADING_TIPS,
+        });
         const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
         const aiMsg = await generateCommitMessage(
           stagedDiff,
@@ -147,7 +150,9 @@ async function performSquashMerge(
       } else if (action === 'Edit this message') {
         finalMsg = await inputPrompt('Edit commit message', message);
       } else if (action === 'Regenerate') {
-        const spinner = createSpinner('Regenerating commit message...');
+        const spinner = createSpinner('Regenerating commit message...', {
+          tips: LOADING_TIPS,
+        });
         const [stagedDiff, stagedFiles] = await Promise.all([getStagedDiff(), getStagedFiles()]);
         const regen = await generateCommitMessage(
           stagedDiff,
@@ -163,8 +168,6 @@ async function performSquashMerge(
           // Loop back to show the action menu again with the new message
         } else {
           spinner.fail('Regeneration failed.');
-          // Keep the current suggestion and let the user choose again.
-          continue;
         }
       } else {
         finalMsg = await inputPrompt('Enter commit message');
@@ -254,7 +257,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 
@@ -502,7 +505,9 @@ export default defineCommand({
           }
           process.exit(1);
         }
-        success(`Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`);
+        success(
+          `Pushed changes to existing PR #${existingPR.number}: ${pc.bold(existingPR.title)}`,
+        );
         console.log(`  ${pc.cyan(existingPR.url)}`);
         return;
       }
@@ -520,7 +525,9 @@ export default defineCommand({
         getLogDiff(baseBranch, 'HEAD'),
       ]);
       if (!copilotError) {
-        const spinner = createSpinner('Generating AI PR description...');
+        const spinner = createSpinner('Generating AI PR description...', {
+          tips: LOADING_TIPS,
+        });
         const result = await generatePRDescription(
           commits,
           diff,
@@ -577,10 +584,11 @@ export default defineCommand({
     }
 
     if (isMaintainer && !args.pullrequest) {
-      const maintainerChoice = await selectPrompt(
-        'How would you like to submit your changes?',
-        ['Create a PR', SQUASH_LOCAL, CANCEL],
-      );
+      const maintainerChoice = await selectPrompt('How would you like to submit your changes?', [
+        'Create a PR',
+        SQUASH_LOCAL,
+        CANCEL,
+      ]);
       if (maintainerChoice === CANCEL) {
         warn('Submit cancelled.');
         return;
@@ -603,17 +611,14 @@ export default defineCommand({
     let actionResolved = false;
     while (!actionResolved) {
       if (prTitle && prBody) {
-        const action = await selectPrompt(
-          'What would you like to do with the PR description?',
-          [
-            'Use AI description',
-            'Edit title',
-            'Write manually',
-            'Use gh --fill (auto-fill from commits)',
-            REGENERATE,
-            CANCEL,
-          ],
-        );
+        const action = await selectPrompt('What would you like to do with the PR description?', [
+          'Use AI description',
+          'Edit title',
+          'Write manually',
+          'Use gh --fill (auto-fill from commits)',
+          REGENERATE,
+          CANCEL,
+        ]);
 
         if (action === CANCEL) {
           submitAction = 'cancel';

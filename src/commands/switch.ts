@@ -1,7 +1,7 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
-import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
+import { selectPrompt } from '../utils/confirm.js';
 import {
   checkoutBranch,
   getCurrentBranch,

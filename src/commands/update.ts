@@ -3,12 +3,11 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { promptForBranchName } from '../utils/branchPrompt.js';
 import { isAIEnabled, readConfig } from '../utils/config.js';
-import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
+import { selectPrompt } from '../utils/confirm.js';
 import { suggestConflictResolution } from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   assertCleanGitState,
-  branchExists,
   checkoutBranch,
   createBranch,
   determineRebaseStrategy,
@@ -32,6 +31,7 @@ import {
 } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
+import { LOADING_TIPS } from '../utils/tips.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
 
 export default defineCommand({
@@ -61,7 +61,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 
@@ -149,7 +149,10 @@ export default defineCommand({
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
-      info(`Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`, '');
+      info(
+        `Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`,
+        '',
+      );
       return;
     }
 
@@ -326,7 +329,9 @@ export default defineCommand({
           }
 
           if (conflictDiff) {
-            const spinner = createSpinner('Analyzing conflicts with AI...');
+            const spinner = createSpinner('Analyzing conflicts with AI...', {
+              tips: LOADING_TIPS,
+            });
             const suggestion = await suggestConflictResolution(conflictDiff, args.model);
             if (suggestion) {
               spinner.success('AI conflict guidance ready.');

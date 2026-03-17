@@ -60,7 +60,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 
@@ -94,7 +94,10 @@ export default defineCommand({
     if (!(await refExists(syncSource.ref))) {
       error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
       info('This can happen if the branch was renamed or deleted on the remote.', '');
-      info(`Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`, '');
+      info(
+        `Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`,
+        '',
+      );
       process.exit(1);
     }
 
@@ -249,15 +252,20 @@ export default defineCommand({
 
       const refs: { name: string; hash: string }[] = [];
       if (mainHash) refs.push({ name: config.mainBranch, hash: mainHash });
-      if (remoteMainHash) refs.push({ name: `${origin}/${config.mainBranch}`, hash: remoteMainHash });
+      if (remoteMainHash)
+        refs.push({ name: `${origin}/${config.mainBranch}`, hash: remoteMainHash });
       if (devHash) refs.push({ name: config.devBranch, hash: devHash });
-      if (remoteDevHash) refs.push({ name: `${devRemote}/${config.devBranch}`, hash: remoteDevHash });
+      if (remoteDevHash)
+        refs.push({ name: `${devRemote}/${config.devBranch}`, hash: remoteDevHash });
 
       if (refs.length > 1) {
         const groups = new Map<string, string[]>();
         for (const { name, hash } of refs) {
           if (!groups.has(hash)) groups.set(hash, []);
-          groups.get(hash)!.push(name);
+          const group = groups.get(hash);
+          if (group) {
+            group.push(name);
+          }
         }
 
         console.log();
@@ -274,7 +282,9 @@ export default defineCommand({
         }
 
         if (groups.size === 1) {
-          console.log(`     ${pc.green('\u2713')} ${pc.green('All branches aligned')} ${pc.dim('\u2014 ready to start')}`);
+          console.log(
+            `     ${pc.green('\u2713')} ${pc.green('All branches aligned')} ${pc.dim('\u2014 ready to start')}`,
+          );
         } else {
           console.log(`     ${pc.yellow('\u26a0')} ${pc.yellow('Branches are not fully aligned')}`);
         }

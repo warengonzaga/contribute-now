@@ -1,5 +1,5 @@
-import { defineCommand } from 'citty';
 import { readFileSync } from 'node:fs';
+import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import {
@@ -7,7 +7,7 @@ import {
   getValidationError,
   validateCommitMessage,
 } from '../utils/convention.js';
-import { error, info, success } from '../utils/logger.js';
+import { error, info, projectHeading, success } from '../utils/logger.js';
 
 export default defineCommand({
   meta: {
@@ -28,9 +28,11 @@ export default defineCommand({
   async run({ args }) {
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
+
+    projectHeading('validate', '✅');
 
     const convention = config.commitConvention;
     if (convention === 'none') {
@@ -39,7 +41,7 @@ export default defineCommand({
     }
 
     const message = args.file
-      ? readFileSync(args.file, 'utf-8').split(/\r?\n/, 1)[0] ?? ''
+      ? (readFileSync(args.file, 'utf-8').split(/\r?\n/, 1)[0] ?? '')
       : args.message;
 
     if (!message) {
