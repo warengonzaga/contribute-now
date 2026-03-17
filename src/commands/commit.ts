@@ -74,7 +74,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading('commit', '💾');
+    await projectHeading('commit', '💾');
 
     const aiEnabled = isAIEnabled(config, args['no-ai']);
     // ── Group commit mode ──────────────────────────────────────────────

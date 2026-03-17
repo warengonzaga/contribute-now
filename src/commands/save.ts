@@ -77,7 +77,7 @@ export default defineCommand({
 
 // ── Save ──
 async function handleSave(message?: string) {
-  projectHeading('save', '💾');
+  await projectHeading('save', '💾');
 
   const currentBranch = await getCurrentBranch();
   const label = message ?? `work-in-progress on ${currentBranch ?? 'unknown'}`;
@@ -100,7 +100,7 @@ async function handleSave(message?: string) {
 
 // ── Restore ──
 async function handleRestore() {
-  projectHeading('save --restore', '💾');
+  await projectHeading('save --restore', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -136,7 +136,7 @@ async function handleRestore() {
 
 // ── List ──
 async function handleList() {
-  projectHeading('save --list', '💾');
+  await projectHeading('save --list', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {
@@ -157,7 +157,7 @@ async function handleList() {
 
 // ── Drop ──
 async function handleDrop() {
-  projectHeading('save --drop', '💾');
+  await projectHeading('save --drop', '💾');
 
   const stashes = await getStashList();
   if (stashes.length === 0) {

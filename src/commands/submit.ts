@@ -274,7 +274,7 @@ export default defineCommand({
 
     // 1. Verify not on a protected branch — offer recovery instead of hard stop
     if (protectedBranches.includes(currentBranch)) {
-      projectHeading('submit', '🚀');
+      await projectHeading('submit', '🚀');
       warn(
         `You're on ${pc.bold(currentBranch)}, which is a protected branch. PRs should come from feature branches.`,
       );
@@ -349,7 +349,7 @@ export default defineCommand({
       return;
     }
 
-    projectHeading('submit', '🚀');
+    await projectHeading('submit', '🚀');
 
     // 2a. Check if PR for this branch was already merged (before pushing)
     const ghInstalled = await checkGhInstalled();

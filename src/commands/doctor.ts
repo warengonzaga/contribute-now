@@ -11,6 +11,7 @@ import {
   isGitignored,
   readConfig,
 } from '../utils/config.js';
+import { resolveAIConfig } from '../utils/copilot.js';
 import { checkGhAuth, checkGhInstalled } from '../utils/gh.js';
 import {
   getCurrentBranch,
@@ -24,6 +25,8 @@ import {
 } from '../utils/git.js';
 import { projectHeading } from '../utils/logger.js';
 import { detectForkSetup, parseRepoFromUrl } from '../utils/remote.js';
+import { hasOllamaCloudApiKey, hasSecretsStore } from '../utils/secrets.js';
+import { getLocalStateLocationLabel, hasLocalStateStore } from '../utils/state.js';
 import {
   getBaseBranch,
   getSyncSource,
@@ -163,6 +166,7 @@ async function depsSection(): Promise<SectionReport> {
 async function configSection(): Promise<SectionReport> {
   const checks: CheckResult[] = [];
   const exists = configExists();
+  const localStateLabel = getLocalStateLocationLabel();
 
   if (!exists) {
     checks.push({
@@ -170,6 +174,17 @@ async function configSection(): Promise<SectionReport> {
       ok: false,
       detail: 'run `contrib setup` to create local config for this clone',
     });
+
+    if (localStateLabel) {
+      checks.push({
+        label: hasLocalStateStore()
+          ? 'Local state store present'
+          : 'Local state store not created yet',
+        ok: true,
+        detail: localStateLabel,
+      });
+    }
+
     return { title: 'Config', checks };
   }
 
@@ -181,6 +196,7 @@ async function configSection(): Promise<SectionReport> {
 
   const configSource = getConfigSource();
   const hasBothConfigSources = hasLegacyConfig() && hasLocalConfig();
+  const aiConfig = resolveAIConfig(config);
   checks.push({
     label: `${configSource === 'local' ? 'Local Git config' : 'Legacy repo config'} found and valid`,
     ok: true,
@@ -196,6 +212,16 @@ async function configSection(): Promise<SectionReport> {
     });
   }
 
+  if (localStateLabel) {
+    checks.push({
+      label: hasLocalStateStore()
+        ? 'Local state store present'
+        : 'Local state store not created yet',
+      ok: true,
+      detail: localStateLabel,
+    });
+  }
+
   // Workflow & role
   const desc = WORKFLOW_DESCRIPTIONS[config.workflow] ?? config.workflow;
   checks.push({
@@ -205,6 +231,34 @@ async function configSection(): Promise<SectionReport> {
   });
   checks.push({ label: `Role: ${config.role}`, ok: true });
   checks.push({ label: `Commit convention: ${config.commitConvention}`, ok: true });
+  checks.push({
+    label: `AI: ${config.aiEnabled === false ? 'disabled' : 'enabled'}`,
+    ok: true,
+  });
+
+  if (config.aiEnabled !== false) {
+    checks.push({
+      label: `AI provider: ${aiConfig.providerLabel}`,
+      ok: true,
+    });
+
+    if (aiConfig.model) {
+      checks.push({
+        label: `AI model: ${aiConfig.model}`,
+        ok: true,
+      });
+    }
+
+    if (aiConfig.provider === 'ollama-cloud') {
+      const hasApiKey = await hasOllamaCloudApiKey();
+      checks.push({
+        label: hasApiKey ? 'Ollama Cloud API key present' : 'Ollama Cloud API key missing',
+        ok: true,
+        warning: !hasApiKey,
+        detail: hasSecretsStore() ? 'stored in secrets-engine' : 'run `contrib setup` to save it',
+      });
+    }
+  }
 
   if (hasDevBranch(config.workflow)) {
     checks.push({
@@ -420,7 +474,7 @@ export default defineCommand({
       return;
     }
 
-    projectHeading('doctor', '🩺');
+    await projectHeading('doctor', '🩺');
     printReport(report);
 
     // Summary line

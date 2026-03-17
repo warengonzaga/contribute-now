@@ -32,7 +32,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading('validate', '✅');
+    await projectHeading('validate', '✅');
 
     const convention = config.commitConvention;
     if (convention === 'none') {

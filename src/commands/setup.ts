@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import type { CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
+import type { AIProvider, CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
 import {
   configExists,
   getConfigLocationLabel,
@@ -10,8 +10,15 @@ import {
   shouldShowTips,
   writeConfig,
 } from '../utils/config.js';
-import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
+import { confirmPrompt, inputPrompt, passwordPrompt, selectPrompt } from '../utils/confirm.js';
 import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
+import {
+  DEFAULT_OLLAMA_CLOUD_HOST,
+  DEFAULT_OLLAMA_CLOUD_MODEL,
+  fetchOllamaCloudModels,
+  prioritizeOllamaCloudModels,
+  resolveAIConfig,
+} from '../utils/copilot.js';
 import {
   checkGhAuth,
   checkGhInstalled,
@@ -29,6 +36,7 @@ import {
 } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
+import { getSecretsStorePath, setOllamaCloudApiKey } from '../utils/secrets.js';
 import { createSpinner } from '../utils/spinner.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
@@ -72,6 +80,44 @@ export async function shouldContinueSetupWithExistingConfig(
   return true;
 }
 
+async function promptForOllamaCloudModel(
+  apiKey: string,
+  host = DEFAULT_OLLAMA_CLOUD_HOST,
+): Promise<string> {
+  try {
+    info('Fetching available Ollama Cloud models...');
+    const models = prioritizeOllamaCloudModels(await fetchOllamaCloudModels(apiKey, host));
+
+    if (models.length > 0) {
+      const manualChoice = 'Enter model manually';
+      const choices = models.map((model) => ({
+        value: model,
+        label: model === DEFAULT_OLLAMA_CLOUD_MODEL ? `${model} (default)` : model,
+      }));
+      const selected = await selectPrompt('Which Ollama Cloud model should this clone use?', [
+        ...choices.map((choice) => choice.label),
+        manualChoice,
+      ]);
+
+      if (selected !== manualChoice) {
+        return (
+          choices.find((choice) => choice.label === selected)?.value ?? DEFAULT_OLLAMA_CLOUD_MODEL
+        );
+      }
+    } else {
+      warn('Ollama Cloud returned no available models. Enter the model name manually.');
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warn(`Could not fetch Ollama Cloud models: ${message}`);
+  }
+
+  return inputPrompt(
+    `Ollama Cloud model (default: ${DEFAULT_OLLAMA_CLOUD_MODEL} — press Enter to keep)`,
+    DEFAULT_OLLAMA_CLOUD_MODEL,
+  );
+}
+
 export default defineCommand({
   meta: {
     name: 'setup',
@@ -84,7 +130,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading('setup', '🔧');
+    await projectHeading('setup', '🔧');
 
     const existingConfig = readConfig();
     const shouldContinue = await shouldContinueSetupWithExistingConfig({
@@ -130,6 +176,38 @@ export default defineCommand({
     const enableAI = await confirmPrompt(
       'Enable AI-assisted features like commit messages, branch naming, PR text, and conflict guidance?',
     );
+
+    let aiProvider: AIProvider | undefined;
+    let aiModel: string | undefined;
+
+    if (enableAI) {
+      const providerChoice = await selectPrompt('Which AI provider should this clone use?', [
+        'GitHub Copilot — use your existing GitHub/Copilot auth',
+        'Ollama Cloud — use an API key stored with secrets-engine',
+      ]);
+
+      aiProvider = providerChoice.startsWith('Ollama Cloud') ? 'ollama-cloud' : 'copilot';
+
+      if (aiProvider === 'ollama-cloud') {
+        const apiKey = (await passwordPrompt('Enter your Ollama Cloud API key')).trim();
+        if (!apiKey) {
+          error('Ollama Cloud API key is required when Ollama Cloud is selected.');
+          process.exit(1);
+        }
+
+        aiModel = await promptForOllamaCloudModel(apiKey);
+
+        try {
+          await setOllamaCloudApiKey(apiKey);
+          success('Stored Ollama Cloud API key in secrets-engine.');
+          info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          error(`Failed to store Ollama Cloud API key: ${message}`);
+          process.exit(1);
+        }
+      }
+    }
 
     const showTips = await confirmPrompt(
       'Show beginner quick guides and loading tips in command output?',
@@ -280,6 +358,8 @@ export default defineCommand({
       branchPrefixes: defaultConfig.branchPrefixes,
       commitConvention,
       aiEnabled: enableAI,
+      ...(aiProvider ? { aiProvider } : {}),
+      ...(aiModel ? { aiModel } : {}),
       showTips,
     };
 
@@ -305,9 +385,16 @@ export default defineCommand({
       }
     }
     console.log();
+    const resolvedAIConfig = resolveAIConfig(config);
     info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
     info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
     info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
+    if (isAIEnabled(config)) {
+      info(`AI provider: ${pc.bold(resolvedAIConfig.providerLabel)}`);
+      if (resolvedAIConfig.model) {
+        info(`AI model: ${pc.bold(resolvedAIConfig.model)}`);
+      }
+    }
     info(`Guides: ${pc.bold(shouldShowTips(config) ? 'shown' : 'hidden')}`);
     info(`Role: ${pc.bold(config.role)}`);
     if (config.devBranch) {
@@ -322,9 +409,16 @@ export default defineCommand({
 });
 
 function logConfigSummary(config: ContributeConfig): void {
+  const aiConfig = resolveAIConfig(config);
   info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
   info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
   info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
+  if (isAIEnabled(config)) {
+    info(`AI provider: ${pc.bold(aiConfig.providerLabel)}`);
+    if (aiConfig.model) {
+      info(`AI model: ${pc.bold(aiConfig.model)}`);
+    }
+  }
   info(`Guides: ${pc.bold(shouldShowTips(config) ? 'shown' : 'hidden')}`);
   info(`Role: ${pc.bold(config.role)}`);
   if (config.devBranch) {

@@ -37,6 +37,12 @@ export async function inputPrompt(message: string, defaultValue?: string): Promi
   return (result as string) || defaultValue || '';
 }
 
+export async function passwordPrompt(message: string): Promise<string> {
+  const result = await clack.password({ message, mask: '•' });
+  handleCancel(result);
+  return (result as string) || '';
+}
+
 /**
  * Multi-select prompt with arrow-key navigation and space-to-toggle.
  * Returns the selected items as strings.

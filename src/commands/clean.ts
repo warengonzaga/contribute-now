@@ -167,7 +167,7 @@ export default defineCommand({
     const baseBranch = getBaseBranch(config);
     let currentBranch = await getCurrentBranch();
 
-    projectHeading('clean', '🧹');
+    await projectHeading('clean', '🧹');
 
     // 1. Prune remote refs first (so we can detect gone branches)
     info(`Pruning ${origin} remote refs...`);

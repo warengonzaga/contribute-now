@@ -34,7 +34,7 @@ export default defineCommand({
     const protectedBranches = config ? getProtectedBranches(config) : ['main', 'master'];
     const currentBranch = await getCurrentBranch();
 
-    projectHeading('switch', '🔀');
+    await projectHeading('switch', '🔀');
 
     // ── Resolve target branch ──
     let targetBranch = args.name;

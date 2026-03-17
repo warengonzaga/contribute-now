@@ -2,6 +2,8 @@ export type WorkflowMode = 'clean-flow' | 'github-flow' | 'git-flow';
 
 export type CommitConvention = 'conventional' | 'clean-commit' | 'none';
 
+export type AIProvider = 'copilot' | 'ollama-cloud';
+
 export interface ContributeConfig {
   workflow: WorkflowMode;
   role: 'maintainer' | 'contributor';
@@ -12,8 +14,9 @@ export interface ContributeConfig {
   branchPrefixes: string[];
   commitConvention: CommitConvention;
   aiEnabled?: boolean;
+  aiProvider?: AIProvider;
+  aiModel?: string;
   showTips?: boolean;
-  guideRotation?: Record<string, number>;
 }
 
 export interface GitResult {

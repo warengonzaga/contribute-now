@@ -36,7 +36,7 @@ export default defineCommand({
     const showRemoteOnly = args.remote;
     const showAll = args.all;
 
-    projectHeading('branch', '🌿');
+    await projectHeading('branch', '🌿');
     console.log();
 
     // ── Local branches ──

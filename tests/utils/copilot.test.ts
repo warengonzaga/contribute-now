@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'bun:test';
+import type { ContributeConfig } from '../../src/types.js';
 import {
   BATCH_CONFIG,
   createCompactDiff,
   createRecoveryCommitGroups,
+  DEFAULT_OLLAMA_CLOUD_HOST,
+  DEFAULT_OLLAMA_CLOUD_MODEL,
   extractDiffStats,
+  extractOllamaCloudModelIds,
   normalizeCommitGroups,
+  normalizeOllamaCloudHost,
   parseDiffByFile,
+  prioritizeOllamaCloudModels,
+  resolveAIConfig,
   sanitizeGeneratedCommitMessage,
 } from '../../src/utils/copilot.js';
 
@@ -207,6 +214,93 @@ describe('BATCH_CONFIG', () => {
 
   it('LARGE_CHANGESET_THRESHOLD equals 15', () => {
     expect(BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD).toBe(15);
+  });
+});
+
+describe('resolveAIConfig', () => {
+  it('defaults to Copilot when no provider is configured', () => {
+    expect(
+      resolveAIConfig({
+        workflow: 'clean-flow',
+        role: 'maintainer',
+        mainBranch: 'main',
+        devBranch: 'dev',
+        upstream: 'upstream',
+        origin: 'origin',
+        branchPrefixes: ['feature', 'fix'],
+        commitConvention: 'clean-commit',
+        aiEnabled: true,
+      }),
+    ).toEqual({
+      provider: 'copilot',
+      providerLabel: 'GitHub Copilot',
+    });
+  });
+
+  it('resolves Ollama Cloud defaults from config metadata', () => {
+    const config: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'ollama-cloud',
+    };
+
+    expect(resolveAIConfig(config)).toEqual({
+      provider: 'ollama-cloud',
+      providerLabel: 'Ollama Cloud',
+      model: DEFAULT_OLLAMA_CLOUD_MODEL,
+      host: DEFAULT_OLLAMA_CLOUD_HOST,
+    });
+  });
+
+  it('normalizes an Ollama host without the v1 suffix', () => {
+    expect(normalizeOllamaCloudHost('https://ollama.com')).toBe('https://ollama.com/v1');
+  });
+});
+
+describe('extractOllamaCloudModelIds', () => {
+  it('extracts model ids from the OpenAI-compatible models payload', () => {
+    expect(
+      extractOllamaCloudModelIds({
+        data: [{ id: 'gpt-oss:120b' }, { id: 'qwen3:32b' }, { id: 'gpt-oss:120b' }],
+      }),
+    ).toEqual(['gpt-oss:120b', 'qwen3:32b']);
+  });
+
+  it('extracts model names from the native ollama payload shape', () => {
+    expect(
+      extractOllamaCloudModelIds({
+        models: [{ name: 'llama3.3:70b' }, { name: 'qwen3:14b' }],
+      }),
+    ).toEqual(['llama3.3:70b', 'qwen3:14b']);
+  });
+
+  it('returns an empty list for unrecognized payloads', () => {
+    expect(extractOllamaCloudModelIds({ hello: 'world' })).toEqual([]);
+    expect(extractOllamaCloudModelIds(null)).toEqual([]);
+  });
+});
+
+describe('prioritizeOllamaCloudModels', () => {
+  it('puts the default model first when it is available', () => {
+    expect(prioritizeOllamaCloudModels(['qwen3:32b', 'gpt-oss:120b', 'llama3.3:70b'])).toEqual([
+      'gpt-oss:120b',
+      'llama3.3:70b',
+      'qwen3:32b',
+    ]);
+  });
+
+  it('keeps a sorted list when the default model is not available', () => {
+    expect(prioritizeOllamaCloudModels(['qwen3:32b', 'llama3.3:70b'])).toEqual([
+      'llama3.3:70b',
+      'qwen3:32b',
+    ]);
   });
 });
 

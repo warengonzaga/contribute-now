@@ -1,6 +1,7 @@
 import { LogEngine, LogMode } from '@wgtechlabs/log-engine';
 import pc from 'picocolors';
-import { readConfig, shouldShowTips, writeConfig } from './config.js';
+import { readConfig, shouldShowTips } from './config.js';
+import { advanceGuideRotation, getGuideRotationIndex } from './state.js';
 import { getVisibleCommandGuide } from './tips.js';
 
 export const PROJECT_DISPLAY_NAME = 'Contribute Now';
@@ -34,12 +35,13 @@ export function heading(msg: string) {
   console.log(`\n${pc.bold(msg)}`);
 }
 
-export function projectHeading(command: string, emoji?: string) {
+export async function projectHeading(command: string, emoji?: string, cwd = process.cwd()) {
   const prefix = emoji ? `${emoji} ` : '';
   console.log(`  ${pc.bold(pc.cyan(`${prefix}${command}`))}`);
 
-  const config = readConfig();
-  const rotationIndex = config?.guideRotation?.[normalizeGuideKey(command)] ?? 0;
+  const config = readConfig(cwd);
+  const rotationKey = normalizeGuideKey(command);
+  const rotationIndex = await getGuideRotationIndex(rotationKey, cwd);
   const visibleGuide = getVisibleCommandGuide(command, rotationIndex);
 
   if (visibleGuide) {
@@ -55,9 +57,7 @@ export function projectHeading(command: string, emoji?: string) {
   }
 
   if (config && visibleGuide.rotatableCount > 0) {
-    config.guideRotation = config.guideRotation ?? {};
-    config.guideRotation[visibleGuide.key] = (rotationIndex + 1) % visibleGuide.rotatableCount;
-    writeConfig(config);
+    await advanceGuideRotation(visibleGuide.key, visibleGuide.rotatableCount, cwd);
   }
 
   console.log();

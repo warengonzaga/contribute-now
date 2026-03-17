@@ -85,7 +85,7 @@ export default defineCommand({
 });
 
 async function installHook(): Promise<void> {
-  projectHeading('hook install', '🪝');
+  await projectHeading('hook install', '🪝');
 
   const config = readConfig();
   if (!config) {
@@ -128,7 +128,7 @@ async function installHook(): Promise<void> {
 }
 
 async function uninstallHook(): Promise<void> {
-  projectHeading('hook uninstall', '🪝');
+  await projectHeading('hook uninstall', '🪝');
 
   const hookPath = getHookPath();
 

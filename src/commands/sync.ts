@@ -72,7 +72,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading(`sync (${workflow}, ${role})`, '🔄');
+    await projectHeading(`sync (${workflow}, ${role})`, '🔄');
 
     const baseBranch = getBaseBranch(config);
     const syncSource = getSyncSource(config);

@@ -97,7 +97,22 @@ function parseConfigFile(path: string): ContributeConfig | null {
       );
       return null;
     }
-
+    if (
+      parsed.aiProvider !== undefined &&
+      (typeof parsed.aiProvider !== 'string' || !VALID_AI_PROVIDERS.includes(parsed.aiProvider))
+    ) {
+      console.error(
+        `Invalid aiProvider "${String(parsed.aiProvider)}" in ${path.endsWith(CONFIG_FILENAME) ? CONFIG_FILENAME : LOCAL_CONFIG_FILENAME}. Valid: ${VALID_AI_PROVIDERS.join(', ')}`,
+      );
+      return null;
+    }
+    if (
+      parsed.aiModel !== undefined &&
+      (typeof parsed.aiModel !== 'string' || !parsed.aiModel.trim())
+    ) {
+      console.error(`Invalid config (${path}): aiModel must be a non-empty string when set.`);
+      return null;
+    }
     if (!parsed.mainBranch.trim()) {
       console.error(`Invalid config (${path}): mainBranch must not be empty.`);
       return null;
@@ -122,14 +137,21 @@ function parseConfigFile(path: string): ContributeConfig | null {
       return null;
     }
 
+    const {
+      guideRotation: _guideRotation,
+      aiHost: _aiHost,
+      ...config
+    } = parsed as ContributeConfig & {
+      guideRotation?: Record<string, number>;
+      aiHost?: string;
+    };
+
     return {
-      ...(parsed as ContributeConfig),
+      ...config,
       aiEnabled: parsed.aiEnabled !== false,
+      aiProvider: parsed.aiProvider,
+      aiModel: parsed.aiModel?.trim() || undefined,
       showTips: parsed.showTips !== false,
-      guideRotation:
-        parsed.guideRotation && typeof parsed.guideRotation === 'object'
-          ? parsed.guideRotation
-          : {},
     };
   } catch {
     return null;
@@ -198,6 +220,7 @@ export function configExists(cwd = process.cwd()): boolean {
 const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
 const VALID_ROLES = ['maintainer', 'contributor'];
 const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
+const VALID_AI_PROVIDERS = ['copilot', 'ollama-cloud'];
 
 export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
   return config.aiEnabled !== false && !cliNoAI;
@@ -218,8 +241,9 @@ export function readConfig(cwd = process.cwd()): ContributeConfig | null {
 
 export function writeConfig(config: ContributeConfig, cwd = process.cwd()): void {
   const path = getConfigPath(cwd);
+  const { aiHost: _aiHost, ...storedConfig } = config as ContributeConfig & { aiHost?: string };
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
+  writeFileSync(path, `${JSON.stringify(storedConfig, null, 2)}\n`, 'utf-8');
 }
 
 export function isGitignored(cwd = process.cwd()): boolean {
@@ -262,6 +286,5 @@ export function getDefaultConfig(): ContributeConfig {
     commitConvention: 'clean-commit',
     aiEnabled: true,
     showTips: true,
-    guideRotation: {},
   };
 }

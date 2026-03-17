@@ -83,7 +83,7 @@ cn setup          # shortest — even shorter than git!
 
 ### `contrib setup`
 
-Interactive setup wizard. Configures your repo's workflow mode, commit convention, your role, and branch/remote names. Writes `.contributerc.json`.
+Interactive setup wizard. Configures your repo's workflow mode, commit convention, your role, branch/remote names, and AI provider settings. Writes local config to `.git/contribute-now/config.json` by default.
 
 ```bash
 contrib setup
@@ -93,13 +93,28 @@ Steps:
 1. Choose **workflow mode** — Clean Flow, GitHub Flow, or Git Flow
 2. Choose **commit convention** — Clean Commit, Conventional Commits, or None
 3. Choose whether **AI features** should be enabled for this repo
-4. Detect remotes and auto-detect your **role** (maintainer or contributor)
-5. Confirm branch and remote names
-6. Write `.contributerc.json`
+4. If using **Ollama Cloud**, pick from the available models returned by your API key, or enter one manually
+5. Detect remotes and auto-detect your **role** (maintainer or contributor)
+6. Confirm branch and remote names
+7. Write `.git/contribute-now/config.json` (or update `.contributerc.json` if that legacy file is still the active source)
 
-If you want to disable AI completely for a repo, run `contrib setup` and turn AI off, or set `"aiEnabled": false` in `.contributerc.json`. Per-command `--no-ai` flags still work as one-off overrides when AI is enabled globally.
+If you want to disable AI completely for a repo, run `contrib setup` and turn AI off, or set `"aiEnabled": false` in the active config file. Per-command `--no-ai` flags still work as one-off overrides when AI is enabled globally.
 
-If you want a cleaner output once you're familiar with the CLI, set `"showTips": false` in `.contributerc.json` to hide the beginner quick guides and loading tips.
+If you want a cleaner output once you're familiar with the CLI, set `"showTips": false` in the active config file to hide the beginner quick guides and loading tips.
+
+---
+
+### `contrib config`
+
+Inspect the active repo config or edit it without rerunning the full setup flow.
+
+```bash
+contrib config
+contrib config --json
+contrib config --edit
+```
+
+Use `--edit` to update workflow settings, branch names, commit convention, AI provider details, the stored Ollama Cloud API key, and to choose from the currently available Ollama Cloud models. Ollama Cloud uses the built-in default host and does not ask for a custom host URL.
 
 ---
 
@@ -212,7 +227,7 @@ contrib doctor --json   # machine-readable JSON output
 Checks include:
 - CLI version and runtime (Bun/Node)
 - git and GitHub CLI availability and authentication
-- `.contributerc.json` validity and `.gitignore` status
+- active repo config validity and storage location
 - Git repo state (uncommitted changes, lock files, shallow clone)
 - Fork and remote configuration
 - Workflow and branch setup
@@ -340,7 +355,7 @@ feat!: redesign authentication API
 
 ## Config File
 
-`contrib setup` writes `.contributerc.json` to your repo root:
+`contrib setup` writes `.git/contribute-now/config.json` by default. If a legacy `.contributerc.json` already exists, it remains the active source until you migrate or remove it:
 
 ```json
 {
@@ -355,7 +370,7 @@ feat!: redesign authentication API
 }
 ```
 
-> Add `.contributerc.json` to your `.gitignore` — it contains personal config and should not be committed.
+Use `contrib config --edit` to change these values later without rerunning the full setup flow. If you are still on the legacy `.contributerc.json`, keep that file ignored until you migrate away from it.
 
 ---
 

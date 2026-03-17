@@ -41,7 +41,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading('status', '📊');
+    await projectHeading('status', '📊');
 
     // Show workflow mode
     console.log(`  ${pc.dim('Workflow:')} ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);

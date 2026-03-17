@@ -1,5 +1,7 @@
 import { CopilotClient } from '@github/copilot-sdk';
-import type { CommitConvention } from '../types.js';
+import type { AIProvider, CommitConvention, ContributeConfig } from '../types.js';
+import { readConfig } from './config.js';
+import { getOllamaCloudApiKey, hasOllamaCloudApiKey } from './secrets.js';
 
 const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `Git commit message generator. Format: <type>[!][(<scope>)]: <description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
@@ -74,6 +76,102 @@ Rules: title concise present tense, describes the PR theme not individual commit
 }
 
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
+
+export const DEFAULT_OLLAMA_CLOUD_MODEL = 'gpt-oss:120b';
+export const DEFAULT_OLLAMA_CLOUD_HOST = 'https://ollama.com/v1';
+
+export interface ResolvedAIConfig {
+  provider: AIProvider;
+  providerLabel: string;
+  model?: string;
+  host?: string;
+}
+
+export function prioritizeOllamaCloudModels(
+  models: string[],
+  preferredModel = DEFAULT_OLLAMA_CLOUD_MODEL,
+): string[] {
+  const uniqueModels = [...new Set(models.map((model) => model.trim()).filter(Boolean))];
+  const sortedModels = [...uniqueModels].sort((left, right) => left.localeCompare(right));
+
+  return sortedModels.includes(preferredModel)
+    ? [preferredModel, ...sortedModels.filter((model) => model !== preferredModel)]
+    : sortedModels;
+}
+
+export function extractOllamaCloudModelIds(payload: unknown): string[] {
+  const records =
+    typeof payload === 'object' && payload !== null
+      ? Array.isArray((payload as { data?: unknown }).data)
+        ? (payload as { data: unknown[] }).data
+        : Array.isArray((payload as { models?: unknown }).models)
+          ? (payload as { models: unknown[] }).models
+          : []
+      : [];
+
+  return [...new Set(records.map(getOllamaCloudModelId).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+function getOllamaCloudModelId(record: unknown): string | null {
+  if (typeof record !== 'object' || record === null) {
+    return null;
+  }
+
+  const candidate =
+    typeof (record as { id?: unknown }).id === 'string'
+      ? (record as { id: string }).id
+      : typeof (record as { name?: unknown }).name === 'string'
+        ? (record as { name: string }).name
+        : null;
+
+  const normalized = candidate?.trim();
+  return normalized ? normalized : null;
+}
+
+export async function fetchOllamaCloudModels(apiKey: string, host?: string): Promise<string[]> {
+  const response = await fetch(`${normalizeOllamaCloudHost(host)}/models`, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Ollama Cloud authentication failed');
+    }
+
+    throw new Error(`Ollama Cloud model lookup failed (${response.status} ${response.statusText})`);
+  }
+
+  return extractOllamaCloudModelIds(await response.json());
+}
+
+export function normalizeOllamaCloudHost(host?: string): string {
+  const trimmed = (host?.trim() || DEFAULT_OLLAMA_CLOUD_HOST).replace(/\/+$/, '');
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
+}
+
+export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAIConfig {
+  const resolvedConfig = config ?? readConfig();
+  const provider = resolvedConfig?.aiProvider ?? 'copilot';
+
+  if (provider === 'ollama-cloud') {
+    return {
+      provider,
+      providerLabel: 'Ollama Cloud',
+      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OLLAMA_CLOUD_MODEL,
+      host: DEFAULT_OLLAMA_CLOUD_HOST,
+    };
+  }
+
+  return {
+    provider: 'copilot',
+    providerLabel: 'GitHub Copilot',
+  };
+}
 
 /** Suppress Node.js subprocess warnings once at init time. */
 function suppressSubprocessWarnings(): void {
@@ -341,6 +439,32 @@ export function createCompactDiff(
 }
 
 export async function checkCopilotAvailable(): Promise<string | null> {
+  const aiConfig = resolveAIConfig();
+  if (aiConfig.provider === 'ollama-cloud') {
+    if (!(await hasOllamaCloudApiKey())) {
+      return 'Ollama Cloud API key not found. Run `contrib setup` to save it.';
+    }
+
+    try {
+      const apiKey = await getOllamaCloudApiKey();
+      if (!apiKey) {
+        return 'Ollama Cloud API key not found. Run `contrib setup` to save it.';
+      }
+
+      await fetchOllamaCloudModels(apiKey, aiConfig.host);
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === 'Ollama Cloud authentication failed') {
+        return 'Ollama Cloud authentication failed. Update your saved API key with `contrib setup`.';
+      }
+      if (msg.startsWith('Ollama Cloud model lookup failed')) {
+        return msg.replace('model lookup', 'health check');
+      }
+      return `Could not reach Ollama Cloud API: ${msg}`;
+    }
+  }
+
   try {
     const client = await getManagedClient();
     try {
@@ -418,6 +542,73 @@ async function callCopilot(
   } finally {
     await session.destroy();
   }
+}
+
+async function callOllamaCloud(
+  systemMessage: string,
+  userMessage: string,
+  model?: string,
+  timeoutMs = COPILOT_TIMEOUT_MS,
+): Promise<string | null> {
+  const aiConfig = resolveAIConfig();
+  const apiKey = await getOllamaCloudApiKey();
+  if (!apiKey) {
+    throw new Error('Ollama Cloud API key is not configured');
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${aiConfig.host}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model?.trim() || aiConfig.model || DEFAULT_OLLAMA_CLOUD_MODEL,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage },
+        ],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Ollama Cloud authentication failed');
+      }
+      throw new Error(
+        `Ollama Cloud request failed (${response.status} ${response.statusText}): ${body.slice(0, 200)}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    };
+
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callAI(
+  systemMessage: string,
+  userMessage: string,
+  model?: string,
+  timeoutMs = COPILOT_TIMEOUT_MS,
+): Promise<string | null> {
+  const aiConfig = resolveAIConfig();
+  if (aiConfig.provider === 'ollama-cloud') {
+    return callOllamaCloud(systemMessage, userMessage, model, timeoutMs);
+  }
+
+  return callCopilot(systemMessage, userMessage, model, timeoutMs);
 }
 
 function getCommitSystemPrompt(convention: CommitConvention): string {
@@ -500,7 +691,7 @@ export async function generateCommitMessage(
         : diff.slice(0, 4000);
 
     const userMessage = `Generate a commit message for these staged changes:\n\nFiles (${stagedFiles.length}): ${stagedFiles.join(', ')}\n\nDiff:\n${diffContent}${multiFileHint}${squashHint}`;
-    const result = await callCopilot(
+    const result = await callAI(
       getCommitSystemPrompt(convention),
       userMessage,
       model,
@@ -520,7 +711,7 @@ export async function generatePRDescription(
 ): Promise<{ title: string; body: string } | null> {
   try {
     const userMessage = `Generate a PR description for these changes:\n\nCommits:\n${commits.join('\n')}\n\nDiff (truncated):\n${diff.slice(0, 4000)}`;
-    const result = await callCopilot(getPRDescriptionSystemPrompt(convention), userMessage, model);
+    const result = await callAI(getPRDescriptionSystemPrompt(convention), userMessage, model);
     if (!result) return null;
     const cleaned = extractJson(result);
     return JSON.parse(cleaned) as { title: string; body: string };
@@ -534,7 +725,7 @@ export async function suggestBranchName(
   model?: string,
 ): Promise<string | null> {
   try {
-    const result = await callCopilot(BRANCH_NAME_SYSTEM_PROMPT, description, model);
+    const result = await callAI(BRANCH_NAME_SYSTEM_PROMPT, description, model);
     const trimmed = result?.trim() ?? null;
     // Validate it looks like an actual branch name, not a conversational response
     if (trimmed && /^[a-z]+\/[a-z0-9-]+$/.test(trimmed)) {
@@ -552,7 +743,7 @@ export async function suggestConflictResolution(
 ): Promise<string | null> {
   try {
     const userMessage = `Help me resolve this merge conflict:\n\n${conflictDiff.slice(0, 4000)}`;
-    const result = await callCopilot(CONFLICT_RESOLUTION_SYSTEM_PROMPT, userMessage, model);
+    const result = await callAI(CONFLICT_RESOLUTION_SYSTEM_PROMPT, userMessage, model);
     return result?.trim() ?? null;
   } catch {
     return null;
@@ -648,7 +839,7 @@ export async function generateCommitGroups(
   let result: string | null = null;
   try {
     onProgress?.(`Analyzing ${files.length} files together before batching fallback...`);
-    result = await callCopilot(
+    result = await callAI(
       getGroupingSystemPrompt(convention),
       userMessage,
       model,
@@ -745,7 +936,7 @@ async function generateCommitGroupsInBatches(
     const userMessage = `Group these changed files into logical atomic commits:\n\nFiles:\n${batchFiles.join('\n')}\n\nDiffs:\n${batchDiffContent}\n\nNOTE: Processing batch ${batchNum}/${totalBatches} of a large changeset. Group only the files listed above.`;
 
     try {
-      const result = await callCopilot(
+      const result = await callAI(
         getGroupingSystemPrompt(convention),
         userMessage,
         model,
@@ -812,7 +1003,7 @@ export async function regenerateAllGroupMessages(
 
   const groupSummary = groups.map((g, i) => `Group ${i + 1}: [${g.files.join(', ')}]`).join('\n');
   const userMessage = `Regenerate ONLY the commit messages for these pre-defined file groups. Do NOT change the file groupings.\n\nGroups:\n${groupSummary}\n\nDiffs:\n${diffContent}`;
-  const result = await callCopilot(
+  const result = await callAI(
     getGroupingSystemPrompt(convention),
     userMessage,
     model,
@@ -850,7 +1041,7 @@ export async function regenerateGroupMessage(
     const diffContent = isLarge ? createCompactDiff(files, diffs) : diffs.slice(0, 4000);
 
     const userMessage = `Generate a single commit message for these files:\n\nFiles: ${files.join(', ')}\n\nDiff:\n${diffContent}`;
-    const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
+    const result = await callAI(getCommitSystemPrompt(convention), userMessage, model);
     return result ? sanitizeGeneratedCommitMessage(result) : null;
   } catch {
     return null;

@@ -39,7 +39,7 @@ describe('config utilities', () => {
     expect(cfg.commitConvention).toBe('clean-commit');
     expect(cfg.aiEnabled).toBe(true);
     expect(cfg.showTips).toBe(true);
-    expect(cfg.guideRotation).toEqual({});
+    expect('guideRotation' in cfg).toBe(false);
   });
 
   it('configExists returns false when no config', () => {
@@ -58,12 +58,57 @@ describe('config utilities', () => {
       commitConvention: 'clean-commit',
       aiEnabled: false,
       showTips: true,
-      guideRotation: {},
     };
     writeConfig(cfg, TEST_DIR);
     expect(configExists(TEST_DIR)).toBe(true);
     const read = readConfig(TEST_DIR);
     expect(read).toEqual(cfg);
+  });
+
+  it('writeConfig and readConfig preserve optional AI provider metadata', () => {
+    const cfg: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'ollama-cloud',
+      aiModel: 'gpt-oss:120b',
+      showTips: false,
+    };
+
+    writeConfig(cfg, TEST_DIR);
+
+    expect(readConfig(TEST_DIR)).toEqual(cfg);
+  });
+
+  it('readConfig ignores legacy aiHost metadata from older config files', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'ollama-cloud',
+      aiModel: 'gpt-oss:120b',
+      aiHost: 'https://ollama.com/v1',
+      showTips: true,
+    };
+
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg, null, 2));
+
+    expect(readConfig(TEST_DIR)).toEqual({
+      ...cfg,
+      aiHost: undefined,
+    });
   });
 
   it('writeConfig stores config in local git metadata when repo exists', () => {
@@ -80,7 +125,6 @@ describe('config utilities', () => {
       commitConvention: 'clean-commit',
       aiEnabled: true,
       showTips: true,
-      guideRotation: {},
     };
 
     writeConfig(cfg, TEST_DIR);
@@ -105,7 +149,6 @@ describe('config utilities', () => {
       commitConvention: 'clean-commit',
       aiEnabled: true,
       showTips: true,
-      guideRotation: {},
     };
 
     const localConfig: ContributeConfig = {
@@ -118,7 +161,6 @@ describe('config utilities', () => {
       commitConvention: 'clean-commit',
       aiEnabled: true,
       showTips: true,
-      guideRotation: {},
     };
 
     writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(legacyConfig, null, 2));
@@ -143,10 +185,7 @@ describe('config utilities', () => {
       JSON.stringify({ ...legacyConfig, workflow: 'github-flow' }, null, 2),
     );
 
-    const updatedConfig = {
-      ...legacyConfig,
-      guideRotation: { doctor: 1 },
-    };
+    const updatedConfig = { ...legacyConfig, showTips: false };
 
     writeConfig(updatedConfig, TEST_DIR);
 
@@ -219,7 +258,6 @@ describe('config utilities', () => {
       commitConvention: 'clean-commit',
       aiEnabled: true,
       showTips: true,
-      guideRotation: {},
     };
     writeConfig(cfg, TEST_DIR);
     const read = readConfig(TEST_DIR);
@@ -241,6 +279,33 @@ describe('config utilities', () => {
     writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
 
     expect(readConfig(TEST_DIR)?.aiEnabled).toBe(true);
+  });
+
+  it('readConfig ignores legacy guideRotation state from older config files', () => {
+    const cfg = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      guideRotation: { doctor: 1 },
+    };
+
+    writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
+
+    expect(readConfig(TEST_DIR)).toEqual({
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      showTips: true,
+    });
   });
 
   it('isAIEnabled honors config and cli overrides', () => {

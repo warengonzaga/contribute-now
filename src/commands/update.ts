@@ -85,7 +85,7 @@ export default defineCommand({
     }
 
     if (protectedBranches.includes(currentBranch)) {
-      projectHeading('update', '🔃');
+      await projectHeading('update', '🔃');
       warn(
         `You're on ${pc.bold(currentBranch)}, which is a protected branch. Updates (rebase) apply to feature branches.`,
       );
@@ -170,7 +170,7 @@ export default defineCommand({
       process.exit(1);
     }
 
-    projectHeading('update', '🔃');
+    await projectHeading('update', '🔃');
 
     // 3. Check if the branch's PR has already been merged (stale branch)
     const mergedPR = await getMergedPRForBranch(currentBranch);

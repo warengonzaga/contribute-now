@@ -3,6 +3,7 @@ import { defineCommand, runMain } from 'citty';
 import branch from './commands/branch.js';
 import clean from './commands/clean.js';
 import commit from './commands/commit.js';
+import config from './commands/config.js';
 import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
 import log from './commands/log.js';
@@ -41,6 +42,7 @@ const isVersion = process.argv.includes('--version') || process.argv.includes('-
 if (!isVersion) {
   const subCommands = [
     'setup',
+    'config',
     'sync',
     'start',
     'commit',
@@ -78,6 +80,7 @@ const main = defineCommand({
   },
   subCommands: {
     setup,
+    config,
     sync,
     start,
     commit,

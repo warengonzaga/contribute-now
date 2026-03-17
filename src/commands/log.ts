@@ -108,7 +108,7 @@ export default defineCommand({
     const overviewRemoteCount =
       requestedCount ?? (await getOverviewRemoteCommitCount(currentBranch, compareRef));
 
-    projectHeading('log', '📜');
+    await projectHeading('log', '📜');
 
     // Show mode context
     printModeHeader(mode, currentBranch, compareRef, usingFallback);

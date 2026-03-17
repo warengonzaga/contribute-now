@@ -63,7 +63,7 @@ export default defineCommand({
     const syncSource = getSyncSource(config);
     let branchName = args.name?.trim();
 
-    projectHeading('start', '🌿');
+    await projectHeading('start', '🌿');
 
     branchName = await promptForBranchName({
       initialValue: branchName,
