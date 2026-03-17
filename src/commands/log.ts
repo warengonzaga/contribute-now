@@ -4,12 +4,11 @@ import { readConfig } from '../utils/config.js';
 import {
   branchExists,
   getCurrentBranch,
+  getDivergence,
   getLocalCommitsEntries,
   getLocalCommitsGraph,
   getLogEntries,
   getLogGraph,
-  getRemoteOnlyCommitsEntries,
-  getRemoteOnlyCommitsGraph,
   getUpstreamRef,
   isGitRepo,
 } from '../utils/git.js';
@@ -17,7 +16,11 @@ import { error, projectHeading } from '../utils/logger.js';
 import { getBaseBranch, getProtectedBranches } from '../utils/workflow.js';
 
 /** Which slice of the log to display. */
-type LogMode = 'local' | 'remote' | 'full' | 'all';
+type LogMode = 'overview' | 'local' | 'remote' | 'full' | 'all';
+
+export function getDefaultOverviewRemoteCommitCount(hasLocalUnpushedCommits: boolean): number {
+  return hasLocalUnpushedCommits ? 10 : 20;
+}
 
 export default defineCommand({
   meta: {
@@ -39,7 +42,13 @@ export default defineCommand({
     remote: {
       type: 'boolean',
       alias: 'r',
-      description: 'Show only remote commits not yet pulled locally',
+      description: 'Show only the remote branch history',
+      default: false,
+    },
+    local: {
+      type: 'boolean',
+      alias: 'l',
+      description: 'Show only local unpushed commits',
       default: false,
     },
     full: {
@@ -67,13 +76,15 @@ export default defineCommand({
     }
 
     const config = readConfig();
-    const count = args.count ? Number.parseInt(args.count, 10) : 20;
+    const requestedCount = args.count ? Number.parseInt(args.count, 10) : null;
+    const localCount = requestedCount ?? 20;
     const showGraph = args.graph;
     const targetBranch = args.branch;
 
     // Determine the log mode
-    let mode: LogMode = 'local';
+    let mode: LogMode = 'overview';
     if (args.all) mode = 'all';
+    else if (args.local) mode = 'local';
     else if (args.remote) mode = 'remote';
     else if (args.full || targetBranch) mode = 'full';
 
@@ -94,45 +105,89 @@ export default defineCommand({
       }
     }
 
+    const overviewRemoteCount =
+      requestedCount ?? (await getOverviewRemoteCommitCount(currentBranch, compareRef));
+
     projectHeading('log', '📜');
 
     // Show mode context
     printModeHeader(mode, currentBranch, compareRef, usingFallback);
 
-    if (mode === 'local' || mode === 'remote') {
+    if (mode === 'overview') {
+      await renderOverviewLog({
+        localCount,
+        remoteCount: overviewRemoteCount,
+        compareRef,
+        showGraph,
+        protectedBranches,
+        currentBranch,
+        usingFallback,
+      });
+    } else if (mode === 'local') {
       if (!compareRef) {
         console.log();
+        console.log(pc.yellow('  ⚠ Could not determine a comparison branch.'));
+        console.log(pc.dim('    No upstream tracking set and no remote base branch found.'));
         console.log(
-          pc.yellow('  ⚠ Could not determine a comparison branch.'),
-        );
-        console.log(
-          pc.dim('    No upstream tracking set and no remote base branch found.'),
-        );
-        console.log(
-          pc.dim(`    Use ${pc.bold('contrib log --full')} to see the full commit history instead.`),
+          pc.dim(
+            `    Use ${pc.bold('contrib log --full')} to see the full commit history instead.`,
+          ),
         );
         console.log();
-        printGuidance();
         return;
       }
 
-      const hasCommits = await renderScopedLog({ mode, count, upstream: compareRef, showGraph, protectedBranches, currentBranch });
+      const hasCommits = await renderScopedLog({
+        mode,
+        count: localCount,
+        upstream: compareRef,
+        showGraph,
+        protectedBranches,
+        currentBranch,
+      });
       if (!hasCommits) {
-        printGuidance();
+        return;
+      }
+    } else if (mode === 'remote') {
+      const remoteBranch = compareRef ?? targetBranch;
+      if (!remoteBranch) {
+        console.log();
+        console.log(pc.yellow('  ⚠ Could not determine a remote branch to display.'));
+        console.log(
+          pc.dim('    Set an upstream tracking branch or configure your base branch first.'),
+        );
+        console.log();
+        return;
+      }
+
+      const hasCommits = await renderFullLog({
+        count: localCount,
+        all: false,
+        showGraph,
+        targetBranch: remoteBranch,
+        protectedBranches,
+        currentBranch,
+      });
+      if (!hasCommits) {
         return;
       }
     } else {
       // 'full' or 'all' — use existing full log behavior
-      const hasCommits = await renderFullLog({ count, all: mode === 'all', showGraph, targetBranch, protectedBranches, currentBranch });
+      const hasCommits = await renderFullLog({
+        count: localCount,
+        all: mode === 'all',
+        showGraph,
+        targetBranch,
+        protectedBranches,
+        currentBranch,
+      });
       if (!hasCommits) {
-        printGuidance();
         return;
       }
     }
 
     // Footer
-    printFooter(mode, count, targetBranch);
-    printGuidance();
+    printFooter(mode, localCount, overviewRemoteCount, targetBranch);
   },
 });
 
@@ -143,9 +198,7 @@ export default defineCommand({
  * branch has no upstream tracking set (not pushed yet).
  * Returns e.g. "origin/dev" or "origin/main".
  */
-async function resolveBaseBranchRef(
-  config: ReturnType<typeof readConfig>,
-): Promise<string | null> {
+async function resolveBaseBranchRef(config: ReturnType<typeof readConfig>): Promise<string | null> {
   if (!config) {
     // No config — try common defaults
     for (const candidate of ['origin/main', 'origin/master']) {
@@ -166,6 +219,18 @@ async function resolveBaseBranchRef(
   return null;
 }
 
+async function getOverviewRemoteCommitCount(
+  currentBranch: string | null,
+  compareRef: string | null,
+): Promise<number> {
+  if (!currentBranch || !compareRef) {
+    return getDefaultOverviewRemoteCommitCount(false);
+  }
+
+  const divergence = await getDivergence(currentBranch, compareRef);
+  return getDefaultOverviewRemoteCommitCount(divergence.ahead > 0);
+}
+
 // ── Rendering helpers ─────────────────────────────────────────────────
 
 function printModeHeader(
@@ -175,12 +240,24 @@ function printModeHeader(
   usingFallback = false,
 ): void {
   const branch = currentBranch ?? 'HEAD';
-  const fallbackNote = usingFallback ? pc.yellow(' (no upstream — comparing against base branch)') : '';
-  console.log();
+  const fallbackNote = usingFallback
+    ? pc.yellow(' (no upstream — comparing against base branch)')
+    : '';
   switch (mode) {
+    case 'overview':
+      console.log(
+        pc.dim(
+          `  mode: ${pc.bold('overview')} — local unpushed commits and remote branch history for ${pc.bold(branch)}`,
+        ) + fallbackNote,
+      );
+      if (compareRef) {
+        console.log(pc.dim(`  remote source: ${pc.bold(compareRef)}`));
+      }
+      break;
     case 'local':
       console.log(
-        pc.dim(`  mode: ${pc.bold('local')} — unpushed commits on ${pc.bold(branch)}`) + fallbackNote,
+        pc.dim(`  mode: ${pc.bold('local')} — unpushed commits on ${pc.bold(branch)}`) +
+          fallbackNote,
       );
       if (compareRef) {
         console.log(pc.dim(`  comparing: ${pc.bold(compareRef)} ➜ ${pc.bold('HEAD')}`));
@@ -188,10 +265,12 @@ function printModeHeader(
       break;
     case 'remote':
       console.log(
-        pc.dim(`  mode: ${pc.bold('remote')} — commits on remote not yet pulled into ${pc.bold(branch)}`) + fallbackNote,
+        pc.dim(
+          `  mode: ${pc.bold('remote')} — remote branch history relevant to ${pc.bold(branch)}`,
+        ) + fallbackNote,
       );
       if (compareRef) {
-        console.log(pc.dim(`  comparing: ${pc.bold('HEAD')} ➜ ${pc.bold(compareRef)}`));
+        console.log(pc.dim(`  branch: ${pc.bold(compareRef)}`));
       }
       break;
     case 'full':
@@ -200,28 +279,25 @@ function printModeHeader(
       );
       break;
     case 'all':
-      console.log(
-        pc.dim(`  mode: ${pc.bold('all')} — commits across all branches`),
-      );
+      console.log(pc.dim(`  mode: ${pc.bold('all')} — commits across all branches`));
       break;
   }
 }
 
 async function renderScopedLog(options: {
-  mode: 'local' | 'remote';
+  mode: 'local';
   count: number;
   upstream: string;
   showGraph: boolean;
   protectedBranches: string[];
   currentBranch: string | null;
 }): Promise<boolean> {
-  const { mode, count, upstream, showGraph, protectedBranches, currentBranch } = options;
+  const { count, upstream, showGraph, protectedBranches, currentBranch } = options;
 
   if (showGraph) {
-    const graphFn = mode === 'local' ? getLocalCommitsGraph : getRemoteOnlyCommitsGraph;
-    const lines = await graphFn({ count, upstream });
+    const lines = await getLocalCommitsGraph({ count, upstream });
     if (lines.length === 0) {
-      printEmptyState(mode);
+      printEmptyState('local');
       return false;
     }
     console.log();
@@ -229,10 +305,9 @@ async function renderScopedLog(options: {
       console.log(`  ${colorizeGraphLine(line, protectedBranches, currentBranch)}`);
     }
   } else {
-    const entryFn = mode === 'local' ? getLocalCommitsEntries : getRemoteOnlyCommitsEntries;
-    const entries = await entryFn({ count, upstream });
+    const entries = await getLocalCommitsEntries({ count, upstream });
     if (entries.length === 0) {
-      printEmptyState(mode);
+      printEmptyState('local');
       return false;
     }
     console.log();
@@ -248,10 +323,77 @@ async function renderScopedLog(options: {
   return true;
 }
 
+async function renderOverviewLog(options: {
+  localCount: number;
+  remoteCount: number;
+  compareRef: string | null;
+  showGraph: boolean;
+  protectedBranches: string[];
+  currentBranch: string | null;
+  usingFallback: boolean;
+}): Promise<void> {
+  const {
+    localCount,
+    remoteCount,
+    compareRef,
+    showGraph,
+    protectedBranches,
+    currentBranch,
+    usingFallback,
+  } = options;
+
+  console.log();
+  console.log(pc.bold(pc.cyan('  Local Unpushed Commits')));
+
+  if (!compareRef) {
+    console.log(pc.dim('  No comparison branch detected for local commit status.'));
+    console.log(
+      pc.dim(
+        '  Set an upstream tracking branch or run cn log --full to inspect the current branch history.',
+      ),
+    );
+  } else {
+    await renderScopedLog({
+      mode: 'local',
+      count: localCount,
+      upstream: compareRef,
+      showGraph,
+      protectedBranches,
+      currentBranch,
+    });
+  }
+
+  console.log();
+  console.log(pc.bold(pc.cyan('  Remote Branch History')));
+
+  if (!compareRef) {
+    console.log(pc.dim('  No remote branch detected.'));
+    if (usingFallback) {
+      console.log(
+        pc.dim('  Configure your base branch or upstream tracking to enable the split view.'),
+      );
+    }
+    return;
+  }
+
+  const hasRemoteHistory = await renderFullLog({
+    count: remoteCount,
+    all: false,
+    showGraph,
+    targetBranch: compareRef,
+    protectedBranches,
+    currentBranch,
+  });
+
+  if (!hasRemoteHistory) {
+    console.log(pc.dim('  No remote history found for the selected branch.'));
+  }
+}
+
 function printEmptyState(mode: 'local' | 'remote'): void {
   console.log();
   if (mode === 'local') {
-    console.log(pc.dim('  No local unpushed commits — you\'re up to date with remote!'));
+    console.log(pc.dim("  No local unpushed commits — you're up to date with remote!"));
   } else {
     console.log(pc.dim('  No remote-only commits — your local branch is up to date!'));
   }
@@ -299,39 +441,34 @@ async function renderFullLog(options: {
   return true;
 }
 
-function printFooter(mode: LogMode, count: number, targetBranch?: string): void {
+function printFooter(
+  mode: LogMode,
+  count: number,
+  overviewRemoteCount: number,
+  targetBranch?: string,
+): void {
   console.log();
   switch (mode) {
+    case 'overview':
+      console.log(
+        pc.dim(`  Showing up to ${count} local commits and ${overviewRemoteCount} remote commits`),
+      );
+      break;
     case 'local':
       console.log(pc.dim(`  Showing up to ${count} unpushed commits`));
       break;
     case 'remote':
-      console.log(pc.dim(`  Showing up to ${count} remote-only commits`));
+      console.log(pc.dim(`  Showing ${count} most recent commits from the remote branch`));
       break;
     case 'full':
       console.log(
-        pc.dim(
-          `  Showing ${count} most recent commits${targetBranch ? ` (${targetBranch})` : ''}`,
-        ),
+        pc.dim(`  Showing ${count} most recent commits${targetBranch ? ` (${targetBranch})` : ''}`),
       );
       break;
     case 'all':
       console.log(pc.dim(`  Showing ${count} most recent commits (all branches)`));
       break;
   }
-}
-
-function printGuidance(): void {
-  console.log();
-  console.log(pc.dim('  ─── quick guide ───'));
-  console.log(pc.dim(`  ${pc.bold('contrib log')}            local unpushed commits (default)`));
-  console.log(pc.dim(`  ${pc.bold('contrib log --remote')}   commits on remote not yet pulled`));
-  console.log(pc.dim(`  ${pc.bold('contrib log --full')}     full history for the current branch`));
-  console.log(pc.dim(`  ${pc.bold('contrib log --all')}      commits across all branches`));
-  console.log(pc.dim(`  ${pc.bold('contrib log -n 50')}      change the commit limit (default: 20)`));
-  console.log(pc.dim(`  ${pc.bold('contrib log -b dev')}     view log for a specific branch`));
-  console.log(pc.dim(`  ${pc.bold('contrib log --no-graph')} flat list without graph lines`));
-  console.log();
 }
 
 /**

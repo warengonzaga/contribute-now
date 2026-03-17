@@ -99,7 +99,10 @@ async function handleCurrentBranchDeletion(
         // Abort the conflicting rebase so the repo isn't left in a broken state
         await rebaseAbort();
         warn('Rebase had conflicts — aborted to keep the repo in a clean state.');
-        info(`Your work is saved on ${pc.bold(newBranchName)}. After cleanup, rebase manually:`, '');
+        info(
+          `Your work is saved on ${pc.bold(newBranchName)}. After cleanup, rebase manually:`,
+          '',
+        );
         info(`  ${pc.bold(`git checkout ${newBranchName} && git rebase ${syncSource.ref}`)}`, '');
       } else {
         success(`Rebased ${pc.bold(newBranchName)} onto ${pc.bold(syncSource.ref)}.`);
@@ -156,7 +159,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 

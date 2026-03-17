@@ -2,7 +2,13 @@ import { execFile as execFileCb } from 'node:child_process';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import pkg from '../../package.json';
-import { configExists, isGitignored, readConfig } from '../utils/config.js';
+import {
+  configExists,
+  getConfigLocationLabel,
+  getConfigSource,
+  isGitignored,
+  readConfig,
+} from '../utils/config.js';
 import { checkGhAuth, checkGhInstalled } from '../utils/gh.js';
 import {
   getCurrentBranch,
@@ -158,20 +164,25 @@ async function configSection(): Promise<SectionReport> {
 
   if (!exists) {
     checks.push({
-      label: '.contributerc.json not found',
+      label: 'Repo config not found',
       ok: false,
-      detail: 'run `contrib setup` to create it',
+      detail: 'run `contrib setup` to create local config for this clone',
     });
     return { title: 'Config', checks };
   }
 
   const config = readConfig();
   if (!config) {
-    checks.push({ label: '.contributerc.json found but invalid', ok: false });
+    checks.push({ label: 'Repo config found but invalid', ok: false });
     return { title: 'Config', checks };
   }
 
-  checks.push({ label: '.contributerc.json found and valid', ok: true });
+  const configSource = getConfigSource();
+  checks.push({
+    label: `${configSource === 'local' ? 'Local Git config' : 'Legacy repo config'} found and valid`,
+    ok: true,
+    detail: getConfigLocationLabel(),
+  });
 
   // Workflow & role
   const desc = WORKFLOW_DESCRIPTIONS[config.workflow] ?? config.workflow;
@@ -191,13 +202,21 @@ async function configSection(): Promise<SectionReport> {
   }
 
   // .gitignore check
-  const ignored = isGitignored();
-  checks.push({
-    label: ignored ? '.contributerc.json in .gitignore' : '.contributerc.json NOT in .gitignore',
-    ok: true,
-    warning: !ignored,
-    detail: ignored ? undefined : 'consider adding it to .gitignore',
-  });
+  if (configSource === 'legacy') {
+    const ignored = isGitignored();
+    checks.push({
+      label: ignored ? '.contributerc.json in .gitignore' : '.contributerc.json NOT in .gitignore',
+      ok: true,
+      warning: !ignored,
+      detail: ignored ? undefined : 'consider adding it to .gitignore',
+    });
+  } else {
+    checks.push({
+      label: 'Config stored in local Git metadata',
+      ok: true,
+      detail: 'does not modify tracked files or require .gitignore changes',
+    });
+  }
 
   return { title: 'Config', checks };
 }

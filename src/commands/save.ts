@@ -1,10 +1,10 @@
+import { execFile as execFileCb } from 'node:child_process';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
+import type { GitResult } from '../types.js';
 import { selectPrompt } from '../utils/confirm.js';
 import { getCurrentBranch, isGitRepo } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
-import type { GitResult } from '../types.js';
-import { execFile as execFileCb } from 'node:child_process';
 
 function gitRun(args: string[]): Promise<GitResult> {
   return new Promise((resolve) => {

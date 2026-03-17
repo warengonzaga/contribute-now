@@ -3,10 +3,11 @@ import pc from 'picocolors';
 import type { CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
 import {
   configExists,
-  ensureGitignored,
+  getConfigLocationLabel,
   getDefaultConfig,
   isAIEnabled,
   readConfig,
+  shouldShowTips,
   writeConfig,
 } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, selectPrompt } from '../utils/confirm.js';
@@ -35,7 +36,6 @@ export interface ExistingConfigGateOptions {
   existingConfig: ContributeConfig | null;
   hasConfigFile: boolean;
   confirm: (message: string) => Promise<boolean>;
-  ensureIgnored: () => boolean;
   onInfo: (message: string) => void;
   onWarn: (message: string) => void;
   onSuccess: (message: string) => void;
@@ -45,26 +45,14 @@ export interface ExistingConfigGateOptions {
 export async function shouldContinueSetupWithExistingConfig(
   options: ExistingConfigGateOptions,
 ): Promise<boolean> {
-  const {
-    existingConfig,
-    hasConfigFile,
-    confirm,
-    ensureIgnored,
-    onInfo,
-    onWarn,
-    onSuccess,
-    summary,
-  } = options;
+  const { existingConfig, hasConfigFile, confirm, onInfo, onWarn, onSuccess, summary } = options;
 
   if (existingConfig) {
-    onInfo('Existing .contributerc.json detected:');
+    onInfo('Existing repo config detected:');
     summary(existingConfig);
 
     const shouldContinue = await confirm('Continue setup and overwrite existing config?');
     if (!shouldContinue) {
-      if (ensureIgnored()) {
-        onInfo('Added .contributerc.json to .gitignore to avoid committing personal config.');
-      }
       onSuccess('Keeping existing setup.');
       return false;
     }
@@ -73,12 +61,9 @@ export async function shouldContinueSetupWithExistingConfig(
   }
 
   if (hasConfigFile) {
-    onWarn('Found .contributerc.json but it appears invalid.');
+    onWarn('Found an existing repo config but it appears invalid.');
     const shouldContinue = await confirm('Continue setup and overwrite invalid config?');
     if (!shouldContinue) {
-      if (ensureIgnored()) {
-        onInfo('Added .contributerc.json to .gitignore to avoid committing personal config.');
-      }
       onInfo('Keeping existing file. Run setup again when ready to repair it.');
       return false;
     }
@@ -90,7 +75,7 @@ export async function shouldContinueSetupWithExistingConfig(
 export default defineCommand({
   meta: {
     name: 'setup',
-    description: 'Initialize contribute-now config for this repo (.contributerc.json)',
+    description: 'Initialize contribute-now config for this repo using local Git storage',
   },
   async run() {
     // 1. Verify inside a git repo
@@ -106,7 +91,6 @@ export default defineCommand({
       existingConfig,
       hasConfigFile: configExists(),
       confirm: confirmPrompt,
-      ensureIgnored: ensureGitignored,
       onInfo: info,
       onWarn: warn,
       onSuccess: success,
@@ -145,6 +129,10 @@ export default defineCommand({
 
     const enableAI = await confirmPrompt(
       'Enable AI-assisted features like commit messages, branch naming, PR text, and conflict guidance?',
+    );
+
+    const showTips = await confirmPrompt(
+      'Show beginner quick guides and loading tips in command output?',
     );
 
     // 3. Detect remotes
@@ -292,10 +280,12 @@ export default defineCommand({
       branchPrefixes: defaultConfig.branchPrefixes,
       commitConvention,
       aiEnabled: enableAI,
+      showTips,
     };
 
     writeConfig(config);
-    success(`Config written to .contributerc.json`);
+    success(`Config written to ${pc.bold(getConfigLocationLabel())}`);
+    info('This setup is stored locally for this clone and does not modify tracked files.', '');
 
     // Verify configured branches exist on their remotes
     const syncRemote = config.role === 'contributor' ? config.upstream : config.origin;
@@ -314,16 +304,11 @@ export default defineCommand({
         warn('Config was saved — verify the branch name and re-run setup if needed.');
       }
     }
-
-    // 7. Ensure config file is ignored
-    if (ensureGitignored()) {
-      info('Added .contributerc.json to .gitignore to avoid committing personal config.');
-    }
-
     console.log();
     info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
     info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
     info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
+    info(`Guides: ${pc.bold(shouldShowTips(config) ? 'shown' : 'hidden')}`);
     info(`Role: ${pc.bold(config.role)}`);
     if (config.devBranch) {
       info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
@@ -340,6 +325,7 @@ function logConfigSummary(config: ContributeConfig): void {
   info(`Workflow: ${pc.bold(WORKFLOW_DESCRIPTIONS[config.workflow])}`);
   info(`Convention: ${pc.bold(CONVENTION_DESCRIPTIONS[config.commitConvention])}`);
   info(`AI: ${pc.bold(isAIEnabled(config) ? 'enabled' : 'disabled')}`);
+  info(`Guides: ${pc.bold(shouldShowTips(config) ? 'shown' : 'hidden')}`);
   info(`Role: ${pc.bold(config.role)}`);
   if (config.devBranch) {
     info(`Main: ${pc.bold(config.mainBranch)} | Dev: ${pc.bold(config.devBranch)}`);
