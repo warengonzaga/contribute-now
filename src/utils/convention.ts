@@ -34,13 +34,19 @@ export const CONVENTION_FORMAT_HINTS: Record<Exclude<CommitConvention, 'none'>, 
     'Format: <type>[!][(<scope>)]: <description>',
     'Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert',
     'Examples: feat: add login page | fix(auth): resolve token expiry | docs: update README',
+    'Do not use backticks or markdown formatting in the message.',
   ],
   'clean-commit': [
     'Format: <emoji> <type>[!][(<scope>)]: <description>',
     'Types: 📦 new | 🔧 update | 🗑️ remove | 🔒 security | ⚙️ setup | ☕ chore | 🧪 test | 📖 docs | 🚀 release',
     'Examples: 📦 new: user auth | 🔧 update (api): improve errors | ⚙️ setup (ci): add workflow',
+    'Do not use backticks or markdown formatting in the message.',
   ],
 };
+
+export function hasUnsupportedCommitMessageChars(message: string): boolean {
+  return message.includes('`');
+}
 
 /**
  * Validate a commit message against the given convention.
@@ -48,6 +54,7 @@ export const CONVENTION_FORMAT_HINTS: Record<Exclude<CommitConvention, 'none'>, 
  */
 export function validateCommitMessage(message: string, convention: CommitConvention): boolean {
   if (convention === 'none') return true;
+  if (hasUnsupportedCommitMessageChars(message)) return false;
   if (convention === 'clean-commit') return CLEAN_COMMIT_PATTERN.test(message);
   if (convention === 'conventional') return CONVENTIONAL_COMMIT_PATTERN.test(message);
   return true;
@@ -60,6 +67,7 @@ export function getValidationError(convention: CommitConvention): string[] {
   if (convention === 'none') return [];
   return [
     `Commit message does not follow ${CONVENTION_LABELS[convention]} format.`,
+    'Do not use backticks or markdown formatting in commit messages.',
     ...CONVENTION_FORMAT_HINTS[convention],
   ];
 }

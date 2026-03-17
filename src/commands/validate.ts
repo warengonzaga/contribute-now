@@ -1,4 +1,5 @@
 import { defineCommand } from 'citty';
+import { readFileSync } from 'node:fs';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
 import {
@@ -17,7 +18,11 @@ export default defineCommand({
     message: {
       type: 'positional',
       description: 'The commit message to validate',
-      required: true,
+      required: false,
+    },
+    file: {
+      type: 'string',
+      description: 'Path to a commit message file; only the first line is validated',
     },
   },
   async run({ args }) {
@@ -33,7 +38,15 @@ export default defineCommand({
       process.exit(0);
     }
 
-    const message = args.message;
+    const message = args.file
+      ? readFileSync(args.file, 'utf-8').split(/\r?\n/, 1)[0] ?? ''
+      : args.message;
+
+    if (!message) {
+      error('No commit message provided. Pass a message or use --file <path>.');
+      process.exit(1);
+    }
+
     if (validateCommitMessage(message, convention)) {
       success(`Valid ${CONVENTION_LABELS[convention]} message.`);
       process.exit(0);

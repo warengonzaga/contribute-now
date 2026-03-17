@@ -3,6 +3,7 @@ import {
   CONVENTION_FORMAT_HINTS,
   CONVENTION_LABELS,
   getValidationError,
+  hasUnsupportedCommitMessageChars,
   validateCommitMessage,
 } from '../../src/utils/convention';
 
@@ -39,6 +40,9 @@ describe('convention validator', () => {
       expect(validateCommitMessage('feat:', 'conventional')).toBe(false);
       expect(validateCommitMessage('feat:missing space', 'conventional')).toBe(false);
       expect(validateCommitMessage('unknown: invalid type', 'conventional')).toBe(false);
+      expect(validateCommitMessage('feat: update `example.json` parsing', 'conventional')).toBe(
+        false,
+      );
     });
 
     test('rejects messages over 72 chars', () => {
@@ -76,6 +80,9 @@ describe('convention validator', () => {
       expect(validateCommitMessage('📦 new add feature', 'clean-commit')).toBe(false);
       expect(validateCommitMessage('📦 unknown: bad type', 'clean-commit')).toBe(false);
       expect(validateCommitMessage('new: missing emoji', 'clean-commit')).toBe(false);
+      expect(
+        validateCommitMessage('🔧 update: improve `formatConfig` handling', 'clean-commit'),
+      ).toBe(false);
     });
   });
 
@@ -115,6 +122,11 @@ describe('convention validator', () => {
     test('enforced conventions have format hints', () => {
       expect(CONVENTION_FORMAT_HINTS.conventional.length).toBeGreaterThan(0);
       expect(CONVENTION_FORMAT_HINTS['clean-commit'].length).toBeGreaterThan(0);
+    });
+
+    test('flags unsupported backticks in commit messages', () => {
+      expect(hasUnsupportedCommitMessageChars('feat: update `example.json` parsing')).toBe(true);
+      expect(hasUnsupportedCommitMessageChars('feat: update example.json parsing')).toBe(false);
     });
   });
 });

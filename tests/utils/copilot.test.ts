@@ -5,6 +5,7 @@ import {
   extractDiffStats,
   normalizeCommitGroups,
   parseDiffByFile,
+  sanitizeGeneratedCommitMessage,
 } from '../../src/utils/copilot.js';
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -251,5 +252,19 @@ describe('normalizeCommitGroups', () => {
     expect(result.unknownFiles).toEqual([]);
     expect(result.duplicateFiles).toEqual([]);
     expect(result.unassignedFiles).toEqual([]);
+  });
+});
+
+describe('sanitizeGeneratedCommitMessage', () => {
+  it('removes backticks from generated commit messages', () => {
+    expect(sanitizeGeneratedCommitMessage('feat: update `example.json` loading')).toBe(
+      'feat: update example.json loading',
+    );
+  });
+
+  it('collapses repeated whitespace after sanitizing', () => {
+    expect(sanitizeGeneratedCommitMessage('🔧  update:  improve   `formatConfig` parsing')).toBe(
+      '🔧 update: improve formatConfig parsing',
+    );
   });
 });

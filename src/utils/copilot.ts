@@ -3,13 +3,13 @@ import type { CommitConvention } from '../types.js';
 
 const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `Git commit message generator. Format: <type>[!][(<scope>)]: <description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-Rules: breaking (!) only for feat/fix/refactor/perf; imperative mood; max 72 chars; lowercase start; scope optional camelCase/kebab-case. Return ONLY the message line.
+Rules: breaking (!) only for feat/fix/refactor/perf; imperative mood; max 72 chars; lowercase start; scope optional camelCase/kebab-case. Do NOT use backticks, quotes, or markdown formatting around filenames, functions, or identifiers. Return ONLY the message line.
 Examples: feat: add user auth | fix(auth): resolve token expiry | feat!: redesign auth API`;
 
 const CLEAN_COMMIT_SYSTEM_PROMPT = `Git commit message generator. EXACT format: <emoji> <type>[!][ (<scope>)]: <description>
 Spacing: EMOJI SPACE TYPE [SPACE OPENPAREN SCOPE CLOSEPAREN] COLON SPACE DESCRIPTION
 Types: 📦 new, 🔧 update, 🗑️ remove, 🔒 security, ⚙️ setup, ☕ chore, 🧪 test, 📖 docs, 🚀 release
-Rules: breaking (!) only for new/update/remove/security; imperative mood; max 72 chars; lowercase start; scope optional. Return ONLY the message line.
+Rules: breaking (!) only for new/update/remove/security; imperative mood; max 72 chars; lowercase start; scope optional. Do NOT use backticks, quotes, or markdown formatting around filenames, functions, or identifiers. Return ONLY the message line.
 Correct: 📦 new: add user auth | 🔧 update (api): improve error handling | ⚙️ setup (ci): configure github actions
 WRONG: ⚙️setup(ci): ... | 🔧 update(api): ... ← always space before scope parenthesis`;
 
@@ -39,6 +39,7 @@ Rules:
 - Each group should represent ONE logical change
 - Every file must appear in exactly one group
 - Commit messages must follow the convention, be concise, imperative, max 72 chars
+- Do not use backticks, quotes, or markdown formatting in commit messages
 - Order groups so foundational changes come first (types, utils) and consumers come after
 - Return ONLY the JSON array, nothing else`;
 }
@@ -341,6 +342,10 @@ function extractJson(raw: string): string {
   return text;
 }
 
+export function sanitizeGeneratedCommitMessage(message: string): string {
+  return message.replace(/`+/g, '').replace(/\s+/g, ' ').trim();
+}
+
 export async function generateCommitMessage(
   diff: string,
   stagedFiles: string[],
@@ -370,7 +375,7 @@ export async function generateCommitMessage(
       model,
       isLarge ? COPILOT_LONG_TIMEOUT_MS : COPILOT_TIMEOUT_MS,
     );
-    return result?.trim() ?? null;
+    return result ? sanitizeGeneratedCommitMessage(result) : null;
   } catch {
     return null;
   }
@@ -527,7 +532,10 @@ export async function generateCommitGroups(
       throw new Error('AI returned groups with invalid structure (missing files or message)');
     }
   }
-  return groups;
+  return groups.map((group) => ({
+    ...group,
+    message: sanitizeGeneratedCommitMessage(group.message),
+  }));
 }
 
 /**
@@ -584,7 +592,11 @@ async function generateCommitGroupsInBatches(
             const batchFileSet = new Set(batchFiles);
             const filteredFiles = group.files.filter((f) => batchFileSet.has(f));
             if (filteredFiles.length > 0) {
-              allGroups.push({ ...group, files: filteredFiles });
+              allGroups.push({
+                ...group,
+                files: filteredFiles,
+                message: sanitizeGeneratedCommitMessage(group.message),
+              });
             }
           }
         }
@@ -647,7 +659,10 @@ export async function regenerateAllGroupMessages(
     // Preserve original file groupings, only take new messages
     return groups.map((g, i) => ({
       files: g.files,
-      message: typeof parsed[i]?.message === 'string' ? parsed[i].message : g.message,
+      message:
+        typeof parsed[i]?.message === 'string'
+          ? sanitizeGeneratedCommitMessage(parsed[i].message)
+          : g.message,
     }));
   } catch {
     return groups;
@@ -669,7 +684,7 @@ export async function regenerateGroupMessage(
 
     const userMessage = `Generate a single commit message for these files:\n\nFiles: ${files.join(', ')}\n\nDiff:\n${diffContent}`;
     const result = await callCopilot(getCommitSystemPrompt(convention), userMessage, model);
-    return result?.trim() ?? null;
+    return result ? sanitizeGeneratedCommitMessage(result) : null;
   } catch {
     return null;
   }
