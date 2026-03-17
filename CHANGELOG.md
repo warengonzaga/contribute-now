@@ -19,6 +19,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.0] - 2026-03-17
+
+### Added
+
+- add configuration management with state and secrets
+- add branch utility and update branch prompt
+- add tips utility with per-command quick guides
+- add announcements utility with condition-based filtering
+- add AI config toggle and shared branch prompt utility
+- add `--pr` and `--local` flags to skip mode prompt
+
+### Changed
+
+- extend config parsing utility
+- improve update command logic
+- add legacy config detection support
+- skip empty groups gracefully on group commit
+- extract formatSpinnerTip and slow default tip interval
+- replace clearBlock with incremental renderNextState
+- display copilot and config status in banner
+- expand copilot integration and batch config
+- extend config read and write logic
+- add new config type fields
+- add loading tips to spinners and refactor group commit helpers
+- normalize config-missing error messages
+- revise API reference and docs structure
+- add data assets and update tsconfig
+- add quick guide box to command headings
+- add rotating tips support to spinner
+- generalize config not-found error message
+- improve AI message retry flow for squash merge
+- fix commit message not sync with hook
+- improve group normalization and handle unassigned files
+
+### Removed
+
+- delete temporary Copilot icon SVG file
+- remove footer tips from branch listing
+- remove contextual tips section from status output
+
 ## [0.6.2] - 2026-03-09
 
 ### Changed
