@@ -11,6 +11,7 @@ import {
 import {
   BATCH_CONFIG,
   checkCopilotAvailable,
+  createRecoveryCommitGroups,
   generateCommitGroups,
   generateCommitMessage,
   normalizeCommitGroups,
@@ -31,6 +32,7 @@ import {
 } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
+import { LOADING_TIPS } from '../utils/tips.js';
 
 export default defineCommand({
   meta: {
@@ -64,19 +66,18 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No .contributerc.json found. Run `contrib setup` first.');
+      error('No repo config found. Run `contrib setup` first.');
       process.exit(1);
     }
 
     projectHeading('commit', '💾');
 
     const aiEnabled = isAIEnabled(config, args['no-ai']);
-
     // ── Group commit mode ──────────────────────────────────────────────
     if (args.group) {
       if (!aiEnabled) {
         error(
-          'AI group commit is unavailable because AI is disabled. Re-run without --group or enable AI in .contributerc.json.',
+          'AI group commit is unavailable because AI is disabled. Re-run without --group or enable AI in your repo config.',
         );
         process.exit(1);
       }
@@ -190,7 +191,9 @@ export default defineCommand({
           stagedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
             ? `Generating commit message with AI (${stagedFiles.length} files — using optimized batching)...`
             : 'Generating commit message with AI...';
-        const spinner = createSpinner(spinnerMsg);
+        const spinner = createSpinner(spinnerMsg, {
+          tips: LOADING_TIPS,
+        });
         commitMessage = await generateCommitMessage(
           diff,
           stagedFiles,
@@ -224,7 +227,9 @@ export default defineCommand({
       } else if (action === 'Edit this message') {
         finalMessage = await inputPrompt('Edit commit message', commitMessage);
       } else if (action === 'Regenerate') {
-        const spinner = createSpinner('Regenerating commit message...');
+        const spinner = createSpinner('Regenerating commit message...', {
+          tips: LOADING_TIPS,
+        });
         const diff = await getStagedDiff();
         const regen = await generateCommitMessage(
           diff,
@@ -285,18 +290,6 @@ export default defineCommand({
 
 // ── Group Commit Mode ────────────────────────────────────────────────
 
-function getFallbackGroupMessage(convention: ContributeConfig['commitConvention']): string {
-  if (convention === 'conventional') {
-    return 'chore: commit remaining changes';
-  }
-
-  if (convention === 'clean-commit') {
-    return '☕ chore: commit remaining changes';
-  }
-
-  return 'commit remaining changes';
-}
-
 async function runGroupCommit(model: string | undefined, config: ContributeConfig): Promise<void> {
   // Parallelize: check Copilot + gather changed files concurrently
   const [copilotError, changedFiles] = await Promise.all([
@@ -323,6 +316,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     changedFiles.length >= BATCH_CONFIG.LARGE_CHANGESET_THRESHOLD
       ? `Asking AI to group ${changedFiles.length} file(s) into logical commits (using optimized batching)...`
       : `Asking AI to group ${changedFiles.length} file(s) into logical commits...`,
+    {
+      tips: LOADING_TIPS,
+    },
   );
 
   const diffs = await getFullDiffForFiles(changedFiles);
@@ -333,7 +329,13 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
 
   let groups: Awaited<ReturnType<typeof generateCommitGroups>>;
   try {
-    groups = await generateCommitGroups(changedFiles, diffs, model, config.commitConvention);
+    groups = await generateCommitGroups(
+      changedFiles,
+      diffs,
+      model,
+      config.commitConvention,
+      (message) => spinner.update(message),
+    );
     spinner.success(`AI generated ${groups.length} commit group(s).`);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -349,7 +351,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
   const normalized = normalizeCommitGroups(changedFiles, groups);
 
   if (normalized.unknownFiles.length > 0) {
-    warn(`AI suggested unknown file(s): ${normalized.unknownFiles.join(', ')} — removed from groups.`);
+    warn(
+      `AI suggested unknown file(s): ${normalized.unknownFiles.join(', ')} — removed from groups.`,
+    );
   }
 
   if (normalized.duplicateFiles.length > 0) {
@@ -362,21 +366,11 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
 
   if (normalized.unassignedFiles.length > 0) {
     warn(
-      `AI left ${normalized.unassignedFiles.length} file(s) ungrouped: ${normalized.unassignedFiles.join(', ')}. Creating a fallback group.`,
+      `AI left ${normalized.unassignedFiles.length} file(s) ungrouped: ${normalized.unassignedFiles.join(', ')}. Auto-resolving recovery groups.`,
     );
-    const fallbackMessage =
-      (await regenerateGroupMessage(
-        normalized.unassignedFiles,
-        diffs,
-        model,
-        config.commitConvention,
-      )) ?? getFallbackGroupMessage(config.commitConvention);
     validGroups = [
       ...validGroups,
-      {
-        files: normalized.unassignedFiles,
-        message: fallbackMessage,
-      },
+      ...createRecoveryCommitGroups(normalized.unassignedFiles, config.commitConvention),
     ];
   }
 
@@ -413,7 +407,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
     }
 
     if (summaryAction === 'Regenerate all messages') {
-      const regenSpinner = createSpinner('Regenerating all commit messages...');
+      const regenSpinner = createSpinner('Regenerating all commit messages...', {
+        tips: LOADING_TIPS,
+      });
       try {
         validGroups = await regenerateAllGroupMessages(
           validGroups,
@@ -495,7 +491,9 @@ async function runGroupCommit(model: string | undefined, config: ContributeConfi
         }
 
         if (action === 'Regenerate message') {
-          const regenSpinner = createSpinner('Regenerating commit message for this group...');
+          const regenSpinner = createSpinner('Regenerating commit message for this group...', {
+            tips: LOADING_TIPS,
+          });
           // Use pre-fetched diffs filtered to this group's files instead of re-fetching
           const newMsg = await regenerateGroupMessage(
             group.files,
