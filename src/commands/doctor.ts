@@ -255,7 +255,9 @@ async function configSection(): Promise<SectionReport> {
         label: hasApiKey ? 'Ollama Cloud API key present' : 'Ollama Cloud API key missing',
         ok: true,
         warning: !hasApiKey,
-        detail: hasSecretsStore() ? 'stored in secrets-engine' : 'run `contrib setup` to save it',
+        detail: hasSecretsStore()
+          ? 'stored in the local secrets store'
+          : 'run `contrib setup` to save it',
       });
     }
   }
