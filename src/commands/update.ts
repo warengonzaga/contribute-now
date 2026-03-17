@@ -3,12 +3,13 @@ import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { promptForBranchName } from '../utils/branchPrompt.js';
 import { isAIEnabled, readConfig } from '../utils/config.js';
-import { selectPrompt } from '../utils/confirm.js';
+import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
 import { suggestConflictResolution } from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   assertCleanGitState,
   checkoutBranch,
+  countCommitsAhead,
   createBranch,
   determineRebaseStrategy,
   fetchAll,
@@ -33,6 +34,13 @@ import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { createSpinner } from '../utils/spinner.js';
 import { LOADING_TIPS } from '../utils/tips.js';
 import { getBaseBranch, getProtectedBranches, getSyncSource } from '../utils/workflow.js';
+
+export function hasStaleBranchWorkToPreserve(
+  uniqueCommitsAheadOfBase: number,
+  hasUncommittedChanges: boolean,
+): boolean {
+  return hasUncommittedChanges || uniqueCommitsAheadOfBase > 0;
+}
 
 export default defineCommand({
   meta: {
@@ -170,15 +178,21 @@ export default defineCommand({
       warn(`PR #${mergedPR.number} (${pc.bold(mergedPR.title)}) has already been merged.`);
       info(`Link: ${pc.underline(mergedPR.url)}`, '');
 
-      const localWork = await hasLocalWork(syncSource.remote, currentBranch);
-      const hasWork = localWork.uncommitted || localWork.unpushedCommits > 0;
+      // Compare against the sync/base ref, not the old remote branch name.
+      // Merged branches are often deleted remotely, which makes tracking-based
+      // ahead counts look like zero and can incorrectly trigger destructive cleanup.
+      const uniqueCommitsAheadOfBase = await countCommitsAhead(currentBranch, syncSource.ref);
+      const dirty = await hasUncommittedChanges();
+      const hasWork = hasStaleBranchWorkToPreserve(uniqueCommitsAheadOfBase, dirty);
 
       if (hasWork) {
-        if (localWork.uncommitted) {
+        if (dirty) {
           info('You have uncommitted local changes.');
         }
-        if (localWork.unpushedCommits > 0) {
-          info(`You have ${localWork.unpushedCommits} unpushed commit(s).`);
+        if (uniqueCommitsAheadOfBase > 0) {
+          info(
+            `You have ${uniqueCommitsAheadOfBase} local commit(s) not in ${pc.bold(syncSource.ref)}.`,
+          );
         }
 
         const SAVE_NEW_BRANCH = 'Save changes to a new branch';
@@ -256,6 +270,14 @@ export default defineCommand({
 
         // DISCARD path
         warn('Discarding local changes...');
+      } else {
+        const proceed = await confirmPrompt(
+          `Switch to ${baseBranch} and delete stale branch ${currentBranch}?`,
+        );
+        if (!proceed) {
+          info('No changes made. You are still on your current branch.');
+          return;
+        }
       }
 
       // No local work or user chose discard — switch to base, sync, delete stale branch
