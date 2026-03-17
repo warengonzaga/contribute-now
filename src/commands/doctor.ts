@@ -6,6 +6,8 @@ import {
   configExists,
   getConfigLocationLabel,
   getConfigSource,
+  hasLegacyConfig,
+  hasLocalConfig,
   isGitignored,
   readConfig,
 } from '../utils/config.js';
@@ -178,11 +180,21 @@ async function configSection(): Promise<SectionReport> {
   }
 
   const configSource = getConfigSource();
+  const hasBothConfigSources = hasLegacyConfig() && hasLocalConfig();
   checks.push({
     label: `${configSource === 'local' ? 'Local Git config' : 'Legacy repo config'} found and valid`,
     ok: true,
     detail: getConfigLocationLabel(),
   });
+
+  if (hasBothConfigSources) {
+    checks.push({
+      label: 'Both legacy and local config files exist',
+      ok: true,
+      warning: true,
+      detail: 'legacy .contributerc.json currently takes precedence',
+    });
+  }
 
   // Workflow & role
   const desc = WORKFLOW_DESCRIPTIONS[config.workflow] ?? config.workflow;
