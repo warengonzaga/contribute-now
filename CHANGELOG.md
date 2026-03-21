@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.2] - 2026-03-21
+
+### Changed
+
+- switch examples to bunx and clarify local testing workflow
+- migrate ci workflows and documentation to bun runtime
+
 ## [0.7.1] - 2026-03-17
 
 ### Changed
