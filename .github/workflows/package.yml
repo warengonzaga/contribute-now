@@ -47,7 +47,8 @@ jobs:
         with:
           package-manager: 'bun'
           registry: 'both'
+          package-scope: '@warengonzaga'
           access: 'public'
           npm-token: ${{ secrets.NPM_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_PAT || github.token }}
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
