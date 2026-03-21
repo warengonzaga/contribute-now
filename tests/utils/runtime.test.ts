@@ -23,6 +23,10 @@ describe('isNpxExecution', () => {
     expect(isNpxExecution({ argv: ['/usr/bin/npx', 'contribute-now'] })).toBe(true);
   });
 
+  it('detects pnpx from argv', () => {
+    expect(isNpxExecution({ argv: ['/usr/bin/pnpx', 'contribute-now'] })).toBe(true);
+  });
+
   it('detects npx from npm environment', () => {
     expect(
       isNpxExecution({
@@ -41,6 +45,12 @@ describe('isNpxExecution', () => {
     );
   });
 
+  it('detects pnpx from a Windows argv path', () => {
+    expect(isNpxExecution({ argv: ['C:/Program Files/pnpm/pnpx.cmd', 'contribute-now'] })).toBe(
+      true,
+    );
+  });
+
   it('detects npx from npm lifecycle metadata', () => {
     expect(
       isNpxExecution({
@@ -48,6 +58,19 @@ describe('isNpxExecution', () => {
         env: {
           npm_config_user_agent: 'npm/10.8.1 node/v22.0.0 linux x64',
           npm_lifecycle_event: 'npx',
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('detects pnpx from pnpm environment metadata', () => {
+    expect(
+      isNpxExecution({
+        argv: ['node', 'dist/index.js'],
+        env: {
+          npm_config_user_agent: 'pnpm/10.0.0 node/v22.0.0 linux x64',
+          npm_execpath: '/usr/local/share/pnpm/pnpx',
+          npm_lifecycle_event: 'pnpx',
         },
       }),
     ).toBe(true);
@@ -69,15 +92,22 @@ describe('getBunRuntimeGuardMessage', () => {
   it('suggests bunx when npx execution is detected', () => {
     const message = getBunRuntimeGuardMessage({ argv: ['/usr/bin/npx', 'contribute-now'] });
 
-    expect(message).toContain('You are running it with Node/npx. Use Bun instead:');
+    expect(message).toContain('You are running it with Node/npx or pnpx. Use Bun instead:');
     expect(message).toContain('bunx contribute-now setup');
     expect(message).toContain('npm install -g bun');
+  });
+
+  it('suggests bunx when pnpx execution is detected', () => {
+    const message = getBunRuntimeGuardMessage({ argv: ['/usr/bin/pnpx', 'contribute-now'] });
+
+    expect(message).toContain('You are running it with Node/npx or pnpx. Use Bun instead:');
+    expect(message).toContain('bunx contribute-now setup');
   });
 
   it('returns the generic Bun install guidance otherwise', () => {
     const message = getBunRuntimeGuardMessage({ argv: ['node', 'dist/index.js'] });
 
-    expect(message).not.toContain('You are running it with Node/npx.');
+    expect(message).not.toContain('You are running it with Node/npx or pnpx');
     expect(message).toContain('contribute-now requires Bun at runtime.');
     expect(message).toContain('https://bun.sh/docs/installation');
   });

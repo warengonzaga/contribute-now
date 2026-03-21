@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 function isNpxExecution(): boolean {
-  if (process.argv.some((arg) => /(?:^|[\\/])npx(?:\.cmd)?$/i.test(arg))) {
+  if (process.argv.some((arg) => /(?:^|[\\/])(?:npx|pnpx)(?:\.cmd)?$/i.test(arg))) {
     return true;
   }
 
-  const userAgent = process.env.npm_config_user_agent ?? '';
-  if (userAgent.startsWith('npm/')) {
-    const execPath = process.env.npm_execpath ?? '';
-    const lifecycle = process.env.npm_lifecycle_event ?? '';
-    return execPath.includes('npx') || lifecycle === 'npx';
+  const userAgent = (process.env.npm_config_user_agent ?? '').toLowerCase();
+  if (userAgent.startsWith('npm/') || userAgent.startsWith('pnpm/')) {
+    const execPath = (process.env.npm_execpath ?? '').toLowerCase();
+    const lifecycle = (process.env.npm_lifecycle_event ?? '').toLowerCase();
+    return execPath.includes('npx') || execPath.includes('pnpx') || lifecycle === 'npx' || lifecycle === 'pnpx';
   }
 
   return false;
@@ -18,7 +18,7 @@ function getBunRuntimeGuardMessage(): string {
   const lines = ['contribute-now requires Bun at runtime.', ''];
 
   if (isNpxExecution()) {
-    lines.push('You are running it with Node/npx. Use Bun instead:');
+    lines.push('You are running it with Node/npx or pnpx. Use Bun instead:');
     lines.push('  bunx contribute-now setup');
     lines.push('');
   }

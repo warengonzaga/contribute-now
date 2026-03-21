@@ -102,6 +102,4 @@ const main = defineCommand({
   },
 });
 
-runMain(main).then(() => {
-  process.exit(0);
-});
+runMain(main);

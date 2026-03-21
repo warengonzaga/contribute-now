@@ -35,43 +35,51 @@ bun run lint
 bun run lint:fix
 ```
 
-`contribute-now` runs on Bun at runtime. Use `bunx contribute-now ...` for one-off usage and `bun install -g contribute-now` for a global install while testing changes locally.
+`contribute-now` runs on Bun at runtime. Use `bunx contribute-now ...` for one-off local testing, or use `bun link` if you want the `contribute-now` command available globally while working on local edits. `bun install -g contribute-now` installs the published package from the registry, so it will not reflect your local changes.
 
 ## Development Workflow
 
 1. **Create an issue first** — describe what you want to work on before writing code.
-2. **Sync your fork** — keep your fork current:
+
+1. **Sync your fork** — keep your fork current:
+
    ```bash
    contrib sync   # if you have contribute-now installed
    # or manually:
    git fetch upstream && git reset --hard upstream/dev
    ```
-3. **Create a branch** from `dev` using one of these prefixes:
+
+1. **Create a branch** from `dev` using one of these prefixes:
+
    - `feature/*` — new functionality
    - `fix/*` — bug fixes
    - `docs/*` — documentation changes
    - `chore/*` — maintenance, dependency updates
    - `test/*` — adding or updating tests
    - `refactor/*` — code restructuring without behavior changes
-4. **Make your changes** — write code, add tests, update docs as needed.
-5. **Verify locally**:
+
+1. **Make your changes** — write code, add tests, update docs as needed.
+
+1. **Verify locally**:
+
    ```bash
    bun run build   # ensure it compiles
    bun test        # ensure tests pass
    bun run lint    # ensure no lint errors
    ```
-6. **Submit a PR** targeting the **`dev`** branch (never `main`).
+
+1. **Submit a PR** targeting the **`dev`** branch (never `main`).
 
 ## Commit Convention
 
 This project follows the **[Clean Commit](https://github.com/wgtechlabs/clean-commit)** convention by [@wgtechlabs](https://github.com/wgtechlabs). Every commit must follow this format:
 
-```
+```text
 <emoji> <type>[!][(<scope>)]: <description>
 ```
 
 | Emoji | Type | What it covers |
-|:-----:|------|----------------|
+| :---: | ------ | ---------------- |
 | 📦 | `new` | Adding new features, files, or capabilities |
 | 🔧 | `update` | Changing existing code, refactoring, improvements |
 | 🗑️ | `remove` | Removing code, files, features, or dependencies |
@@ -92,7 +100,7 @@ This project follows the **[Clean Commit](https://github.com/wgtechlabs/clean-co
 
 **Examples:**
 
-```
+```text
 📦 new (start): add AI branch name suggestion
 🔧 update (sync): improve force-with-lease error message
 🧪 test (config): add round-trip tests for writeConfig

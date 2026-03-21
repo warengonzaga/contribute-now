@@ -62,6 +62,7 @@ code {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   padding: 14px 0;
   background: rgba(13, 17, 23, 0.85);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid transparent;
   transition: border-color 0.3s, background 0.3s;
@@ -235,8 +236,8 @@ code {
 }
 .hero-bg {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 .hero-grid {
   position: absolute; inset: 0;
@@ -245,6 +246,7 @@ code {
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 64px 64px;
   opacity: 0.3;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 100%);
   mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 100%);
 }
 .hero-glow {
@@ -342,7 +344,7 @@ code {
   font-family: var(--font-mono);
   font-size: 0.95rem;
 }
-.terminal-prompt { color: var(--green); user-select: none; }
+.terminal-prompt { color: var(--green); -webkit-user-select: none; user-select: none; }
 .terminal-cmd { color: var(--text); }
 .hero-aliases {
   margin-top: 16px;
@@ -925,6 +927,10 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
+}
+
+.showcase-badge-icon {
+  margin-top: -2px;
 }
 
 /* ─── Refined Highlights ────────────────────────────────────────────── */

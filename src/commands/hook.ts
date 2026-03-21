@@ -41,12 +41,8 @@ if command -v contrib >/dev/null 2>&1; then
   contrib validate --file "$commit_msg_file"
 elif command -v bunx >/dev/null 2>&1; then
   bunx contrib validate --file "$commit_msg_file"
-elif command -v pnpx >/dev/null 2>&1; then
-  pnpx contrib validate --file "$commit_msg_file"
-elif command -v npx >/dev/null 2>&1; then
-  npx contrib validate --file "$commit_msg_file"
 else
-  echo "Warning: No package runner found. Skipping commit message validation."
+  echo "Warning: Neither contrib nor bunx is available. Skipping commit message validation."
   exit 0
 fi
 `;
