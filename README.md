@@ -37,15 +37,17 @@ contribute-now validates commit messages and guides your AI toward the right for
 ## Quick Start
 
 ```bash
-npx contribute-now setup
+bunx contribute-now setup
 ```
 
 Or install globally:
 
 ```bash
-npm install -g contribute-now
+bun install -g contribute-now
 contrib setup
 ```
+
+`contribute-now` now runs on Bun at runtime. Use `bunx` for one-off execution and `bun install -g` for a global install.
 
 > `contrib`, `contribute`, and `cn` all invoke the same binary — use whichever you prefer.
 >
@@ -56,11 +58,18 @@ contrib setup
 ## Installation
 
 ```bash
-# npm
-npm install -g contribute-now
+# one-off
+bunx contribute-now setup
 
-# bun
+# global
 bun install -g contribute-now
+```
+
+If you prefer to install the package from npm, install Bun first and then install `contribute-now`:
+
+```bash
+npm install -g bun
+npm install -g contribute-now
 ```
 
 Once installed, you can use any of the three aliases:
@@ -225,7 +234,7 @@ contrib doctor --json   # machine-readable JSON output
 ```
 
 Checks include:
-- CLI version and runtime (Bun/Node)
+- CLI version and runtime (Bun)
 - git and GitHub CLI availability and authentication
 - active repo config validity and storage location
 - Git repo state (uncommitted changes, lock files, shallow clone)
@@ -385,6 +394,8 @@ bun run build   # compile to dist/index.js
 bun test        # run tests
 bun run lint    # check code quality
 ```
+
+The CLI is Bun-first end to end: local development, tests, packaged runtime, and one-off execution all assume Bun.
 
 ## 🎯 Contributing
 

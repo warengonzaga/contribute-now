@@ -1,111 +1,43 @@
-#!/usr/bin/env node
-import { defineCommand, runMain } from 'citty';
-import branch from './commands/branch.js';
-import clean from './commands/clean.js';
-import commit from './commands/commit.js';
-import config from './commands/config.js';
-import doctor from './commands/doctor.js';
-import hook from './commands/hook.js';
-import log from './commands/log.js';
-import save from './commands/save.js';
-import setup from './commands/setup.js';
-import start from './commands/start.js';
-import status from './commands/status.js';
-import submit from './commands/submit.js';
-import switchCmd from './commands/switch.js';
-import sync from './commands/sync.js';
-import update from './commands/update.js';
-import validate from './commands/validate.js';
-import { getVersion, showBanner } from './ui/banner.js';
+#!/usr/bin/env bun
+function isNpxExecution(): boolean {
+  if (process.argv.some((arg) => /(?:^|[\\/])npx(?:\.cmd)?$/i.test(arg))) {
+    return true;
+  }
 
-function normalizeCliArgs(argv: string[]): string[] {
-  return argv.map((arg, index) => {
-    const previous = argv[index - 1];
-    const isSubmitCommand = previous === 'submit' || argv.includes('submit');
+  const userAgent = process.env.npm_config_user_agent ?? '';
+  if (userAgent.startsWith('npm/')) {
+    const execPath = process.env.npm_execpath ?? '';
+    const lifecycle = process.env.npm_lifecycle_event ?? '';
+    return execPath.includes('npx') || lifecycle === 'npx';
+  }
 
-    if (!isSubmitCommand) {
-      return arg;
-    }
-
-    if (arg === '-pr' || arg === '--pr') {
-      return '--pullrequest';
-    }
-
-    return arg;
-  });
+  return false;
 }
 
-process.argv = normalizeCliArgs(process.argv);
+function getBunRuntimeGuardMessage(): string {
+  const lines = ['contribute-now requires Bun at runtime.', ''];
 
-const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
+  if (isNpxExecution()) {
+    lines.push('You are running it with Node/npx. Use Bun instead:');
+    lines.push('  bunx contribute-now setup');
+    lines.push('');
+  }
 
-if (!isVersion) {
-  const subCommands = [
-    'setup',
-    'config',
-    'sync',
-    'start',
-    'commit',
-    'update',
-    'submit',
-    'switch',
-    'save',
-    'clean',
-    'status',
-    'log',
-    'branch',
-    'hook',
-    'validate',
-    'doctor',
-  ];
-  const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
-  const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
-  const useBigBanner = isHelp || !hasSubCommand;
-  showBanner(useBigBanner ? 'big' : 'small');
+  lines.push('Install Bun first:');
+  lines.push('  npm install -g bun');
+  lines.push('');
+  lines.push('Then verify:');
+  lines.push('  bun --version');
+  lines.push('');
+  lines.push('Official install guide:');
+  lines.push('  https://bun.sh/docs/installation');
+
+  return lines.join('\n');
 }
 
-const main = defineCommand({
-  meta: {
-    name: 'contrib',
-    version: getVersion(),
-    description:
-      'Git workflow CLI that guides contributors through clean branching, commits, and PRs.',
-  },
-  args: {
-    version: {
-      type: 'boolean',
-      alias: 'v',
-      description: 'Show version number',
-    },
-  },
-  subCommands: {
-    setup,
-    config,
-    sync,
-    start,
-    commit,
-    update,
-    submit,
-    switch: switchCmd,
-    save,
-    branch,
-    clean,
-    status,
-    log,
-    hook,
-    validate,
-    doctor,
-  },
-  run({ args }) {
-    if (args.version) {
-      console.log(`contrib v${getVersion()}`);
-    }
-  },
-});
+if (typeof globalThis.Bun === 'undefined') {
+  console.error(getBunRuntimeGuardMessage());
+  process.exit(1);
+}
 
-runMain(main).then(() => {
-  // Ensure the process exits cleanly after any command completes.
-  // Citty does not call process.exit() and interactive prompts
-  // may leave stdin open, preventing the event loop from draining.
-  process.exit(0);
-});
+await import('./cli.js');

@@ -35,6 +35,8 @@ bun run lint
 bun run lint:fix
 ```
 
+`contribute-now` runs on Bun at runtime. Use `bunx contribute-now ...` for one-off usage and `bun install -g contribute-now` for a global install while testing changes locally.
+
 ## Development Workflow
 
 1. **Create an issue first** — describe what you want to work on before writing code.

@@ -12,7 +12,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.js --target node",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun build src/index.ts --outfile dist/index.js --target node --no-bundle",
     "cli": "bun run src/index.ts --",
     "dev": "bun src/index.ts",
     "test": "bun test",
@@ -25,7 +25,6 @@
     "landing:preview": "bun run --cwd landing preview"
   },
   "engines": {
-    "node": ">=18",
     "bun": ">=1.0"
   },
   "keywords": [

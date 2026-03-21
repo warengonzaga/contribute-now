@@ -20,7 +20,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: npm-publish
+  group: package-publish
   cancel-in-progress: false
 
 jobs:
@@ -30,10 +30,8 @@ jobs:
       - uses: actions/checkout@v6.0.2
 
       - uses: oven-sh/setup-bun@v2.1.2
-
-      - uses: actions/setup-node@v6.2.0
         with:
-          node-version: '20'
+          bun-version: latest
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -45,7 +43,7 @@ jobs:
         run: bun test
 
       - name: Publish
-        uses: wgtechlabs/package-build-flow-action@v2.0.1
+        uses: wgtechlabs/package-build-flow-action@v2.1.1
         with:
           package-manager: 'bun'
           registry: 'both'
