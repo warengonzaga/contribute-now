@@ -49,6 +49,6 @@ jobs:
           registry: 'both'
           package-scope: '@warengonzaga'
           access: 'public'
-          npm-token: ${{ secrets.NPM_TOKEN }}
-          github-token: ${{ secrets.GH_PAT || github.token }}
-          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+          npm-token: "${{ secrets.NPM_TOKEN }}"
+          github-token: "${{ github.token }}"
+          dry-run: "${{ github.event.inputs.dry-run || 'false' }}"
