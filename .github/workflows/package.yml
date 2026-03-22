@@ -50,5 +50,5 @@ jobs:
           package-scope: '@warengonzaga'
           access: 'public'
           npm-token: "${{ secrets.NPM_TOKEN }}"
-          github-token: "${{ github.token }}"
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
           dry-run: "${{ github.event.inputs.dry-run || 'false' }}"
