@@ -289,6 +289,7 @@ export default defineCommand({
     }
 
     success(`Committed: ${pc.bold(finalMessage)}`);
+    process.exit(0);
   },
 });
 
