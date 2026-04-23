@@ -39,7 +39,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
@@ -53,7 +53,7 @@ export default defineCommand({
       error(
         `${pc.bold(currentBranch)} is a protected branch and cannot be discarded.`,
       );
-      info(`Switch to a feature branch first, then run ${pc.bold('contrib discard')}.`);
+      info(`Switch to a feature branch first, then run ${pc.bold('cn discard')}.`);
       process.exit(1);
     }
 
@@ -107,7 +107,7 @@ export default defineCommand({
             error(`Failed to save changes: ${stashResult.stderr}`);
             process.exit(1);
           }
-          success(`Changes saved. Use ${pc.bold('contrib save --restore')} to bring them back.`);
+          success(`Changes saved. Use ${pc.bold('cn save --restore')} to bring them back.`);
         }
       }
     } else if (!args.force) {

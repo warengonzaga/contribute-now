@@ -67,7 +67,7 @@ if (!isVersion) {
 
 const main = defineCommand({
   meta: {
-    name: 'contrib',
+    name: 'cn',
     version: getVersion(),
     description:
       'Git workflow CLI that guides contributors through clean branching, commits, and PRs.',
@@ -100,7 +100,7 @@ const main = defineCommand({
   },
   run({ args }) {
     if (args.version) {
-      console.log(`contrib v${getVersion()}`);
+      console.log(`cn v${getVersion()}`);
     }
   },
 });

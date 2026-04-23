@@ -130,7 +130,7 @@ export default defineCommand({
         console.log(pc.dim('    No upstream tracking set and no remote base branch found.'));
         console.log(
           pc.dim(
-            `    Use ${pc.bold('contrib log --full')} to see the full commit history instead.`,
+            `    Use ${pc.bold('cn log --full')} to see the full commit history instead.`,
           ),
         );
         console.log();

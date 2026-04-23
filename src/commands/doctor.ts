@@ -101,7 +101,7 @@ async function toolSection(): Promise<SectionReport> {
 
   // CLI version
   checks.push({
-    label: `contrib v${pkg.version ?? 'unknown'}`,
+    label: `cn v${pkg.version ?? 'unknown'}`,
     ok: true,
   });
 
@@ -172,7 +172,7 @@ async function configSection(): Promise<SectionReport> {
     checks.push({
       label: 'Repo config not found',
       ok: false,
-      detail: 'run `contrib setup` to create local config for this clone',
+      detail: 'run `cn setup` to create local config for this clone',
     });
 
     if (localStateLabel) {
@@ -257,7 +257,7 @@ async function configSection(): Promise<SectionReport> {
         warning: !hasApiKey,
         detail: hasSecretsStore()
           ? 'stored in the local secrets store'
-          : 'run `contrib setup` to save it',
+          : 'run `cn setup` to save it',
       });
     }
   }
@@ -392,7 +392,7 @@ async function workflowSection(): Promise<SectionReport> {
     checks.push({
       label: 'Cannot resolve workflow (no config)',
       ok: false,
-      detail: 'run `contrib setup` first',
+      detail: 'run `cn setup` first',
     });
     return { title: 'Workflow Resolution', checks };
   }

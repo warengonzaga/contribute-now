@@ -60,7 +60,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
@@ -95,7 +95,7 @@ export default defineCommand({
       error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
       info('This can happen if the branch was renamed or deleted on the remote.', '');
       info(
-        `Check your config: the base branch may need updating via ${pc.bold('contrib setup')}.`,
+        `Check your config: the base branch may need updating via ${pc.bold('cn setup')}.`,
         '',
       );
       process.exit(1);
@@ -176,7 +176,7 @@ export default defineCommand({
           console.log();
           info(`Your commits are safe on ${pc.bold(newBranchName)}.`, '');
           info(
-            `Run ${pc.bold(`git checkout ${newBranchName}`)} then ${pc.bold('contrib update')} to rebase onto the synced ${pc.bold(baseBranch)}.`,
+            `Run ${pc.bold(`git checkout ${newBranchName}`)} then ${pc.bold('cn update')} to rebase onto the synced ${pc.bold(baseBranch)}.`,
             '',
           );
           return;
@@ -212,7 +212,7 @@ export default defineCommand({
       } else {
         error(`Fast-forward pull failed. Your local ${pc.bold(baseBranch)} may have diverged.`);
         info(
-          `Use ${pc.bold('contrib sync')} again and choose "Move my commits to a new feature branch" to fix this.`,
+          `Use ${pc.bold('cn sync')} again and choose "Move my commits to a new feature branch" to fix this.`,
           '',
         );
       }

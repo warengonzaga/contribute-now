@@ -41,14 +41,14 @@ Reference: https://github.com/wgtechlabs/clean-commit
 
 Use a scope to clarify which part of the CLI is affected:
 
-- `(setup)` — contrib setup command
-- `(sync)` — contrib sync command
-- `(start)` — contrib start command
-- `(commit)` — contrib commit command
-- `(update)` — contrib update command
-- `(submit)` — contrib submit command
-- `(clean)` — contrib clean command
-- `(status)` — contrib status command
+- `(setup)` — cn setup command
+- `(sync)` — cn sync command
+- `(start)` — cn start command
+- `(commit)` — cn commit command
+- `(update)` — cn update command
+- `(submit)` — cn submit command
+- `(clean)` — cn clean command
+- `(status)` — cn status command
 - `(git)` — git utility
 - `(gh)` — GitHub CLI utility
 - `(copilot)` — Copilot SDK integration

@@ -5,5 +5,12 @@
     "title": "Legacy Config Detected",
     "message": "Run cn setup to migrate this clone to local Git config, then delete .contributerc.json.",
     "when": "legacy-config-present"
+  },
+  {
+    "id": "contrib-command-deprecation",
+    "kind": "info",
+    "title": "Heads up: `contrib` will retire",
+    "message": "The `contrib` command is being phased out. Please switch to `contribute` (primary) or the shorter `cn` shortcut — same features either way.",
+    "when": "contrib-command-used"
   }
 ]
