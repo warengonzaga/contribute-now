@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from 'citty';
 import branch from './commands/branch.js';
 import clean from './commands/clean.js';
+import discard from './commands/discard.js';
 import commit from './commands/commit.js';
 import config from './commands/config.js';
 import doctor from './commands/doctor.js';
@@ -48,6 +49,7 @@ if (!isVersion) {
     'update',
     'submit',
     'switch',
+    'discard',
     'save',
     'clean',
     'status',
@@ -86,6 +88,7 @@ const main = defineCommand({
     update,
     submit,
     switch: switchCmd,
+    discard,
     save,
     branch,
     clean,
