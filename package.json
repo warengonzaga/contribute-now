@@ -49,13 +49,11 @@
     "@github/copilot-sdk": "^0.1.25",
     "@wgtechlabs/log-engine": "^2.3.1",
     "citty": "^0.1.6",
-    "figlet": "^1.10.0",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@types/bun": "latest",
-    "@types/figlet": "^1.7.0",
     "typescript": "^5.7.0"
   }
 }
