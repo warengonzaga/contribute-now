@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.4] - 2026-04-23
+
+### Changed
+
+- CI workflow for GitHub token handling and CLI improvements (#12)
+
 ## [0.7.3] - 2026-04-23
 
 ### Changed
