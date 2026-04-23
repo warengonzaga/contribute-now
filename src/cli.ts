@@ -102,4 +102,19 @@ const main = defineCommand({
   },
 });
 
-runMain(main);
+// Force a clean exit once the command finishes.
+//
+// Several dependencies keep Node's event loop alive after a command completes:
+//   - `@clack/prompts` leaves stdin in raw mode with listeners attached after prompts resolve
+//   - `@github/copilot-sdk` retains keep-alive HTTP sockets (and likely internal timers)
+//
+// Without an explicit exit, successful commands (`commit`, `switch`, `submit`, etc.) leave the
+// terminal hanging until the user hits Ctrl+C. Exiting here — after `runMain` has flushed
+// citty's own output — keeps the fix in one place instead of sprinkling `process.exit(0)`
+// across every command's success path.
+runMain(main)
+  .then(() => process.exit(process.exitCode ?? 0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
