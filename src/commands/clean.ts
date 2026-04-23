@@ -159,7 +159,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
@@ -304,7 +304,7 @@ export default defineCommand({
     if (finalBranch && protectedBranches.has(finalBranch)) {
       console.log();
       info(
-        `You're on ${pc.bold(finalBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`,
+        `You're on ${pc.bold(finalBranch)}. Run ${pc.bold('cn start')} to begin a new feature.`,
       );
     }
   },

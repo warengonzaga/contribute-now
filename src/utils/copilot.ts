@@ -442,13 +442,13 @@ export async function checkCopilotAvailable(): Promise<string | null> {
   const aiConfig = resolveAIConfig();
   if (aiConfig.provider === 'ollama-cloud') {
     if (!(await hasOllamaCloudApiKey())) {
-      return 'Ollama Cloud API key not found. Run `contrib setup` to save it.';
+      return 'Ollama Cloud API key not found. Run `cn setup` to save it.';
     }
 
     try {
       const apiKey = await getOllamaCloudApiKey();
       if (!apiKey) {
-        return 'Ollama Cloud API key not found. Run `contrib setup` to save it.';
+        return 'Ollama Cloud API key not found. Run `cn setup` to save it.';
       }
 
       await fetchOllamaCloudModels(apiKey, aiConfig.host);
@@ -456,7 +456,7 @@ export async function checkCopilotAvailable(): Promise<string | null> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === 'Ollama Cloud authentication failed') {
-        return 'Ollama Cloud authentication failed. Update your saved API key with `contrib setup`.';
+        return 'Ollama Cloud authentication failed. Update your saved API key with `cn setup`.';
       }
       if (msg.startsWith('Ollama Cloud model lookup failed')) {
         return msg.replace('model lookup', 'health check');

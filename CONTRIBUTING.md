@@ -44,7 +44,7 @@ bun run lint:fix
 1. **Sync your fork** — keep your fork current:
 
    ```bash
-   contrib sync   # if you have contribute-now installed
+   cn sync   # if you have contribute-now installed
    # or manually:
    git fetch upstream && git reset --hard upstream/dev
    ```

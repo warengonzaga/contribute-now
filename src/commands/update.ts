@@ -69,7 +69,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
@@ -102,7 +102,7 @@ export default defineCommand({
       if (!hasAnything) {
         info(`No local changes found on ${pc.bold(currentBranch)}.`);
         info(
-          `Use ${pc.bold('contrib sync')} to sync protected branches, or ${pc.bold('contrib start')} to create a feature branch.`,
+          `Use ${pc.bold('cn sync')} to sync protected branches, or ${pc.bold('cn start')} to create a feature branch.`,
         );
         process.exit(1);
       }
@@ -158,7 +158,7 @@ export default defineCommand({
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
       info(
-        `Run ${pc.bold('contrib update')} again to rebase onto latest ${pc.bold(baseBranch)}.`,
+        `Run ${pc.bold('cn update')} again to rebase onto latest ${pc.bold(baseBranch)}.`,
         '',
       );
       return;
@@ -262,7 +262,7 @@ export default defineCommand({
           }
 
           info(
-            `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+            `All your changes are preserved. Run ${pc.bold('cn submit')} when ready to create a new PR.`,
             '',
           );
           return;
@@ -295,7 +295,7 @@ export default defineCommand({
       await forceDeleteBranch(currentBranch);
       success(`Deleted ${pc.bold(currentBranch)}.`);
 
-      info(`Run ${pc.bold('contrib start')} to begin a new feature branch.`, '');
+      info(`Run ${pc.bold('cn start')} to begin a new feature branch.`, '');
       return;
     }
 

@@ -95,7 +95,7 @@ async function handleSave(message?: string) {
   }
 
   success(`Saved: ${pc.dim(label)}`);
-  info(`Use ${pc.bold('contrib save --restore')} to bring them back.`, '');
+  info(`Use ${pc.bold('cn save --restore')} to bring them back.`, '');
 }
 
 // ── Restore ──
@@ -151,8 +151,8 @@ async function handleList() {
     console.log(`  ${idx}  ${msg}`);
   }
   console.log();
-  info(`Use ${pc.bold('contrib save --restore')} to bring changes back.`, '');
-  info(`Use ${pc.bold('contrib save --drop')} to discard saved changes.`, '');
+  info(`Use ${pc.bold('cn save --restore')} to bring changes back.`, '');
+  info(`Use ${pc.bold('cn save --drop')} to discard saved changes.`, '');
 }
 
 // ── Drop ──

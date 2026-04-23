@@ -19,14 +19,14 @@ function getHookPath(cwd = process.cwd()): string {
 
 /**
  * Generate the commit-msg hook script.
- * The hook calls `contrib validate` with the commit message file.
+ * The hook calls `cn validate` with the commit message file.
  */
 function generateHookScript(): string {
   return `#!/bin/sh
 ${HOOK_MARKER}
 # Validates commit messages against your configured convention.
-# Install:   contrib hook install
-# Uninstall: contrib hook uninstall
+# Install:   cn hook install
+# Uninstall: cn hook uninstall
 
 commit_msg_file="$1"
 commit_msg=$(head -1 "$commit_msg_file")
@@ -37,12 +37,12 @@ case "$commit_msg" in
 esac
 
 # Detect available package runner
-if command -v contrib >/dev/null 2>&1; then
-  contrib validate --file "$commit_msg_file"
+if command -v cn >/dev/null 2>&1; then
+  cn validate --file "$commit_msg_file"
 elif command -v bunx >/dev/null 2>&1; then
-  bunx contrib validate --file "$commit_msg_file"
+  bunx cn validate --file "$commit_msg_file"
 else
-  echo "Warning: Neither contrib nor bunx is available. Skipping commit message validation."
+  echo "Warning: Neither cn nor bunx is available. Skipping commit message validation."
   exit 0
 fi
 `;
@@ -85,13 +85,13 @@ async function installHook(): Promise<void> {
 
   const config = readConfig();
   if (!config) {
-    error('No repo config found. Run `contrib setup` first.');
+    error('No repo config found. Run `cn setup` first.');
     process.exit(1);
   }
 
   if (config.commitConvention === 'none') {
     warn('Commit convention is set to "none". No hook to install.');
-    info('Change your convention with `contrib setup` first.', '');
+    info('Change your convention with `cn setup` first.', '');
     process.exit(0);
   }
 

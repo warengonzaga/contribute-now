@@ -1,4 +1,3 @@
-import figlet from 'figlet';
 import pc from 'picocolors';
 import pkg from '../../package.json';
 import {
@@ -7,19 +6,23 @@ import {
   getActiveAnnouncements,
 } from '../utils/announcements.js';
 
-let LOGO_BIG: string;
-try {
-  LOGO_BIG = figlet.textSync('Contribute\nNow', { font: 'ANSI Shadow' });
-} catch {
-  LOGO_BIG = 'Contribute Now';
-}
-
-let LOGO_SMALL: string;
-try {
-  LOGO_SMALL = figlet.textSync('Contribute Now', { font: 'Slant' });
-} catch {
-  LOGO_SMALL = 'Contribute Now';
-}
+// Pre-rendered ASCII banner.
+//
+// Previously generated at runtime with `figlet`, but bundled builds can't
+// reliably locate figlet's font files, which caused the banner to silently
+// fall back to plain text after `npm install -g`. Baking the output here
+// removes the runtime font-loading fragility and drops the figlet dep.
+//
+// Source:
+//   figlet.textSync('Contribute Now', { font: 'Slant' })
+//
+// `String.raw` preserves backslashes in the art exactly as-is.
+const LOGO = String.raw`   ______            __       _ __          __          _   __             
+  / ____/___  ____  / /______(_) /_  __  __/ /____     / | / /___ _      __
+ / /   / __ \/ __ \/ __/ ___/ / __ \/ / / / __/ _ \   /  |/ / __ \ | /| / /
+/ /___/ /_/ / / / / /_/ /  / / /_/ / /_/ / /_/  __/  / /|  / /_/ / |/ |/ / 
+\____/\____/_/ /_/\__/_/  /_/_.___/\__,_/\__/\___/  /_/ |_/\____/|__/|__/  
+                                                                           `;
 
 export function getVersion(): string {
   return pkg.version ?? 'unknown';
@@ -30,8 +33,7 @@ export function getAuthor(): string {
 }
 
 export function showBanner(variant: 'big' | 'small' = 'small'): void {
-  const logo = variant === 'big' ? LOGO_BIG : LOGO_SMALL;
-  console.log(pc.cyan(`\n${logo}`));
+  console.log(pc.cyan(`\n${LOGO}`));
   console.log(
     `  ${pc.dim(`v${getVersion()}`)} ${pc.dim('—')} ${pc.dim(`Built by ${getAuthor()}`)}`,
   );

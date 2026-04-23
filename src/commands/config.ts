@@ -478,13 +478,13 @@ export default defineCommand({
     await projectHeading('config', '⚙️');
 
     if (!configExists()) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
     const config = readConfig();
     if (!config) {
-      error('Repo config exists but is invalid. Run `contrib setup` to repair it.');
+      error('Repo config exists but is invalid. Run `cn setup` to repair it.');
       process.exit(1);
     }
 
@@ -530,7 +530,7 @@ export default defineCommand({
 
     printConfigSummary(snapshot);
     console.log();
-    console.log(`  ${pc.dim('Run `contrib config --edit` to update these settings.')}`);
+    console.log(`  ${pc.dim('Run `cn config --edit` to update these settings.')}`);
     console.log();
   },
 });

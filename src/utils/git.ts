@@ -478,6 +478,14 @@ export async function deleteRemoteBranch(remote: string, branch: string): Promis
   return run(['push', remote, '--delete', branch]);
 }
 
+/**
+ * Stash uncommitted changes with an optional message.
+ * Uses the same `contrib-save:` prefix as `cn save` so stashes are consistent.
+ */
+export async function stashChanges(message: string): Promise<GitResult> {
+  return run(['stash', 'push', '-m', `contrib-save: ${message}`]);
+}
+
 export async function mergeSquash(branch: string): Promise<GitResult> {
   return run(['merge', '--squash', branch]);
 }

@@ -134,7 +134,7 @@ async function performSquashMerge(
     }
   }
 
-  // Let user accept / edit / regenerate / write manually (same as contrib commit)
+  // Let user accept / edit / regenerate / write manually (same as cn commit)
   let finalMsg: string | null = null;
   if (message) {
     while (!finalMsg) {
@@ -210,7 +210,7 @@ async function performSquashMerge(
   }
 
   success(`Squash merged ${pc.bold(featureBranch)} into ${pc.bold(baseBranch)} and pushed.`);
-  info(`Run ${pc.bold('contrib start')} to begin a new feature.`, '');
+  info(`Run ${pc.bold('cn start')} to begin a new feature.`, '');
 }
 
 export default defineCommand({
@@ -257,7 +257,7 @@ export default defineCommand({
 
     const config = readConfig();
     if (!config) {
-      error('No repo config found. Run `contrib setup` first.');
+      error('No repo config found. Run `cn setup` first.');
       process.exit(1);
     }
 
@@ -289,7 +289,7 @@ export default defineCommand({
 
       if (!hasAnything) {
         error('No local changes or commits to move. Switch to a feature branch first.');
-        info(`  Run ${pc.bold('contrib start')} to create a new feature branch.`, '');
+        info(`  Run ${pc.bold('cn start')} to create a new feature branch.`, '');
         process.exit(1);
       }
 
@@ -345,7 +345,7 @@ export default defineCommand({
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
-      info(`Run ${pc.bold('contrib submit')} again to push and create your PR.`, '');
+      info(`Run ${pc.bold('cn submit')} again to push and create your PR.`, '');
       return;
     }
 
@@ -443,7 +443,7 @@ export default defineCommand({
             }
 
             info(
-              `All your changes are preserved. Run ${pc.bold('contrib submit')} when ready to create a new PR.`,
+              `All your changes are preserved. Run ${pc.bold('cn submit')} when ready to create a new PR.`,
               '',
             );
             return;
@@ -477,7 +477,7 @@ export default defineCommand({
 
         console.log();
         info(
-          `You're now on ${pc.bold(baseBranch)}. Run ${pc.bold('contrib start')} to begin a new feature.`,
+          `You're now on ${pc.bold(baseBranch)}. Run ${pc.bold('cn start')} to begin a new feature.`,
         );
         return;
       }
@@ -501,7 +501,7 @@ export default defineCommand({
           ) {
             warn('The remote branch has diverged. Try:');
             info(`  git pull --rebase ${origin} ${currentBranch}`, '');
-            info('  Then run `contrib submit` again.', '');
+            info('  Then run `cn submit` again.', '');
           }
           process.exit(1);
         }
@@ -694,7 +694,7 @@ export default defineCommand({
       ) {
         warn('The remote branch has diverged. Try:');
         info(`  git pull --rebase ${origin} ${currentBranch}`, '');
-        info('  Then run `contrib submit` again.', '');
+        info('  Then run `cn submit` again.', '');
         info('If you need to force push (use with caution):', '');
         info(`  git push --force-with-lease ${origin} ${currentBranch}`, '');
       }

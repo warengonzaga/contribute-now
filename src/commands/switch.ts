@@ -111,14 +111,14 @@ export default defineCommand({
           await exec('git', ['stash', 'pop']);
           info('Restored saved changes.');
         } catch {
-          warn('Could not restore save automatically. Use `contrib save --restore` to recover.');
+          warn('Could not restore save automatically. Use `cn save --restore` to recover.');
         }
         process.exit(1);
       }
 
       success(`Switched to ${pc.bold(targetBranch)}`);
       info(`Your changes from ${pc.bold(currentBranch ?? 'previous branch')} are saved.`, '');
-      info(`Use ${pc.bold('contrib save --restore')} to bring them back.`, '');
+      info(`Use ${pc.bold('cn save --restore')} to bring them back.`, '');
       return;
     }
 

@@ -94,7 +94,7 @@ export function getProtectedBranches(config: ContributeConfig): string[] {
 /**
  * Returns prefixes for branches that are protected in the given workflow.
  * For git-flow, release/* and hotfix/* branches are semantically protected
- * and should not be deleted by `contrib clean`.
+ * and should not be deleted by `cn clean`.
  */
 export function getProtectedPrefixes(config: ContributeConfig): string[] {
   if (config.workflow === 'git-flow') {
