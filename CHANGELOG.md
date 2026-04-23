@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.3] - 2026-04-23
+
+### Changed
+
+- improve CI workflow for GitHub token handling and npm publish (#11)
+
 ## [0.7.2] - 2026-03-21
 
 ### Changed
