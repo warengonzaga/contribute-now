@@ -4,17 +4,17 @@
   "description": "Developer CLI that automates git workflows — branching, syncing, committing, and PRs — with multi-workflow and commit convention support.",
   "type": "module",
   "bin": {
-    "contrib": "dist/index.js",
-    "contribute": "dist/index.js",
-    "cn": "dist/index.js"
+    "contrib": "dist/cli.js",
+    "contribute": "dist/cli.js",
+    "cn": "dist/cli.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun build src/index.ts --outfile dist/index.js --target node --no-bundle",
-    "cli": "bun run src/index.ts --",
-    "dev": "bun src/index.ts",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun run scripts/add-shebang.mjs",
+    "cli": "bun run src/cli.ts --",
+    "dev": "bun src/cli.ts",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
