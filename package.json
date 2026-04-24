@@ -13,8 +13,8 @@
   ],
   "scripts": {
     "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun run scripts/add-shebang.mjs",
-    "cli": "bun run src/index.ts --",
-    "dev": "bun src/index.ts",
+    "cli": "bun run src/cli.ts --",
+    "dev": "bun src/cli.ts",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
