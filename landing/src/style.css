@@ -1458,6 +1458,27 @@ code {
   transform: translateY(-1px);
 }
 
+/* ─── Demo ───────────────────────────────────────────────────────── */
+.demo-section {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.demo-wrapper {
+  margin-top: 2.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: inline-block;
+  max-width: 100%;
+}
+.demo-gif {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 /* ─── Used By ────────────────────────────────────────────────────── */
 .usedby-section {
   padding: 80px 0;
