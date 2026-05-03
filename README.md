@@ -7,10 +7,11 @@
 
 It natively supports multiple workflow models and commit conventions, with AI-powered assistance throughout.
 
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![npm version](https://img.shields.io/npm/v/contribute-now.svg)](https://www.npmjs.com/package/contribute-now)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![npm version](https://img.shields.io/npm/v/contribute-now.svg)](https://www.npmjs.com/package/contribute-now)
 
----
+## Demo
+
+![Demo GIF](.github/assets/demo.gif)
 
 ## Workflow Modes
 
