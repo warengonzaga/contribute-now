@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.0] - 2026-05-03
+
+### Added
+
+- add demo section with GIF and styles
+
+### Changed
+
+- address copilot code review on shebang script
+- replace node entrypoint with shebang script for cli bundle
+
 ## [0.7.5] - 2026-04-24
 
 ### Changed
