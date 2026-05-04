@@ -14,18 +14,25 @@ import { confirmPrompt, inputPrompt, passwordPrompt, selectPrompt } from '../uti
 import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
 import {
   DEFAULT_OLLAMA_CLOUD_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   fetchOllamaCloudModels,
+  fetchOpenRouterModels,
   prioritizeOllamaCloudModels,
+  prioritizeOpenRouterModels,
   resolveAIConfig,
 } from '../utils/copilot.js';
 import { getRemotes, isGitRepo } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import {
   deleteOllamaCloudApiKey,
+  deleteOpenRouterApiKey,
   getOllamaCloudApiKey,
+  getOpenRouterApiKey,
   getSecretsStorePath,
   hasOllamaCloudApiKey,
+  hasOpenRouterApiKey,
   setOllamaCloudApiKey,
+  setOpenRouterApiKey,
 } from '../utils/secrets.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
@@ -49,12 +56,14 @@ const CONVENTION_OPTIONS: Array<{ value: CommitConvention; label: string }> = [
 const AI_PROVIDER_OPTIONS: Array<{ value: AIProvider; label: string }> = [
   { value: 'copilot', label: 'GitHub Copilot' },
   { value: 'ollama-cloud', label: 'Ollama Cloud' },
+  { value: 'openrouter', label: 'OpenRouter' },
 ];
 
 interface ConfigSnapshotMeta {
   source: 'legacy' | 'local';
   location: string;
   hasOllamaCloudApiKey: boolean;
+  hasOpenRouterApiKey: boolean;
   secretsPath: string;
 }
 
@@ -77,6 +86,8 @@ interface ConfigEditResult {
   config: ContributeConfig;
   ollamaApiKeyAction: 'keep' | 'set' | 'delete';
   ollamaApiKey?: string;
+  openrouterApiKeyAction: 'keep' | 'set' | 'delete';
+  openrouterApiKey?: string;
 }
 
 export interface ConfigSnapshot {
@@ -99,6 +110,7 @@ export interface ConfigSnapshot {
     providerLabel: string | null;
     model: string | null;
     ollamaCloudApiKeyPresent: boolean | null;
+    openrouterApiKeyPresent: boolean | null;
     secretsPath: string | null;
   };
 }
@@ -150,6 +162,11 @@ export function finalizeEditedConfig(
     return next;
   }
 
+  if (next.aiProvider === 'openrouter') {
+    next.aiModel = (draft.aiModel?.trim() || DEFAULT_OPENROUTER_MODEL).trim();
+    return next;
+  }
+
   delete next.aiModel;
   return next;
 }
@@ -161,6 +178,8 @@ export function buildConfigSnapshot(
   const aiConfig = resolveAIConfig(config);
   const aiEnabled = isAIEnabled(config);
   const usingOllamaCloud = aiEnabled && aiConfig.provider === 'ollama-cloud';
+  const usingOpenRouter = aiEnabled && aiConfig.provider === 'openrouter';
+  const needsSecretInfo = usingOllamaCloud || usingOpenRouter;
 
   return {
     source: meta.source,
@@ -182,7 +201,8 @@ export function buildConfigSnapshot(
       providerLabel: aiEnabled ? aiConfig.providerLabel : null,
       model: aiEnabled ? (aiConfig.model ?? null) : null,
       ollamaCloudApiKeyPresent: usingOllamaCloud ? meta.hasOllamaCloudApiKey : null,
-      secretsPath: usingOllamaCloud ? meta.secretsPath : null,
+      openrouterApiKeyPresent: usingOpenRouter ? meta.hasOpenRouterApiKey : null,
+      secretsPath: needsSecretInfo ? meta.secretsPath : null,
     },
   };
 }
@@ -227,6 +247,42 @@ async function promptForOllamaCloudModelSelection(
   return inputPrompt('Ollama Cloud model', fallbackModel);
 }
 
+async function promptForOpenRouterModelSelection(
+  apiKey: string | null,
+  fallbackModel: string,
+): Promise<string> {
+  if (apiKey) {
+    try {
+      info('Fetching available OpenRouter models...');
+      const models = prioritizeOpenRouterModels(await fetchOpenRouterModels(apiKey));
+
+      if (models.length > 0) {
+        const manualChoice = 'Enter model manually';
+        const choices = models.map((model) => ({
+          value: model,
+          label: model === DEFAULT_OPENROUTER_MODEL ? `${model} (default)` : model,
+        }));
+        const selected = await selectPrompt('OpenRouter model', [
+          ...choices.map((choice) => choice.label),
+          manualChoice,
+        ]);
+        if (selected !== manualChoice) {
+          return choices.find((choice) => choice.label === selected)?.value ?? fallbackModel;
+        }
+      } else {
+        warn('OpenRouter returned no available models. Enter the model name manually.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      warn(`Could not fetch OpenRouter models: ${message}`);
+    }
+  } else {
+    warn('No OpenRouter API key is available yet, so the model list cannot be fetched.');
+  }
+
+  return inputPrompt('OpenRouter model', fallbackModel);
+}
+
 async function selectCurrentValue<T extends string>(
   message: string,
   options: Array<{ value: T; label: string }>,
@@ -263,6 +319,7 @@ async function selectBooleanValue(
 async function promptForConfigEdits(
   current: ContributeConfig,
   hasExistingOllamaApiKey: boolean,
+  hasExistingOpenRouterApiKey: boolean,
 ): Promise<ConfigEditResult> {
   const workflow = await selectCurrentValue('Workflow mode', WORKFLOW_OPTIONS, current.workflow);
   const role = await selectCurrentValue('Your role in this clone', ROLE_OPTIONS, current.role);
@@ -314,6 +371,8 @@ async function promptForConfigEdits(
   let aiModel: string | undefined;
   let ollamaApiKeyAction: ConfigEditResult['ollamaApiKeyAction'] = 'keep';
   let ollamaApiKey: string | undefined;
+  let openrouterApiKeyAction: ConfigEditResult['openrouterApiKeyAction'] = 'keep';
+  let openrouterApiKey: string | undefined;
 
   if (aiEnabled) {
     const currentProvider = current.aiProvider ?? 'copilot';
@@ -360,20 +419,103 @@ async function promptForConfigEdits(
           ? (current.aiModel ?? DEFAULT_OLLAMA_CLOUD_MODEL)
           : DEFAULT_OLLAMA_CLOUD_MODEL,
       );
-    } else if (hasExistingOllamaApiKey) {
+
+      // Clean up OpenRouter key if switching away from it
+      if (hasExistingOpenRouterApiKey) {
+        const shouldDeleteOpenRouterKey = await confirmPrompt(
+          'Delete the stored OpenRouter API key from the local secrets store?',
+        );
+        if (shouldDeleteOpenRouterKey) {
+          openrouterApiKeyAction = 'delete';
+        }
+      }
+    } else if (aiProvider === 'openrouter') {
+      if (hasExistingOpenRouterApiKey) {
+        const apiKeyChoice = await selectPrompt('OpenRouter API key', [
+          'Keep existing stored key',
+          'Replace stored key',
+          'Delete stored key',
+        ]);
+
+        if (apiKeyChoice === 'Replace stored key') {
+          openrouterApiKey = (await passwordPrompt('Enter the new OpenRouter API key')).trim();
+          if (!openrouterApiKey) {
+            throw new Error('OpenRouter API key cannot be empty when replacing the stored key.');
+          }
+          openrouterApiKeyAction = 'set';
+        } else if (apiKeyChoice === 'Delete stored key') {
+          openrouterApiKeyAction = 'delete';
+        }
+      } else {
+        const addApiKey = await confirmPrompt('No OpenRouter API key is stored. Add one now?');
+        if (addApiKey) {
+          openrouterApiKey = (await passwordPrompt('Enter your OpenRouter API key')).trim();
+          if (!openrouterApiKey) {
+            throw new Error('OpenRouter API key cannot be empty when enabling OpenRouter.');
+          }
+          openrouterApiKeyAction = 'set';
+        }
+      }
+
+      const modelLookupApiKey =
+        openrouterApiKeyAction === 'set'
+          ? (openrouterApiKey ?? null)
+          : openrouterApiKeyAction === 'keep'
+            ? await getOpenRouterApiKey()
+            : null;
+
+      aiModel = await promptForOpenRouterModelSelection(
+        modelLookupApiKey,
+        current.aiProvider === 'openrouter'
+          ? (current.aiModel ?? DEFAULT_OPENROUTER_MODEL)
+          : DEFAULT_OPENROUTER_MODEL,
+      );
+
+      // Clean up Ollama key if switching away from it
+      if (hasExistingOllamaApiKey) {
+        const shouldDeleteStoredKey = await confirmPrompt(
+          'Delete the stored Ollama Cloud API key from the local secrets store?',
+        );
+        if (shouldDeleteStoredKey) {
+          ollamaApiKeyAction = 'delete';
+        }
+      }
+    } else {
+      // Switching to Copilot — offer to clean up any stored keys
+      if (hasExistingOllamaApiKey) {
+        const shouldDeleteStoredKey = await confirmPrompt(
+          'Delete the stored Ollama Cloud API key from the local secrets store?',
+        );
+        if (shouldDeleteStoredKey) {
+          ollamaApiKeyAction = 'delete';
+        }
+      }
+      if (hasExistingOpenRouterApiKey) {
+        const shouldDeleteOpenRouterKey = await confirmPrompt(
+          'Delete the stored OpenRouter API key from the local secrets store?',
+        );
+        if (shouldDeleteOpenRouterKey) {
+          openrouterApiKeyAction = 'delete';
+        }
+      }
+    }
+  } else {
+    // AI disabled — offer to clean up any stored keys
+    if (hasExistingOllamaApiKey) {
       const shouldDeleteStoredKey = await confirmPrompt(
-        'Delete the stored Ollama Cloud API key from the local secrets store?',
+        'AI is disabled. Delete the stored Ollama Cloud API key from the local secrets store?',
       );
       if (shouldDeleteStoredKey) {
         ollamaApiKeyAction = 'delete';
       }
     }
-  } else if (hasExistingOllamaApiKey) {
-    const shouldDeleteStoredKey = await confirmPrompt(
-      'AI is disabled. Delete the stored Ollama Cloud API key from the local secrets store?',
-    );
-    if (shouldDeleteStoredKey) {
-      ollamaApiKeyAction = 'delete';
+    if (hasExistingOpenRouterApiKey) {
+      const shouldDeleteOpenRouterKey = await confirmPrompt(
+        'AI is disabled. Delete the stored OpenRouter API key from the local secrets store?',
+      );
+      if (shouldDeleteOpenRouterKey) {
+        openrouterApiKeyAction = 'delete';
+      }
     }
   }
 
@@ -394,23 +536,35 @@ async function promptForConfigEdits(
     }),
     ollamaApiKeyAction,
     ollamaApiKey,
+    openrouterApiKeyAction,
+    openrouterApiKey,
   };
 }
 
-async function applyOllamaApiKeyEdit(result: ConfigEditResult): Promise<void> {
+async function applyApiKeyEdits(result: ConfigEditResult): Promise<void> {
   if (result.ollamaApiKeyAction === 'set' && result.ollamaApiKey) {
     await setOllamaCloudApiKey(result.ollamaApiKey);
     success('Stored Ollama Cloud API key in the local secrets store.');
     info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
-    return;
-  }
-
-  if (result.ollamaApiKeyAction === 'delete') {
+  } else if (result.ollamaApiKeyAction === 'delete') {
     const deleted = await deleteOllamaCloudApiKey();
     if (deleted) {
       success('Deleted stored Ollama Cloud API key.');
     } else {
       info('No stored Ollama Cloud API key was found to delete.');
+    }
+  }
+
+  if (result.openrouterApiKeyAction === 'set' && result.openrouterApiKey) {
+    await setOpenRouterApiKey(result.openrouterApiKey);
+    success('Stored OpenRouter API key in the local secrets store.');
+    info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+  } else if (result.openrouterApiKeyAction === 'delete') {
+    const deleted = await deleteOpenRouterApiKey();
+    if (deleted) {
+      success('Deleted stored OpenRouter API key.');
+    } else {
+      info('No stored OpenRouter API key was found to delete.');
     }
   }
 }
@@ -439,6 +593,14 @@ function printConfigSummary(snapshot: ConfigSnapshot): void {
     if (snapshot.ai.provider === 'ollama-cloud') {
       info(
         `Ollama Cloud API key: ${pc.bold(snapshot.ai.ollamaCloudApiKeyPresent ? 'stored' : 'missing')}`,
+      );
+      if (snapshot.ai.secretsPath) {
+        info(`Secrets path: ${pc.bold(snapshot.ai.secretsPath)}`);
+      }
+    }
+    if (snapshot.ai.provider === 'openrouter') {
+      info(
+        `OpenRouter API key: ${pc.bold(snapshot.ai.openrouterApiKeyPresent ? 'stored' : 'missing')}`,
       );
       if (snapshot.ai.secretsPath) {
         info(`Secrets path: ${pc.bold(snapshot.ai.secretsPath)}`);
@@ -496,9 +658,13 @@ export default defineCommand({
 
     if (args.edit) {
       try {
-        const editResult = await promptForConfigEdits(config, await hasOllamaCloudApiKey());
+        const editResult = await promptForConfigEdits(
+          config,
+          await hasOllamaCloudApiKey(),
+          await hasOpenRouterApiKey(),
+        );
         writeConfig(editResult.config);
-        await applyOllamaApiKeyEdit(editResult);
+        await applyApiKeyEdits(editResult);
 
         success('Updated repo config.');
         printConfigSummary(
@@ -506,6 +672,7 @@ export default defineCommand({
             source,
             location: getConfigLocationLabel(),
             hasOllamaCloudApiKey: await hasOllamaCloudApiKey(),
+            hasOpenRouterApiKey: await hasOpenRouterApiKey(),
             secretsPath: getSecretsStorePath(),
           }),
         );
@@ -520,6 +687,7 @@ export default defineCommand({
       source,
       location: getConfigLocationLabel(),
       hasOllamaCloudApiKey: await hasOllamaCloudApiKey(),
+      hasOpenRouterApiKey: await hasOpenRouterApiKey(),
       secretsPath: getSecretsStorePath(),
     });
 

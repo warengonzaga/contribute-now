@@ -50,9 +50,7 @@ export default defineCommand({
 
     // Guard: refuse to discard protected branches (main, dev, develop, etc.)
     if (isBranchProtected(currentBranch, config)) {
-      error(
-        `${pc.bold(currentBranch)} is a protected branch and cannot be discarded.`,
-      );
+      error(`${pc.bold(currentBranch)} is a protected branch and cannot be discarded.`);
       info(`Switch to a feature branch first, then run ${pc.bold('cn discard')}.`);
       process.exit(1);
     }
@@ -125,9 +123,7 @@ export default defineCommand({
     const upstreamRef = await getUpstreamRef();
     let deleteRemote = false;
     if (upstreamRef) {
-      deleteRemote = await confirmPrompt(
-        `Also delete the remote branch ${pc.bold(upstreamRef)}?`,
-      );
+      deleteRemote = await confirmPrompt(`Also delete the remote branch ${pc.bold(upstreamRef)}?`);
     }
 
     // Switch to base branch first

@@ -1,7 +1,12 @@
 import { CopilotClient } from '@github/copilot-sdk';
 import type { AIProvider, CommitConvention, ContributeConfig } from '../types.js';
 import { readConfig } from './config.js';
-import { getOllamaCloudApiKey, hasOllamaCloudApiKey } from './secrets.js';
+import {
+  getOllamaCloudApiKey,
+  getOpenRouterApiKey,
+  hasOllamaCloudApiKey,
+  hasOpenRouterApiKey,
+} from './secrets.js';
 
 const CONVENTIONAL_COMMIT_SYSTEM_PROMPT = `Git commit message generator. Format: <type>[!][(<scope>)]: <description>
 Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
@@ -80,6 +85,9 @@ const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain e
 export const DEFAULT_OLLAMA_CLOUD_MODEL = 'gpt-oss:120b';
 export const DEFAULT_OLLAMA_CLOUD_HOST = 'https://ollama.com/v1';
 
+export const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
+export const DEFAULT_OPENROUTER_HOST = 'https://openrouter.ai/api/v1';
+
 export interface ResolvedAIConfig {
   provider: AIProvider;
   providerLabel: string;
@@ -109,9 +117,9 @@ export function extractOllamaCloudModelIds(payload: unknown): string[] {
           : []
       : [];
 
-  return [...new Set(records.map(getOllamaCloudModelId).filter(Boolean))].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return [
+    ...new Set(records.map(getOllamaCloudModelId).filter((id): id is string => id !== null)),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function getOllamaCloudModelId(record: unknown): string | null {
@@ -154,6 +162,62 @@ export function normalizeOllamaCloudHost(host?: string): string {
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
 }
 
+export function extractOpenRouterModelIds(payload: unknown): string[] {
+  const records =
+    typeof payload === 'object' && payload !== null
+      ? Array.isArray((payload as { data?: unknown }).data)
+        ? (payload as { data: unknown[] }).data
+        : []
+      : [];
+
+  return [
+    ...new Set(records.map(getOpenRouterModelId).filter((id): id is string => id !== null)),
+  ].sort((left, right) => left.localeCompare(right));
+}
+
+function getOpenRouterModelId(record: unknown): string | null {
+  if (typeof record !== 'object' || record === null) {
+    return null;
+  }
+
+  const candidate =
+    typeof (record as { id?: unknown }).id === 'string' ? (record as { id: string }).id : null;
+
+  const normalized = candidate?.trim();
+  return normalized ? normalized : null;
+}
+
+export async function fetchOpenRouterModels(apiKey: string): Promise<string[]> {
+  const response = await fetch(`${DEFAULT_OPENROUTER_HOST}/models`, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('OpenRouter authentication failed');
+    }
+
+    throw new Error(`OpenRouter model lookup failed (${response.status} ${response.statusText})`);
+  }
+
+  return extractOpenRouterModelIds(await response.json());
+}
+
+export function prioritizeOpenRouterModels(
+  models: string[],
+  preferredModel = DEFAULT_OPENROUTER_MODEL,
+): string[] {
+  const uniqueModels = [...new Set(models.map((model) => model.trim()).filter(Boolean))];
+  const sortedModels = [...uniqueModels].sort((left, right) => left.localeCompare(right));
+
+  return sortedModels.includes(preferredModel)
+    ? [preferredModel, ...sortedModels.filter((model) => model !== preferredModel)]
+    : sortedModels;
+}
+
 export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAIConfig {
   const resolvedConfig = config ?? readConfig();
   const provider = resolvedConfig?.aiProvider ?? 'copilot';
@@ -164,6 +228,15 @@ export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAICon
       providerLabel: 'Ollama Cloud',
       model: resolvedConfig?.aiModel?.trim() || DEFAULT_OLLAMA_CLOUD_MODEL,
       host: DEFAULT_OLLAMA_CLOUD_HOST,
+    };
+  }
+
+  if (provider === 'openrouter') {
+    return {
+      provider,
+      providerLabel: 'OpenRouter',
+      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OPENROUTER_MODEL,
+      host: DEFAULT_OPENROUTER_HOST,
     };
   }
 
@@ -465,6 +538,31 @@ export async function checkCopilotAvailable(): Promise<string | null> {
     }
   }
 
+  if (aiConfig.provider === 'openrouter') {
+    if (!(await hasOpenRouterApiKey())) {
+      return 'OpenRouter API key not found. Run `cn setup` to save it.';
+    }
+
+    try {
+      const apiKey = await getOpenRouterApiKey();
+      if (!apiKey) {
+        return 'OpenRouter API key not found. Run `cn setup` to save it.';
+      }
+
+      await fetchOpenRouterModels(apiKey);
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === 'OpenRouter authentication failed') {
+        return 'OpenRouter authentication failed. Update your saved API key with `cn setup`.';
+      }
+      if (msg.startsWith('OpenRouter model lookup failed')) {
+        return msg.replace('model lookup', 'health check');
+      }
+      return `Could not reach OpenRouter API: ${msg}`;
+    }
+  }
+
   try {
     const client = await getManagedClient();
     try {
@@ -597,6 +695,61 @@ async function callOllamaCloud(
   }
 }
 
+async function callOpenRouter(
+  systemMessage: string,
+  userMessage: string,
+  model?: string,
+  timeoutMs = COPILOT_TIMEOUT_MS,
+): Promise<string | null> {
+  const aiConfig = resolveAIConfig();
+  const apiKey = await getOpenRouterApiKey();
+  if (!apiKey) {
+    throw new Error('OpenRouter API key is not configured');
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${DEFAULT_OPENROUTER_HOST}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/warengonzaga/contribute-now',
+        'X-Title': 'contribute-now',
+      },
+      body: JSON.stringify({
+        model: model?.trim() || aiConfig.model || DEFAULT_OPENROUTER_MODEL,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage },
+        ],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('OpenRouter authentication failed');
+      }
+      throw new Error(
+        `OpenRouter request failed (${response.status} ${response.statusText}): ${body.slice(0, 200)}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    };
+
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callAI(
   systemMessage: string,
   userMessage: string,
@@ -606,6 +759,10 @@ async function callAI(
   const aiConfig = resolveAIConfig();
   if (aiConfig.provider === 'ollama-cloud') {
     return callOllamaCloud(systemMessage, userMessage, model, timeoutMs);
+  }
+
+  if (aiConfig.provider === 'openrouter') {
+    return callOpenRouter(systemMessage, userMessage, model, timeoutMs);
   }
 
   return callCopilot(systemMessage, userMessage, model, timeoutMs);

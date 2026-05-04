@@ -88,7 +88,8 @@ cn setup          # short alias — even shorter than git!
 
 - **[Git](https://git-scm.com/)** — required
 - **[GitHub CLI](https://cli.github.com)** (`gh`) — recommended; required for PR creation, role detection, and merge status checks
-- **[GitHub Copilot](https://github.com/features/copilot)** — optional; enables AI features
+- **[GitHub Copilot](https://github.com/features/copilot)** — optional; one of the supported AI providers
+- **[Ollama Cloud](https://ollama.com)** or **[OpenRouter](https://openrouter.ai)** API key — optional; alternative AI providers
 
 ---
 
@@ -106,7 +107,7 @@ Steps:
 1. Choose **workflow mode** — Clean Flow, GitHub Flow, or Git Flow
 2. Choose **commit convention** — Clean Commit, Conventional Commits, or None
 3. Choose whether **AI features** should be enabled for this repo
-4. If using **Ollama Cloud**, pick from the available models returned by your API key, or enter one manually
+4. If using **Ollama Cloud** or **OpenRouter**, enter your API key; pick from the available models returned by your key, or enter one manually
 5. Detect remotes and auto-detect your **role** (maintainer or contributor)
 6. Confirm branch and remote names
 7. Write `.git/contribute-now/config.json` (or update `.contributerc.json` if that legacy file is still the active source)
@@ -127,7 +128,7 @@ cn config --json
 cn config --edit
 ```
 
-Use `--edit` to update workflow settings, branch names, commit convention, AI provider details, the stored Ollama Cloud API key, and to choose from the currently available Ollama Cloud models. Ollama Cloud uses the built-in default host and does not ask for a custom host URL.
+Use `--edit` to update workflow settings, branch names, commit convention, AI provider details, stored API keys (Ollama Cloud or OpenRouter), and to choose from the currently available models for the selected provider.
 
 ---
 
@@ -304,9 +305,44 @@ cn validate "added stuff"                   # exit 1
 
 ---
 
+### `cn label`
+
+Apply existing labels to issues and pull requests, or get ranked label suggestions from content. All operations are non-interactive and automation-friendly.
+
+```bash
+# Apply one or more labels to an issue
+cn label add --issue 42 bug,enhancement
+
+# Apply labels with spaces in their names (no quotes needed in most shells)
+cn label add --issue 42 bug,good first issue
+
+# Apply labels to a PR
+cn label add --pr 7 enhancement,needs triage
+
+# Get ranked label suggestions for an issue
+cn label suggest --issue 42
+
+# Get ranked label suggestions for a PR
+cn label suggest --pr 7
+```
+
+**Label source strategy:**
+1. Repository labels are fetched once and cached locally (`.git/contribute-now/labels.json`).
+2. If the repository labels are a 100% name-match against the [Clean Labels](https://github.com/wgtechlabs/clean-labels) dataset, Clean Labels (with canonical descriptions) are used as the source.
+3. Otherwise, repository-specific labels are used.
+4. The local cache is used by default — no repeated `gh` API calls.
+5. On label-not-found errors, the cache is automatically resynced and the operation is retried once.
+
+**Label input format:**
+- Commas are the separator between labels.
+- Spaces are part of a label name (`good first issue` is one label, not three words).
+- Unknown labels are reported with close-match suggestions.
+
+---
+
 ## AI Features
 
-All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and are entirely **optional** — every command has a manual fallback.
+All AI features are **optional** — every command has a manual fallback. Three providers are supported: **GitHub Copilot**, **Ollama Cloud**, and **OpenRouter**.
 
 | Command | AI Feature | Fallback |
 |---------|------------|----------|
@@ -316,7 +352,17 @@ All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and 
 | `update` | Conflict resolution guidance | Standard git instructions |
 | `submit` | Generate PR title and body | `gh pr create --fill` or manual |
 
-Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to select a specific Copilot model (e.g., `gpt-4.1`, `claude-sonnet-4`).
+Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to select a specific model (e.g., `gpt-4.1`, `claude-sonnet-4`).
+
+### AI Providers
+
+| Provider | Auth | How it works |
+|----------|------|--------------|
+| **GitHub Copilot** *(default)* | `gh auth login` | Uses your existing GitHub/Copilot auth via the `@github/copilot-sdk` |
+| **Ollama Cloud** | API key (stored in local secrets) | OpenAI-compatible API; model list fetched from your key on setup |
+| **OpenRouter** | API key (stored in local secrets) | Unified API that routes to many model providers (OpenAI, Anthropic, Google, etc.) |
+
+Select your provider during `cn setup` or change it later with `cn config --edit`. API keys for Ollama Cloud and OpenRouter are stored as plain JSON in `~/.contribute-now/secrets/store.json` with file permissions restricted to the current user (mode 0600) — never in the plain config file.
 
 ---
 

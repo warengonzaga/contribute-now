@@ -15,8 +15,11 @@ import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
 import {
   DEFAULT_OLLAMA_CLOUD_HOST,
   DEFAULT_OLLAMA_CLOUD_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   fetchOllamaCloudModels,
+  fetchOpenRouterModels,
   prioritizeOllamaCloudModels,
+  prioritizeOpenRouterModels,
   resolveAIConfig,
 } from '../utils/copilot.js';
 import {
@@ -36,7 +39,11 @@ import {
 } from '../utils/git.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
-import { getSecretsStorePath, setOllamaCloudApiKey } from '../utils/secrets.js';
+import {
+  getSecretsStorePath,
+  setOllamaCloudApiKey,
+  setOpenRouterApiKey,
+} from '../utils/secrets.js';
 import { createSpinner } from '../utils/spinner.js';
 import { hasDevBranch, WORKFLOW_DESCRIPTIONS } from '../utils/workflow.js';
 
@@ -118,6 +125,41 @@ async function promptForOllamaCloudModel(
   );
 }
 
+async function promptForOpenRouterModel(apiKey: string): Promise<string> {
+  try {
+    info('Fetching available OpenRouter models...');
+    const models = prioritizeOpenRouterModels(await fetchOpenRouterModels(apiKey));
+
+    if (models.length > 0) {
+      const manualChoice = 'Enter model manually';
+      const choices = models.map((model) => ({
+        value: model,
+        label: model === DEFAULT_OPENROUTER_MODEL ? `${model} (default)` : model,
+      }));
+      const selected = await selectPrompt('Which OpenRouter model should this clone use?', [
+        ...choices.map((choice) => choice.label),
+        manualChoice,
+      ]);
+
+      if (selected !== manualChoice) {
+        return (
+          choices.find((choice) => choice.label === selected)?.value ?? DEFAULT_OPENROUTER_MODEL
+        );
+      }
+    } else {
+      warn('OpenRouter returned no available models. Enter the model name manually.');
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warn(`Could not fetch OpenRouter models: ${message}`);
+  }
+
+  return inputPrompt(
+    `OpenRouter model (default: ${DEFAULT_OPENROUTER_MODEL} — press Enter to keep)`,
+    DEFAULT_OPENROUTER_MODEL,
+  );
+}
+
 export default defineCommand({
   meta: {
     name: 'setup',
@@ -184,9 +226,16 @@ export default defineCommand({
       const providerChoice = await selectPrompt('Which AI provider should this clone use?', [
         'GitHub Copilot — use your existing GitHub/Copilot auth',
         'Ollama Cloud — use an API key stored in the local secrets store',
+        'OpenRouter — use an API key stored in the local secrets store',
       ]);
 
-      aiProvider = providerChoice.startsWith('Ollama Cloud') ? 'ollama-cloud' : 'copilot';
+      if (providerChoice.startsWith('Ollama Cloud')) {
+        aiProvider = 'ollama-cloud';
+      } else if (providerChoice.startsWith('OpenRouter')) {
+        aiProvider = 'openrouter';
+      } else {
+        aiProvider = 'copilot';
+      }
 
       if (aiProvider === 'ollama-cloud') {
         const apiKey = (await passwordPrompt('Enter your Ollama Cloud API key')).trim();
@@ -204,6 +253,24 @@ export default defineCommand({
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           error(`Failed to store Ollama Cloud API key: ${message}`);
+          process.exit(1);
+        }
+      } else if (aiProvider === 'openrouter') {
+        const apiKey = (await passwordPrompt('Enter your OpenRouter API key')).trim();
+        if (!apiKey) {
+          error('OpenRouter API key is required when OpenRouter is selected.');
+          process.exit(1);
+        }
+
+        aiModel = await promptForOpenRouterModel(apiKey);
+
+        try {
+          await setOpenRouterApiKey(apiKey);
+          success('Stored OpenRouter API key in the local secrets store.');
+          info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          error(`Failed to store OpenRouter API key: ${message}`);
           process.exit(1);
         }
       }

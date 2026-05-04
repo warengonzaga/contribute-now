@@ -86,6 +86,26 @@ describe('config utilities', () => {
     expect(readConfig(TEST_DIR)).toEqual(cfg);
   });
 
+  it('writeConfig and readConfig round-trip with openrouter provider', () => {
+    const cfg: ContributeConfig = {
+      workflow: 'github-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: 'anthropic/claude-3-opus',
+      showTips: false,
+    };
+
+    writeConfig(cfg, TEST_DIR);
+
+    expect(readConfig(TEST_DIR)).toEqual(cfg);
+  });
+
   it('readConfig ignores legacy aiHost metadata from older config files', () => {
     const cfg = {
       workflow: 'clean-flow',

@@ -2,7 +2,7 @@ export type WorkflowMode = 'clean-flow' | 'github-flow' | 'git-flow';
 
 export type CommitConvention = 'conventional' | 'clean-commit' | 'none';
 
-export type AIProvider = 'copilot' | 'ollama-cloud';
+export type AIProvider = 'copilot' | 'ollama-cloud' | 'openrouter';
 
 export interface ContributeConfig {
   workflow: WorkflowMode;

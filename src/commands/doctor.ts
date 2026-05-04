@@ -25,7 +25,7 @@ import {
 } from '../utils/git.js';
 import { projectHeading } from '../utils/logger.js';
 import { detectForkSetup, parseRepoFromUrl } from '../utils/remote.js';
-import { hasOllamaCloudApiKey, hasSecretsStore } from '../utils/secrets.js';
+import { hasOllamaCloudApiKey, hasOpenRouterApiKey, hasSecretsStore } from '../utils/secrets.js';
 import { getLocalStateLocationLabel, hasLocalStateStore } from '../utils/state.js';
 import {
   getBaseBranch,
@@ -253,6 +253,18 @@ async function configSection(): Promise<SectionReport> {
       const hasApiKey = await hasOllamaCloudApiKey();
       checks.push({
         label: hasApiKey ? 'Ollama Cloud API key present' : 'Ollama Cloud API key missing',
+        ok: true,
+        warning: !hasApiKey,
+        detail: hasSecretsStore()
+          ? 'stored in the local secrets store'
+          : 'run `cn setup` to save it',
+      });
+    }
+
+    if (aiConfig.provider === 'openrouter') {
+      const hasApiKey = await hasOpenRouterApiKey();
+      checks.push({
+        label: hasApiKey ? 'OpenRouter API key present' : 'OpenRouter API key missing',
         ok: true,
         warning: !hasApiKey,
         detail: hasSecretsStore()

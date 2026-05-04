@@ -5,9 +5,11 @@ import { join, resolve } from 'node:path';
 const CONTRIBUTE_NOW_SECRETS_DIRNAME = '.contribute-now';
 const CONTRIBUTE_NOW_SECRETS_STORE_DIRNAME = 'secrets';
 const OLLAMA_CLOUD_API_KEY = 'ollama.cloud.apiKey';
+const OPENROUTER_API_KEY = 'openrouter.apiKey';
 
 interface SecretsStore {
   [OLLAMA_CLOUD_API_KEY]?: string;
+  [OPENROUTER_API_KEY]?: string;
 }
 
 export function getSecretsStorePath(baseDir = homedir()): string {
@@ -98,4 +100,46 @@ export async function deleteOllamaCloudApiKey(baseDir = homedir()): Promise<bool
 
 export async function closeSecretsStore(baseDir = homedir()): Promise<void> {
   void baseDir;
+}
+
+export async function hasOpenRouterApiKey(baseDir = homedir()): Promise<boolean> {
+  return typeof readSecretsStore(baseDir)?.[OPENROUTER_API_KEY] === 'string';
+}
+
+export async function getOpenRouterApiKey(baseDir = homedir()): Promise<string | null> {
+  return readSecretsStore(baseDir)?.[OPENROUTER_API_KEY] ?? null;
+}
+
+export async function setOpenRouterApiKey(value: string, baseDir = homedir()): Promise<void> {
+  const existingStore = readSecretsStore(baseDir) ?? {};
+  writeSecretsStore(
+    {
+      ...existingStore,
+      [OPENROUTER_API_KEY]: value,
+    },
+    baseDir,
+  );
+}
+
+export async function deleteOpenRouterApiKey(baseDir = homedir()): Promise<boolean> {
+  const existingStore = readSecretsStore(baseDir);
+  if (!existingStore || !(OPENROUTER_API_KEY in existingStore)) {
+    return false;
+  }
+
+  const nextStore = { ...existingStore };
+  delete nextStore[OPENROUTER_API_KEY];
+
+  if (Object.keys(nextStore).length === 0) {
+    try {
+      rmSync(getSecretsFilePath(baseDir), { force: true });
+      rmSync(getSecretsStorePath(baseDir), { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup failures; the key is already removed from memory.
+    }
+    return true;
+  }
+
+  writeSecretsStore(nextStore, baseDir);
+  return true;
 }
