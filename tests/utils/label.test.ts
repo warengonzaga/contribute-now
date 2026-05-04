@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { CLEAN_LABELS } from '../../src/data/clean-labels.js';
 import type { LabelInfo } from '../../src/utils/gh.js';
 import {
@@ -7,8 +9,10 @@ import {
   isCleanLabelsMatch,
   normalizeLabelName,
   parseLabelsCsv,
+  readLabelCache,
   scoreLabelsForContent,
   validateLabels,
+  writeLabelCache,
 } from '../../src/utils/label.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -227,5 +231,97 @@ describe('scoreLabelsForContent', () => {
     for (let i = 1; i < ranked.length; i++) {
       expect(ranked[i - 1].score).toBeGreaterThanOrEqual(ranked[i].score);
     }
+  });
+});
+
+// ── readLabelCache / writeLabelCache ──────────────────────────────────────
+
+describe('readLabelCache', () => {
+  function makeTmpDir(): string {
+    const dir = join(
+      '/tmp',
+      `label-cache-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(join(dir, '.git', 'contribute-now'), { recursive: true });
+    return dir;
+  }
+
+  it('returns null when cache file does not exist', () => {
+    const cwd = makeTmpDir();
+    expect(readLabelCache(cwd)).toBeNull();
+  });
+
+  it('round-trips a valid cache correctly', () => {
+    const cwd = makeTmpDir();
+    writeLabelCache(
+      {
+        labels: [{ name: 'bug', description: 'broken', color: 'd73a4a' }],
+        source: 'repo',
+        fetchedAt: '2025-01-01T00:00:00.000Z',
+      },
+      cwd,
+    );
+
+    const result = readLabelCache(cwd);
+    expect(result).not.toBeNull();
+    expect(result?.labels).toHaveLength(1);
+    expect(result?.labels[0].name).toBe('bug');
+    expect(result?.source).toBe('repo');
+  });
+
+  it('filters out invalid label entries (no name)', () => {
+    const cwd = makeTmpDir();
+    const cachePath = join(cwd, '.git', 'contribute-now', 'labels.json');
+    writeFileSync(
+      cachePath,
+      JSON.stringify({
+        labels: [
+          { name: 'bug', description: 'real', color: 'd73a4a' },
+          { description: 'missing name', color: 'abc123' },
+          null,
+          42,
+        ],
+        source: 'repo',
+        fetchedAt: '2025-01-01T00:00:00.000Z',
+      }),
+      'utf-8',
+    );
+
+    const result = readLabelCache(cwd);
+    expect(result).not.toBeNull();
+    expect(result?.labels).toHaveLength(1);
+    expect(result?.labels[0].name).toBe('bug');
+  });
+
+  it('returns null when all label entries are invalid', () => {
+    const cwd = makeTmpDir();
+    const cachePath = join(cwd, '.git', 'contribute-now', 'labels.json');
+    writeFileSync(
+      cachePath,
+      JSON.stringify({
+        labels: [null, { description: 'no name' }],
+        source: 'repo',
+        fetchedAt: '2025-01-01T00:00:00.000Z',
+      }),
+      'utf-8',
+    );
+
+    expect(readLabelCache(cwd)).toBeNull();
+  });
+
+  it('returns null for invalid top-level structure', () => {
+    const cwd = makeTmpDir();
+    const cachePath = join(cwd, '.git', 'contribute-now', 'labels.json');
+    writeFileSync(cachePath, JSON.stringify({ labels: 'not-an-array' }), 'utf-8');
+
+    expect(readLabelCache(cwd)).toBeNull();
+  });
+
+  it('returns null for unparseable JSON', () => {
+    const cwd = makeTmpDir();
+    const cachePath = join(cwd, '.git', 'contribute-now', 'labels.json');
+    writeFileSync(cachePath, 'this is not json', 'utf-8');
+
+    expect(readLabelCache(cwd)).toBeNull();
   });
 });

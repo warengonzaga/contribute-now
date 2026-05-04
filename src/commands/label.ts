@@ -8,6 +8,7 @@ import {
   getIssueContent,
   getPRContent,
 } from '../utils/gh.js';
+import { isGitRepo } from '../utils/git.js';
 import {
   findCloseMatches,
   getActiveLabels,
@@ -18,7 +19,14 @@ import {
 } from '../utils/label.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 
-// ── Shared guard ───────────────────────────────────────────────────────────
+// ── Shared guards ──────────────────────────────────────────────────────────
+
+async function requireGitRepository(): Promise<void> {
+  if (!(await isGitRepo())) {
+    error('Not inside a git repository.');
+    process.exit(1);
+  }
+}
 
 async function requireGhCli(): Promise<void> {
   if (!(await checkGhInstalled())) {
@@ -105,6 +113,7 @@ const addCommand = defineCommand({
     },
   },
   async run({ args, rawArgs }) {
+    await requireGitRepository();
     await requireGhCli();
     await projectHeading('label add', '🏷️');
 
@@ -256,6 +265,7 @@ const suggestCommand = defineCommand({
     },
   },
   async run({ args }) {
+    await requireGitRepository();
     await requireGhCli();
     await projectHeading('label suggest', '🏷️');
 

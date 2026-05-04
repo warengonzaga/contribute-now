@@ -98,8 +98,34 @@ export function readLabelCache(cwd = process.cwd()): LabelCache | null {
       return null;
     }
 
+    // Validate and sanitize each label entry so a corrupted cache cannot
+    // cause downstream runtime errors when code assumes label.name is a string.
+    const validatedLabels: LabelInfo[] = [];
+    for (const entry of raw.labels as unknown[]) {
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        typeof (entry as Record<string, unknown>).name !== 'string' ||
+        !(entry as Record<string, unknown>).name
+      ) {
+        continue;
+      }
+
+      const e = entry as Record<string, unknown>;
+      validatedLabels.push({
+        name: (e.name as string).trim(),
+        description: typeof e.description === 'string' ? e.description.trim() : '',
+        color: typeof e.color === 'string' ? e.color.trim() : '',
+      });
+    }
+
+    // Reject the cache if every entry was invalid (likely fully corrupted).
+    if (validatedLabels.length === 0) {
+      return null;
+    }
+
     return {
-      labels: raw.labels as LabelInfo[],
+      labels: validatedLabels,
       source: raw.source,
       fetchedAt: raw.fetchedAt,
     };

@@ -178,33 +178,54 @@ export interface LabelInfo {
 
 /**
  * Fetch all labels defined in the current repository.
+ * Paginates automatically so repos with more than the default page size still
+ * return the full label set.
  */
 export async function getRepoLabels(): Promise<LabelInfo[]> {
-  const { exitCode, stdout } = await run([
-    'label',
-    'list',
-    '--json',
-    'name,description,color',
-    '--limit',
-    '200',
-  ]);
-  if (exitCode !== 0) return [];
-  try {
-    const raw = JSON.parse(stdout.trim()) as Array<{
-      name?: unknown;
-      description?: unknown;
-      color?: unknown;
-    }>;
-    return raw
-      .filter((item) => typeof item.name === 'string' && item.name.trim().length > 0)
-      .map((item) => ({
-        name: (item.name as string).trim(),
-        description: typeof item.description === 'string' ? item.description.trim() : '',
-        color: typeof item.color === 'string' ? item.color.trim().replace(/^#/, '') : '',
-      }));
-  } catch {
-    return [];
+  const PAGE_SIZE = 100;
+  const allLabels: LabelInfo[] = [];
+  let page = 1;
+
+  while (true) {
+    const { exitCode, stdout } = await run([
+      'label',
+      'list',
+      '--json',
+      'name,description,color',
+      '--limit',
+      String(PAGE_SIZE),
+      '--page',
+      String(page),
+    ]);
+
+    if (exitCode !== 0) break;
+
+    let batch: Array<{ name?: unknown; description?: unknown; color?: unknown }> = [];
+    try {
+      batch = JSON.parse(stdout.trim()) as typeof batch;
+    } catch {
+      break;
+    }
+
+    if (!Array.isArray(batch) || batch.length === 0) break;
+
+    for (const item of batch) {
+      if (typeof item.name === 'string' && item.name.trim().length > 0) {
+        allLabels.push({
+          name: item.name.trim(),
+          description: typeof item.description === 'string' ? item.description.trim() : '',
+          color: typeof item.color === 'string' ? item.color.trim().replace(/^#/, '') : '',
+        });
+      }
+    }
+
+    // If the batch was smaller than the page size we've received the last page.
+    if (batch.length < PAGE_SIZE) break;
+
+    page++;
   }
+
+  return allLabels;
 }
 
 export interface IssueOrPRContent {
