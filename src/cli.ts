@@ -6,6 +6,7 @@ import config from './commands/config.js';
 import discard from './commands/discard.js';
 import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
+import label from './commands/label.js';
 import log from './commands/log.js';
 import save from './commands/save.js';
 import setup from './commands/setup.js';
@@ -58,6 +59,7 @@ if (!isVersion) {
     'hook',
     'validate',
     'doctor',
+    'label',
   ];
   const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
   const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
@@ -97,6 +99,7 @@ const main = defineCommand({
     hook,
     validate,
     doctor,
+    label,
   },
   run({ args }) {
     if (args.version) {

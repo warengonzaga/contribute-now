@@ -305,6 +305,41 @@ cn validate "added stuff"                   # exit 1
 
 ---
 
+### `cn label`
+
+Apply existing labels to issues and pull requests, or get ranked label suggestions from content. All operations are non-interactive and automation-friendly.
+
+```bash
+# Apply one or more labels to an issue
+cn label add --issue 42 bug,enhancement
+
+# Apply labels with spaces in their names (no quotes needed in most shells)
+cn label add --issue 42 bug,good first issue
+
+# Apply labels to a PR
+cn label add --pr 7 enhancement,needs triage
+
+# Get ranked label suggestions for an issue
+cn label suggest --issue 42
+
+# Get ranked label suggestions for a PR
+cn label suggest --pr 7
+```
+
+**Label source strategy:**
+1. Repository labels are fetched once and cached locally (`.git/contribute-now/labels.json`).
+2. If the repository labels are a 100% name-match against the [Clean Labels](https://github.com/wgtechlabs/clean-labels) dataset, Clean Labels (with canonical descriptions) are used as the source.
+3. Otherwise, repository-specific labels are used.
+4. The local cache is used by default — no repeated `gh` API calls.
+5. On label-not-found errors, the cache is automatically resynced and the operation is retried once.
+
+**Label input format:**
+- Commas are the separator between labels.
+- Spaces are part of a label name (`good first issue` is one label, not three words).
+- Unknown labels are reported with close-match suggestions.
+
+---
+
 ## AI Features
 
 All AI features are **optional** — every command has a manual fallback. Three providers are supported: **GitHub Copilot**, **Ollama Cloud**, and **OpenRouter**.
