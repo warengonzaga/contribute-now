@@ -21,7 +21,12 @@ export function isNpxExecution(context: RuntimeContext = {}): boolean {
   const lifecycle = (env.npm_lifecycle_event ?? '').toLowerCase();
 
   if (normalizedUserAgent.startsWith('npm/') || normalizedUserAgent.startsWith('pnpm/')) {
-    return execPath.includes('npx') || execPath.includes('pnpx') || lifecycle === 'npx' || lifecycle === 'pnpx';
+    return (
+      execPath.includes('npx') ||
+      execPath.includes('pnpx') ||
+      lifecycle === 'npx' ||
+      lifecycle === 'pnpx'
+    );
   }
 
   return false;

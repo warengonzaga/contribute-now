@@ -1,9 +1,9 @@
 import { defineCommand, runMain } from 'citty';
 import branch from './commands/branch.js';
 import clean from './commands/clean.js';
-import discard from './commands/discard.js';
 import commit from './commands/commit.js';
 import config from './commands/config.js';
+import discard from './commands/discard.js';
 import doctor from './commands/doctor.js';
 import hook from './commands/hook.js';
 import log from './commands/log.js';

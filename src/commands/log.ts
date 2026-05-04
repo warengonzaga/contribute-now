@@ -129,9 +129,7 @@ export default defineCommand({
         console.log(pc.yellow('  ⚠ Could not determine a comparison branch.'));
         console.log(pc.dim('    No upstream tracking set and no remote base branch found.'));
         console.log(
-          pc.dim(
-            `    Use ${pc.bold('cn log --full')} to see the full commit history instead.`,
-          ),
+          pc.dim(`    Use ${pc.bold('cn log --full')} to see the full commit history instead.`),
         );
         console.log();
         return;

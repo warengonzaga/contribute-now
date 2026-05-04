@@ -88,7 +88,8 @@ cn setup          # short alias — even shorter than git!
 
 - **[Git](https://git-scm.com/)** — required
 - **[GitHub CLI](https://cli.github.com)** (`gh`) — recommended; required for PR creation, role detection, and merge status checks
-- **[GitHub Copilot](https://github.com/features/copilot)** — optional; enables AI features
+- **[GitHub Copilot](https://github.com/features/copilot)** — optional; one of the supported AI providers
+- **[Ollama Cloud](https://ollama.com)** or **[OpenRouter](https://openrouter.ai)** API key — optional; alternative AI providers
 
 ---
 
@@ -106,7 +107,7 @@ Steps:
 1. Choose **workflow mode** — Clean Flow, GitHub Flow, or Git Flow
 2. Choose **commit convention** — Clean Commit, Conventional Commits, or None
 3. Choose whether **AI features** should be enabled for this repo
-4. If using **Ollama Cloud**, pick from the available models returned by your API key, or enter one manually
+4. If using **Ollama Cloud** or **OpenRouter**, enter your API key; pick from the available models returned by your key, or enter one manually
 5. Detect remotes and auto-detect your **role** (maintainer or contributor)
 6. Confirm branch and remote names
 7. Write `.git/contribute-now/config.json` (or update `.contributerc.json` if that legacy file is still the active source)
@@ -127,7 +128,7 @@ cn config --json
 cn config --edit
 ```
 
-Use `--edit` to update workflow settings, branch names, commit convention, AI provider details, the stored Ollama Cloud API key, and to choose from the currently available Ollama Cloud models. Ollama Cloud uses the built-in default host and does not ask for a custom host URL.
+Use `--edit` to update workflow settings, branch names, commit convention, AI provider details, stored API keys (Ollama Cloud or OpenRouter), and to choose from the currently available models for the selected provider.
 
 ---
 
@@ -306,7 +307,7 @@ cn validate "added stuff"                   # exit 1
 
 ## AI Features
 
-All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and are entirely **optional** — every command has a manual fallback.
+All AI features are **optional** — every command has a manual fallback. Three providers are supported: **GitHub Copilot**, **Ollama Cloud**, and **OpenRouter**.
 
 | Command | AI Feature | Fallback |
 |---------|------------|----------|
@@ -316,7 +317,17 @@ All AI features are powered by **GitHub Copilot** via `@github/copilot-sdk` and 
 | `update` | Conflict resolution guidance | Standard git instructions |
 | `submit` | Generate PR title and body | `gh pr create --fill` or manual |
 
-Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to select a specific Copilot model (e.g., `gpt-4.1`, `claude-sonnet-4`).
+Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to select a specific model (e.g., `gpt-4.1`, `claude-sonnet-4`).
+
+### AI Providers
+
+| Provider | Auth | How it works |
+|----------|------|--------------|
+| **GitHub Copilot** *(default)* | `gh auth login` | Uses your existing GitHub/Copilot auth via the `@github/copilot-sdk` |
+| **Ollama Cloud** | API key (stored in local secrets) | OpenAI-compatible API; model list fetched from your key on setup |
+| **OpenRouter** | API key (stored in local secrets) | Unified API that routes to many model providers (OpenAI, Anthropic, Google, etc.) |
+
+Select your provider during `cn setup` or change it later with `cn config --edit`. API keys for Ollama Cloud and OpenRouter are stored securely in `~/.contribute-now/secrets/store.json` (mode 0600) — never in the plain config file.
 
 ---
 
