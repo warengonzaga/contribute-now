@@ -319,15 +319,6 @@ export function findCloseMatches(input: string, available: LabelInfo[], maxResul
     .map((item) => item.name);
 }
 
-function toBigrams(text: string): Set<string> {
-  const bigrams = new Set<string>();
-  for (let i = 0; i < text.length - 1; i++) {
-    bigrams.add(text.slice(i, i + 2));
-  }
-
-  return bigrams;
-}
-
 // ── Label suggestion (content-based) ──────────────────────────────────────
 
 export interface LabelSuggestion {
@@ -374,18 +365,6 @@ export function scoreLabelsForContent(content: string, labels: LabelInfo[]): Lab
   return scored.filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
 }
 
-/** Strip the `[Category]` prefix and `[scope]` suffix from a description. */
-function stripDescriptionMeta(description: string): string {
-  return description
-    .replace(/^\[[\w\s]+\]\s*/u, '')
-    .replace(/\s*\[[\w,\s]+\]$/u, '')
-    .trim();
-}
-
-function tokenize(text: string): Set<string> {
-  return new Set(text.split(/[\s\-_/,.:;!?()[\]{}"']+/).filter((t) => t.length > 0));
-}
-
 const STOP_WORDS = new Set([
   'the',
   'and',
@@ -418,3 +397,35 @@ const STOP_WORDS = new Set([
 
 // ── Re-export CleanLabel type for convenience ──────────────────────────────
 export type { CleanLabel };
+
+// ── Internal helpers ───────────────────────────────────────────────────────
+
+/** Strip the `[Category]` prefix and `[scope]` suffix from a Clean Labels description string. */
+function stripDescriptionMeta(description: string): string {
+  return description
+    .replace(/^\[[\w\s]+\]\s*/u, '')
+    .replace(/\s*\[[\w,\s]+\]$/u, '')
+    .trim();
+}
+
+/**
+ * Split text into a set of unique lowercase tokens.
+ * Splits on whitespace, hyphens, underscores, forward-slashes, and common
+ * punctuation to produce meaningful keyword tokens for matching.
+ */
+function tokenize(text: string): Set<string> {
+  return new Set(text.split(/[\s\-_/,.:;!?()[\]{}"']+/).filter((t) => t.length > 0));
+}
+
+/**
+ * Build a set of all 2-character substrings (bigrams) from the given text.
+ * Used by the fuzzy close-match algorithm to compute character-level overlap.
+ */
+function toBigrams(text: string): Set<string> {
+  const bigrams = new Set<string>();
+  for (let i = 0; i < text.length - 1; i++) {
+    bigrams.add(text.slice(i, i + 2));
+  }
+
+  return bigrams;
+}

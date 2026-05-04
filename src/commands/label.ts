@@ -73,6 +73,13 @@ function extractLabelsCsv(rawArgs: string[]): string {
   return parts.join(' ');
 }
 
+// ── Shared helper ──────────────────────────────────────────────────────────
+
+/** Returns a short human-readable label source note for display. */
+function formatSourceNote(source: 'clean-labels' | 'repo'): string {
+  return source === 'clean-labels' ? '(source: Clean Labels dataset)' : '(source: repo labels)';
+}
+
 // ── cn label add ──────────────────────────────────────────────────────────
 
 const addCommand = defineCommand({
@@ -224,8 +231,7 @@ const addCommand = defineCommand({
 
     success(`Applied to ${pc.bold(targetLabel)}: ${valid.map((l) => pc.cyan(l)).join(', ')}`);
 
-    const sourceNote =
-      cache.source === 'clean-labels' ? '(source: Clean Labels dataset)' : '(source: repo labels)';
+    const sourceNote = formatSourceNote(cache.source);
     info(sourceNote, '');
   },
 });
@@ -306,11 +312,11 @@ const suggestCommand = defineCommand({
       return;
     }
 
-    const sourceNote = cache.source === 'clean-labels' ? 'Clean Labels dataset' : 'repo labels';
+    const sourceNote = formatSourceNote(cache.source);
 
     console.log();
     console.log(
-      `  ${pc.bold(`Suggested labels for ${pc.cyan(targetLabel)}:`)}  ${pc.dim(`(source: ${sourceNote})`)}`,
+      `  ${pc.bold(`Suggested labels for ${pc.cyan(targetLabel)}:`)}  ${pc.dim(sourceNote)}`,
     );
     console.log();
 
