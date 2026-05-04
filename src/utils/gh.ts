@@ -169,3 +169,105 @@ export async function getMergedPRForBranch(headBranch: string): Promise<Existing
     return null;
   }
 }
+
+export interface LabelInfo {
+  name: string;
+  description: string;
+  color: string;
+}
+
+/**
+ * Fetch all labels defined in the current repository.
+ */
+export async function getRepoLabels(): Promise<LabelInfo[]> {
+  const { exitCode, stdout } = await run([
+    'label',
+    'list',
+    '--json',
+    'name,description,color',
+    '--limit',
+    '200',
+  ]);
+  if (exitCode !== 0) return [];
+  try {
+    const raw = JSON.parse(stdout.trim()) as Array<{
+      name?: unknown;
+      description?: unknown;
+      color?: unknown;
+    }>;
+    return raw
+      .filter((item) => typeof item.name === 'string' && item.name.trim().length > 0)
+      .map((item) => ({
+        name: (item.name as string).trim(),
+        description: typeof item.description === 'string' ? item.description.trim() : '',
+        color: typeof item.color === 'string' ? item.color.trim().replace(/^#/, '') : '',
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export interface IssueOrPRContent {
+  title: string;
+  body: string;
+}
+
+/**
+ * Fetch the title and body of a GitHub issue.
+ */
+export async function getIssueContent(issueNumber: number): Promise<IssueOrPRContent | null> {
+  const { exitCode, stdout } = await run([
+    'issue',
+    'view',
+    String(issueNumber),
+    '--json',
+    'title,body',
+  ]);
+  if (exitCode !== 0) return null;
+  try {
+    const parsed = JSON.parse(stdout.trim()) as { title?: unknown; body?: unknown };
+    const title = typeof parsed.title === 'string' ? parsed.title : '';
+    const body = typeof parsed.body === 'string' ? parsed.body : '';
+    return { title, body };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch the title and body of a GitHub pull request.
+ */
+export async function getPRContent(prNumber: number): Promise<IssueOrPRContent | null> {
+  const { exitCode, stdout } = await run(['pr', 'view', String(prNumber), '--json', 'title,body']);
+  if (exitCode !== 0) return null;
+  try {
+    const parsed = JSON.parse(stdout.trim()) as { title?: unknown; body?: unknown };
+    const title = typeof parsed.title === 'string' ? parsed.title : '';
+    const body = typeof parsed.body === 'string' ? parsed.body : '';
+    return { title, body };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Apply one or more labels to a GitHub issue.
+ * Labels must already exist in the repository.
+ */
+export async function addLabelsToIssue(
+  issueNumber: number,
+  labels: string[],
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return run(['issue', 'edit', String(issueNumber), '--add-label', labels.join(',')]);
+}
+
+/**
+ * Apply one or more labels to a GitHub pull request.
+ * Labels must already exist in the repository.
+ */
+export async function addLabelsToPR(
+  prNumber: number,
+  labels: string[],
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return run(['pr', 'edit', String(prNumber), '--add-label', labels.join(',')]);
+}

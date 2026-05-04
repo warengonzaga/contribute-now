@@ -181,6 +181,24 @@ const COMMAND_GUIDES: Record<string, CommandGuide> = {
       },
     ],
   },
+  label: {
+    summary: 'Apply existing labels or get ranked suggestions for issues and pull requests.',
+    examples: [
+      { command: 'cn label --help', description: 'learn label add and suggest usage' },
+      {
+        command: 'cn label add --issue 42 bug,enhancement',
+        description: 'apply labels to an issue',
+      },
+      {
+        command: 'cn label add --pr 7 "good first issue"',
+        description: 'apply a label with spaces to a PR',
+      },
+      {
+        command: 'cn label suggest --issue 42',
+        description: 'get ranked label suggestions from content',
+      },
+    ],
+  },
 };
 
 export const LOADING_TIPS = [

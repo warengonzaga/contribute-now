@@ -303,9 +303,7 @@ export default defineCommand({
     const finalBranch = await getCurrentBranch();
     if (finalBranch && protectedBranches.has(finalBranch)) {
       console.log();
-      info(
-        `You're on ${pc.bold(finalBranch)}. Run ${pc.bold('cn start')} to begin a new feature.`,
-      );
+      info(`You're on ${pc.bold(finalBranch)}. Run ${pc.bold('cn start')} to begin a new feature.`);
     }
   },
 });

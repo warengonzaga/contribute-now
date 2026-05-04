@@ -157,10 +157,7 @@ export default defineCommand({
 
       console.log();
       success(`You're now on ${pc.bold(newBranchName)} with all your work intact.`);
-      info(
-        `Run ${pc.bold('cn update')} again to rebase onto latest ${pc.bold(baseBranch)}.`,
-        '',
-      );
+      info(`Run ${pc.bold('cn update')} again to rebase onto latest ${pc.bold(baseBranch)}.`, '');
       return;
     }
 
