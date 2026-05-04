@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.9.0] - 2026-05-04
+
+### Added
+
+- add deterministic `cn label add` / `cn label suggest` commands with cached label source strategy (#18)
+- add OpenRouter as a supported AI provider (#16)
+
 ## [0.8.0] - 2026-05-03
 
 ### Added
