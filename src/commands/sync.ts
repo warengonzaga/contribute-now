@@ -94,10 +94,7 @@ export default defineCommand({
     if (!(await refExists(syncSource.ref))) {
       error(`Remote ref ${pc.bold(syncSource.ref)} does not exist.`);
       info('This can happen if the branch was renamed or deleted on the remote.', '');
-      info(
-        `Check your config: the base branch may need updating via ${pc.bold('cn setup')}.`,
-        '',
-      );
+      info(`Check your config: the base branch may need updating via ${pc.bold('cn setup')}.`, '');
       process.exit(1);
     }
 

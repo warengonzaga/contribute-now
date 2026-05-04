@@ -6,12 +6,16 @@ import {
   createRecoveryCommitGroups,
   DEFAULT_OLLAMA_CLOUD_HOST,
   DEFAULT_OLLAMA_CLOUD_MODEL,
+  DEFAULT_OPENROUTER_HOST,
+  DEFAULT_OPENROUTER_MODEL,
   extractDiffStats,
   extractOllamaCloudModelIds,
+  extractOpenRouterModelIds,
   normalizeCommitGroups,
   normalizeOllamaCloudHost,
   parseDiffByFile,
   prioritizeOllamaCloudModels,
+  prioritizeOpenRouterModels,
   resolveAIConfig,
   sanitizeGeneratedCommitMessage,
 } from '../../src/utils/copilot.js';
@@ -259,6 +263,50 @@ describe('resolveAIConfig', () => {
     });
   });
 
+  it('resolves OpenRouter defaults from config metadata', () => {
+    const config: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      devBranch: 'dev',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+    };
+
+    expect(resolveAIConfig(config)).toEqual({
+      provider: 'openrouter',
+      providerLabel: 'OpenRouter',
+      model: DEFAULT_OPENROUTER_MODEL,
+      host: DEFAULT_OPENROUTER_HOST,
+    });
+  });
+
+  it('resolves OpenRouter with a custom model', () => {
+    const config: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: 'anthropic/claude-3-opus',
+    };
+
+    expect(resolveAIConfig(config)).toEqual({
+      provider: 'openrouter',
+      providerLabel: 'OpenRouter',
+      model: 'anthropic/claude-3-opus',
+      host: DEFAULT_OPENROUTER_HOST,
+    });
+  });
+
   it('normalizes an Ollama host without the v1 suffix', () => {
     expect(normalizeOllamaCloudHost('https://ollama.com')).toBe('https://ollama.com/v1');
   });
@@ -300,6 +348,48 @@ describe('prioritizeOllamaCloudModels', () => {
     expect(prioritizeOllamaCloudModels(['qwen3:32b', 'llama3.3:70b'])).toEqual([
       'llama3.3:70b',
       'qwen3:32b',
+    ]);
+  });
+});
+
+describe('extractOpenRouterModelIds', () => {
+  it('extracts model ids from the OpenAI-compatible models payload', () => {
+    expect(
+      extractOpenRouterModelIds({
+        data: [{ id: 'openai/gpt-4o' }, { id: 'anthropic/claude-3-opus' }, { id: 'openai/gpt-4o' }],
+      }),
+    ).toEqual(['anthropic/claude-3-opus', 'openai/gpt-4o']);
+  });
+
+  it('returns an empty list for unrecognized payloads', () => {
+    expect(extractOpenRouterModelIds({ hello: 'world' })).toEqual([]);
+    expect(extractOpenRouterModelIds(null)).toEqual([]);
+  });
+
+  it('returns an empty list for models array without id field', () => {
+    expect(
+      extractOpenRouterModelIds({
+        data: [{ name: 'some-model' }],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('prioritizeOpenRouterModels', () => {
+  it('puts the default model first when it is available', () => {
+    expect(
+      prioritizeOpenRouterModels([
+        'anthropic/claude-3-opus',
+        'openai/gpt-4o-mini',
+        'google/gemini-pro',
+      ]),
+    ).toEqual(['openai/gpt-4o-mini', 'anthropic/claude-3-opus', 'google/gemini-pro']);
+  });
+
+  it('keeps a sorted list when the default model is not available', () => {
+    expect(prioritizeOpenRouterModels(['anthropic/claude-3-opus', 'google/gemini-pro'])).toEqual([
+      'anthropic/claude-3-opus',
+      'google/gemini-pro',
     ]);
   });
 });

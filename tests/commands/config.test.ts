@@ -82,6 +82,46 @@ describe('finalizeEditedConfig', () => {
     expect(next.aiProvider).toBe('ollama-cloud');
     expect(next.aiModel).toBe('gpt-oss:120b');
   });
+
+  it('normalizes openrouter defaults when AI stays enabled', () => {
+    const current = sampleConfig();
+    const next = finalizeEditedConfig(current, {
+      workflow: 'github-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature', 'fix'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: '',
+      showTips: true,
+    });
+
+    expect(next.aiProvider).toBe('openrouter');
+    expect(next.aiModel).toBe('openai/gpt-4o-mini');
+  });
+
+  it('preserves a custom openrouter model when specified', () => {
+    const current = sampleConfig();
+    const next = finalizeEditedConfig(current, {
+      workflow: 'github-flow',
+      role: 'contributor',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: 'anthropic/claude-3-opus',
+      showTips: false,
+    });
+
+    expect(next.aiProvider).toBe('openrouter');
+    expect(next.aiModel).toBe('anthropic/claude-3-opus');
+  });
 });
 
 describe('buildConfigSnapshot', () => {
@@ -90,6 +130,7 @@ describe('buildConfigSnapshot', () => {
       source: 'local',
       location: '.git/contribute-now/config.json',
       hasOllamaCloudApiKey: true,
+      hasOpenRouterApiKey: false,
       secretsPath: '/home/test/.contribute-now/secrets',
     });
 
@@ -99,6 +140,29 @@ describe('buildConfigSnapshot', () => {
     expect(snapshot.ai.enabled).toBe(true);
     expect(snapshot.ai.provider).toBe('ollama-cloud');
     expect(snapshot.ai.ollamaCloudApiKeyPresent).toBe(true);
+    expect(snapshot.ai.openrouterApiKeyPresent).toBeNull();
+    expect(snapshot.ai.secretsPath).toBe('/home/test/.contribute-now/secrets');
+  });
+
+  it('includes openrouter secrets status when provider is openrouter', () => {
+    const snapshot = buildConfigSnapshot(
+      {
+        ...sampleConfig(),
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4o-mini',
+      },
+      {
+        source: 'local',
+        location: '.git/contribute-now/config.json',
+        hasOllamaCloudApiKey: false,
+        hasOpenRouterApiKey: true,
+        secretsPath: '/home/test/.contribute-now/secrets',
+      },
+    );
+
+    expect(snapshot.ai.provider).toBe('openrouter');
+    expect(snapshot.ai.openrouterApiKeyPresent).toBe(true);
+    expect(snapshot.ai.ollamaCloudApiKeyPresent).toBeNull();
     expect(snapshot.ai.secretsPath).toBe('/home/test/.contribute-now/secrets');
   });
 
@@ -112,6 +176,7 @@ describe('buildConfigSnapshot', () => {
         source: 'legacy',
         location: '.contributerc.json',
         hasOllamaCloudApiKey: true,
+        hasOpenRouterApiKey: false,
         secretsPath: '/home/test/.contribute-now/secrets',
       },
     );
@@ -119,6 +184,7 @@ describe('buildConfigSnapshot', () => {
     expect(snapshot.ai.enabled).toBe(false);
     expect(snapshot.ai.provider).toBeNull();
     expect(snapshot.ai.ollamaCloudApiKeyPresent).toBeNull();
+    expect(snapshot.ai.openrouterApiKeyPresent).toBeNull();
     expect(snapshot.ai.secretsPath).toBeNull();
   });
 });
