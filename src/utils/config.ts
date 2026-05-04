@@ -220,7 +220,7 @@ export function configExists(cwd = process.cwd()): boolean {
 const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
 const VALID_ROLES = ['maintainer', 'contributor'];
 const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
-const VALID_AI_PROVIDERS = ['copilot', 'ollama-cloud'];
+const VALID_AI_PROVIDERS = ['copilot', 'ollama-cloud', 'openrouter'];
 
 export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
   return config.aiEnabled !== false && !cliNoAI;

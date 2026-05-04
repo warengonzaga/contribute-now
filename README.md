@@ -327,7 +327,7 @@ Pass `--no-ai` to any command to skip AI entirely. Use `--model <name>` to selec
 | **Ollama Cloud** | API key (stored in local secrets) | OpenAI-compatible API; model list fetched from your key on setup |
 | **OpenRouter** | API key (stored in local secrets) | Unified API that routes to many model providers (OpenAI, Anthropic, Google, etc.) |
 
-Select your provider during `cn setup` or change it later with `cn config --edit`. API keys for Ollama Cloud and OpenRouter are stored securely in `~/.contribute-now/secrets/store.json` (mode 0600) — never in the plain config file.
+Select your provider during `cn setup` or change it later with `cn config --edit`. API keys for Ollama Cloud and OpenRouter are stored as plain JSON in `~/.contribute-now/secrets/store.json` with file permissions restricted to the current user (mode 0600) — never in the plain config file.
 
 ---
 
