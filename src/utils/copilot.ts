@@ -117,9 +117,9 @@ export function extractOllamaCloudModelIds(payload: unknown): string[] {
           : []
       : [];
 
-  return [...new Set(records.map(getOllamaCloudModelId).filter(Boolean))].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return [
+    ...new Set(records.map(getOllamaCloudModelId).filter((id): id is string => id !== null)),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function getOllamaCloudModelId(record: unknown): string | null {
@@ -170,9 +170,9 @@ export function extractOpenRouterModelIds(payload: unknown): string[] {
         : []
       : [];
 
-  return [...new Set(records.map(getOpenRouterModelId).filter(Boolean))].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return [
+    ...new Set(records.map(getOpenRouterModelId).filter((id): id is string => id !== null)),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function getOpenRouterModelId(record: unknown): string | null {
