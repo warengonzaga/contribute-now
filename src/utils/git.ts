@@ -193,6 +193,13 @@ export async function fetchAll(): Promise<GitResult> {
   return run(['fetch', '--all', '--quiet']);
 }
 
+/**
+ * Fetch all remotes and prune stale remote-tracking refs in one pass.
+ */
+export async function fetchAllPrune(): Promise<GitResult> {
+  return run(['fetch', '--all', '--prune', '--quiet']);
+}
+
 export async function checkoutBranch(branch: string): Promise<GitResult> {
   return run(['checkout', branch]);
 }

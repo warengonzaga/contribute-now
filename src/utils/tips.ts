@@ -134,6 +134,8 @@ const COMMAND_GUIDES: Record<string, CommandGuide> = {
       { command: 'cn branch', description: 'list local branches and tracking info' },
       { command: 'cn branch --all', description: 'include local and remote branches' },
       { command: 'cn branch --remote', description: 'show only remote branches' },
+      { command: 'cn branch --sync', description: 'sync remote refs before listing branches' },
+      { command: 'cn branch --prune', description: 'fetch remotes and prune deleted refs first' },
     ],
   },
   hook: {
