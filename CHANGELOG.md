@@ -27,6 +27,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.0] - 2026-05-05
+
+### Added
+
+- extract label utility and refactor copilot module
+- add git utility and clean up gh helper
+- add label apply command with bulk and AI support
+- add generateLabelRankings AI utility
+- add listOpenIssues, listOpenPRs, getIssueDetails, getPRDetails utils
+- add global AI defaults support (#20)
+
+### Changed
+
+- expose sync and prune flags in branch command
+- add sync and prune support to git utilities
+- enhance version display and compact help UI
+- update label command
+- add LICENSE file
+- reuse stored AI keys during setup (#21)
+
+### Security
+
+- surface error on corrupt global config file
+
 ## [0.9.0] - 2026-05-04
 
 ### Added
