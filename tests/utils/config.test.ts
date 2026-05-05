@@ -8,11 +8,15 @@ import {
   ensureGitignored,
   getConfigLocationLabel,
   getDefaultConfig,
+  getGlobalConfigPath,
   getLocalConfigPath,
+  globalConfigExists,
   isAIEnabled,
   isGitignored,
   readConfig,
+  readGlobalConfig,
   writeConfig,
+  writeGlobalConfig,
 } from '../../src/utils/config.js';
 
 const TEST_DIR = join(tmpdir(), 'contribute-now-config-test');
@@ -418,5 +422,37 @@ describe('config utilities', () => {
     };
     writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
     expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('writeGlobalConfig and readGlobalConfig round-trip provider defaults', () => {
+    writeGlobalConfig(
+      {
+        aiEnabled: true,
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4o-mini',
+      },
+      TEST_DIR,
+    );
+
+    expect(globalConfigExists(TEST_DIR)).toBe(true);
+    expect(readGlobalConfig(TEST_DIR)).toEqual({
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: 'openai/gpt-4o-mini',
+    });
+  });
+
+  it('readGlobalConfig returns null for invalid provider', () => {
+    const globalConfigPath = getGlobalConfigPath(TEST_DIR);
+    mkdirSync(join(TEST_DIR, '.contribute-now'), { recursive: true });
+    writeFileSync(
+      globalConfigPath,
+      JSON.stringify({
+        aiEnabled: true,
+        aiProvider: 'invalid-provider',
+      }),
+    );
+
+    expect(readGlobalConfig(TEST_DIR)).toBeNull();
   });
 });

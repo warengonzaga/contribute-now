@@ -1,6 +1,6 @@
 import { CopilotClient } from '@github/copilot-sdk';
 import type { AIProvider, CommitConvention, ContributeConfig } from '../types.js';
-import { readConfig } from './config.js';
+import { readConfig, readGlobalConfig } from './config.js';
 import {
   getOllamaCloudApiKey,
   getOpenRouterApiKey,
@@ -220,13 +220,16 @@ export function prioritizeOpenRouterModels(
 
 export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAIConfig {
   const resolvedConfig = config ?? readConfig();
-  const provider = resolvedConfig?.aiProvider ?? 'copilot';
+  const globalConfig = config ? null : readGlobalConfig();
+  const provider = resolvedConfig?.aiProvider ?? globalConfig?.aiProvider ?? 'copilot';
+  const preferGlobalModel = !resolvedConfig?.aiProvider || resolvedConfig.aiProvider === provider;
+  const globalModel = preferGlobalModel ? globalConfig?.aiModel?.trim() : undefined;
 
   if (provider === 'ollama-cloud') {
     return {
       provider,
       providerLabel: 'Ollama Cloud',
-      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OLLAMA_CLOUD_MODEL,
+      model: resolvedConfig?.aiModel?.trim() || globalModel || DEFAULT_OLLAMA_CLOUD_MODEL,
       host: DEFAULT_OLLAMA_CLOUD_HOST,
     };
   }
@@ -235,7 +238,7 @@ export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAICon
     return {
       provider,
       providerLabel: 'OpenRouter',
-      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OPENROUTER_MODEL,
+      model: resolvedConfig?.aiModel?.trim() || globalModel || DEFAULT_OPENROUTER_MODEL,
       host: DEFAULT_OPENROUTER_HOST,
     };
   }

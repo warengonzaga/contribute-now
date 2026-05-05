@@ -6,12 +6,15 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { ContributeConfig } from '../types.js';
+import type { ContributeConfig, GlobalContributeConfig } from '../types.js';
 
 const CONFIG_FILENAME = '.contributerc.json';
 const LOCAL_CONFIG_DIRNAME = 'contribute-now';
 const LOCAL_CONFIG_FILENAME = 'config.json';
+const GLOBAL_CONFIG_DIRNAME = '.contribute-now';
+const GLOBAL_CONFIG_FILENAME = 'config.json';
 
 function findRepoRoot(cwd = process.cwd()): string | null {
   let current = resolve(cwd);
@@ -158,6 +161,48 @@ function parseConfigFile(path: string): ContributeConfig | null {
   }
 }
 
+function parseGlobalConfigFile(path: string): GlobalContributeConfig | null {
+  try {
+    const raw = readFileSync(path, 'utf-8');
+    const parsed = JSON.parse(raw);
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+
+    if (
+      parsed.aiProvider !== undefined &&
+      (typeof parsed.aiProvider !== 'string' || !VALID_AI_PROVIDERS.includes(parsed.aiProvider))
+    ) {
+      console.error(
+        `Invalid aiProvider "${String(parsed.aiProvider)}" in ${GLOBAL_CONFIG_FILENAME}. Valid: ${VALID_AI_PROVIDERS.join(', ')}`,
+      );
+      return null;
+    }
+
+    if (
+      parsed.aiModel !== undefined &&
+      (typeof parsed.aiModel !== 'string' || !parsed.aiModel.trim())
+    ) {
+      console.error(`Invalid ${GLOBAL_CONFIG_FILENAME}: aiModel must be a non-empty string.`);
+      return null;
+    }
+
+    if (parsed.aiEnabled !== undefined && typeof parsed.aiEnabled !== 'boolean') {
+      console.error(`Invalid ${GLOBAL_CONFIG_FILENAME}: aiEnabled must be a boolean when set.`);
+      return null;
+    }
+
+    return {
+      aiEnabled: parsed.aiEnabled,
+      aiProvider: parsed.aiProvider,
+      aiModel: parsed.aiModel?.trim() || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function getConfigPath(cwd = process.cwd()): string {
   const legacyPath = getLegacyConfigPath(cwd);
   if (existsSync(legacyPath)) {
@@ -169,6 +214,10 @@ export function getConfigPath(cwd = process.cwd()): string {
 
 export function getLegacyConfigPath(cwd = process.cwd()): string {
   return join(findRepoRoot(cwd) ?? cwd, CONFIG_FILENAME);
+}
+
+export function getGlobalConfigPath(baseDir = homedir()): string {
+  return join(baseDir, GLOBAL_CONFIG_DIRNAME, GLOBAL_CONFIG_FILENAME);
 }
 
 export function getLocalConfigPath(cwd = process.cwd()): string | null {
@@ -217,6 +266,10 @@ export function configExists(cwd = process.cwd()): boolean {
   return getConfigSource(cwd) !== null;
 }
 
+export function globalConfigExists(baseDir = homedir()): boolean {
+  return existsSync(getGlobalConfigPath(baseDir));
+}
+
 const VALID_WORKFLOWS = ['clean-flow', 'github-flow', 'git-flow'];
 const VALID_ROLES = ['maintainer', 'contributor'];
 const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
@@ -239,11 +292,29 @@ export function readConfig(cwd = process.cwd()): ContributeConfig | null {
   return parseConfigFile(path);
 }
 
+export function readGlobalConfig(baseDir = homedir()): GlobalContributeConfig | null {
+  const path = getGlobalConfigPath(baseDir);
+  if (!existsSync(path)) {
+    return null;
+  }
+
+  return parseGlobalConfigFile(path);
+}
+
 export function writeConfig(config: ContributeConfig, cwd = process.cwd()): void {
   const path = getConfigPath(cwd);
   const { aiHost: _aiHost, ...storedConfig } = config as ContributeConfig & { aiHost?: string };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(storedConfig, null, 2)}\n`, 'utf-8');
+}
+
+export function writeGlobalConfig(config: GlobalContributeConfig, baseDir = homedir()): void {
+  const path = getGlobalConfigPath(baseDir);
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, {
+    encoding: 'utf-8',
+    mode: 0o600,
+  });
 }
 
 export function isGitignored(cwd = process.cwd()): boolean {
