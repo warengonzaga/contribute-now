@@ -766,7 +766,14 @@ export default defineCommand({
     await projectHeading('config', '⚙️');
 
     if (args.global) {
-      const currentGlobal = readGlobalConfig() ?? {};
+      const rawGlobal = readGlobalConfig();
+      if (rawGlobal === null && globalConfigExists()) {
+        error(
+          'Global config file exists but could not be parsed. Fix or remove ~/.contribute-now/config.json before continuing.',
+        );
+        process.exit(1);
+      }
+      const currentGlobal = rawGlobal ?? {};
 
       if (args.edit) {
         try {
