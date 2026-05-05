@@ -20,6 +20,32 @@ import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
 
+const CLI_SUBCOMMANDS = {
+  setup,
+  config,
+  sync,
+  start,
+  commit,
+  update,
+  submit,
+  switch: switchCmd,
+  discard,
+  save,
+  branch,
+  clean,
+  status,
+  log,
+  hook,
+  validate,
+  doctor,
+  label,
+} as const;
+
+type CommandLike = {
+  meta?: { description?: string };
+  args?: Record<string, { type?: string; alias?: string; description?: string; required?: boolean }>;
+};
+
 function formatVersionInfo(): string {
   return `Contribute Now v${getVersion()} - Built by Waren Gonzaga`;
 }
@@ -39,7 +65,7 @@ function showCompactRootHelp(): void {
   console.log(cmd('submit', 'Push and open a pull request on GitHub'));
   console.log();
   console.log(pc.bold('BRANCH & COMMITS'));
-  console.log(cmd('branch', 'List, create, or delete branches'));
+  console.log(cmd('branch', 'List local/remote branches and optionally prune remotes'));
   console.log(cmd('switch', 'Switch to a different branch'));
   console.log(cmd('save', 'Stash uncommitted changes for later'));
   console.log(cmd('discard', 'Discard uncommitted changes'));
@@ -62,6 +88,70 @@ function showCompactRootHelp(): void {
   console.log(pc.dim('Run cn <command> --help for detailed options and examples.'));
 }
 
+function formatArgLabel(
+  name: string,
+  arg: { type?: string; alias?: string; required?: boolean },
+): string {
+  if (arg.type === 'positional') {
+    return arg.required ? `<${name}>` : `[${name}]`;
+  }
+
+  const flags: string[] = [];
+  if (arg.alias) {
+    flags.push(`-${arg.alias}`);
+  }
+  flags.push(`--${name}`);
+
+  const needsValue = arg.type && arg.type !== 'boolean';
+  const valueHint = needsValue ? ` <${arg.type}>` : '';
+  return `${flags.join(', ')}${valueHint}`;
+}
+
+function findRequestedSubCommand(argv: string[]): string | null {
+  const names = Object.keys(CLI_SUBCOMMANDS);
+  for (const token of argv) {
+    if (names.includes(token)) {
+      return token;
+    }
+  }
+  return null;
+}
+
+function showCompactSubCommandHelp(commandName: string): void {
+  const command = CLI_SUBCOMMANDS[commandName as keyof typeof CLI_SUBCOMMANDS] as CommandLike;
+  const description = command.meta?.description ?? `Run ${commandName} command`;
+  const args = command.args ?? {};
+  const positionalArgs = Object.entries(args).filter(([, arg]) => arg.type === 'positional');
+  const optionArgs = Object.entries(args).filter(([, arg]) => arg.type !== 'positional');
+
+  console.log(description);
+  console.log();
+
+  const positionalUsage = positionalArgs
+    .map(([name, arg]) => formatArgLabel(name, arg))
+    .join(' ')
+    .trim();
+  const usageSuffix = positionalUsage.length > 0 ? ` ${positionalUsage}` : ' [OPTIONS]';
+  console.log(`${pc.bold('USAGE')}  ${pc.cyan(`cn ${commandName}${usageSuffix}`)}`);
+
+  if (optionArgs.length > 0) {
+    console.log();
+    console.log(pc.bold('OPTIONS'));
+    console.log();
+
+    const labels = optionArgs.map(([name, arg]) => formatArgLabel(name, arg));
+    const maxLabel = labels.reduce((max, label) => Math.max(max, label.length), 0);
+
+    optionArgs.forEach(([, arg], index) => {
+      const label = labels[index].padEnd(maxLabel + 2);
+      const desc = arg.description ?? '';
+      console.log(`  ${pc.cyan(label)}${desc}`);
+    });
+  }
+
+  console.log();
+}
+
 function normalizeCliArgs(argv: string[]): string[] {
   return argv.map((arg, index) => {
     const previous = argv[index - 1];
@@ -82,29 +172,11 @@ function normalizeCliArgs(argv: string[]): string[] {
 process.argv = normalizeCliArgs(process.argv);
 
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
-const subCommands = [
-  'setup',
-  'config',
-  'sync',
-  'start',
-  'commit',
-  'update',
-  'submit',
-  'switch',
-  'discard',
-  'save',
-  'clean',
-  'status',
-  'log',
-  'branch',
-  'hook',
-  'validate',
-  'doctor',
-  'label',
-];
+const subCommands = Object.keys(CLI_SUBCOMMANDS);
 const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
 const hasSubCommand = subCommands.some((cmd) => process.argv.includes(cmd));
 const isRootHelp = isHelp && !hasSubCommand;
+const requestedSubCommand = isHelp ? findRequestedSubCommand(process.argv) : null;
 
 if (!isVersion) {
   const useBigBanner = !hasSubCommand && !isHelp;
@@ -113,6 +185,11 @@ if (!isVersion) {
 
 if (isRootHelp) {
   showCompactRootHelp();
+  process.exit(0);
+}
+
+if (isHelp && requestedSubCommand) {
+  showCompactSubCommandHelp(requestedSubCommand);
   process.exit(0);
 }
 
@@ -131,24 +208,7 @@ const main = defineCommand({
     },
   },
   subCommands: {
-    setup,
-    config,
-    sync,
-    start,
-    commit,
-    update,
-    submit,
-    switch: switchCmd,
-    discard,
-    save,
-    branch,
-    clean,
-    status,
-    log,
-    hook,
-    validate,
-    doctor,
-    label,
+    ...CLI_SUBCOMMANDS,
   },
   run({ args }) {
     if (args.version) {
