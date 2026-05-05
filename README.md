@@ -1,6 +1,6 @@
 # contribute-now
 
-![GitHub Repo Banner](https://ghrb.waren.build/banner?header=contribute-now+%F0%9F%94%84&subheader=Any+workflow.+Clean+commits.+Zero+friction.&bg=0D1117-21262D&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Sour+Gummy&support=true)
+![GitHub Repo Banner](https://ghrb.waren.build/banner?header=>_contribute-now&subheader=Ship+faster+with+clean+git+flow&bg=431586-9231A8&color=FFFFFF&headerfont=Google+Sans+Code&subheaderfont=Google+Sans+Code&support=true)
 <!-- Created with GitHub Repo Banner by Waren Gonzaga: https://ghrb.waren.build -->
 
 **contribute-now** is a developer CLI that automates git workflows — branching, syncing, staging, committing, and opening PRs — so you can focus on shipping, not on memorizing git commands.
