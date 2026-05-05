@@ -274,6 +274,8 @@ List branches with workflow-aware labels and tracking status.
 cn branch             # local branches
 cn branch --all       # local + remote branches
 cn branch --remote    # remote branches only
+cn branch --sync      # sync refs (friendly alias of --prune)
+cn branch --prune     # fetch remotes + prune deleted remote branches
 ```
 
 Branches are annotated with workflow labels (e.g., base, dev, feature) and tracking info (upstream, gone, no remote).
