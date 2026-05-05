@@ -149,13 +149,18 @@ function parseConfigFile(path: string): ContributeConfig | null {
       aiHost?: string;
     };
 
-    return {
+    const normalizedConfig: ContributeConfig = {
       ...config,
-      aiEnabled: parsed.aiEnabled !== false,
       aiProvider: parsed.aiProvider,
       aiModel: parsed.aiModel?.trim() || undefined,
       showTips: parsed.showTips !== false,
     };
+
+    if (typeof parsed.aiEnabled === 'boolean') {
+      normalizedConfig.aiEnabled = parsed.aiEnabled;
+    }
+
+    return normalizedConfig;
   } catch {
     return null;
   }
@@ -275,8 +280,25 @@ const VALID_ROLES = ['maintainer', 'contributor'];
 const VALID_CONVENTIONS = ['conventional', 'clean-commit', 'none'];
 const VALID_AI_PROVIDERS = ['copilot', 'ollama-cloud', 'openrouter'];
 
-export function isAIEnabled(config: ContributeConfig, cliNoAI = false): boolean {
-  return config.aiEnabled !== false && !cliNoAI;
+export function isAIEnabled(
+  config: ContributeConfig,
+  cliNoAI = false,
+  globalConfig?: GlobalContributeConfig | null,
+): boolean {
+  if (cliNoAI) {
+    return false;
+  }
+
+  if (typeof config.aiEnabled === 'boolean') {
+    return config.aiEnabled;
+  }
+
+  const resolvedGlobalConfig = globalConfig === undefined ? readGlobalConfig() : globalConfig;
+  if (typeof resolvedGlobalConfig?.aiEnabled === 'boolean') {
+    return resolvedGlobalConfig.aiEnabled;
+  }
+
+  return true;
 }
 
 export function shouldShowTips(config: ContributeConfig | null | undefined): boolean {
