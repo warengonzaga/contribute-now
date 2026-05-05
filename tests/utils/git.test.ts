@@ -14,5 +14,7 @@ describe('git utility module', () => {
     expect(typeof mod.commitsBetween).toBe('function');
     expect(typeof mod.countCommitsAhead).toBe('function');
     expect(typeof mod.getDivergence).toBe('function');
+    expect(typeof mod.fetchAllPrune).toBe('function');
+    expect(typeof mod.pruneRemote).toBe('function');
   });
 });
