@@ -1,4 +1,5 @@
 import { execFile as execFileCb } from 'node:child_process';
+import { warn } from './logger.js';
 
 function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
@@ -178,59 +179,85 @@ export interface LabelInfo {
 
 /**
  * Fetch all labels defined in the current repository.
- * Paginates automatically so repos with more than the default page size still
- * return the full label set.
+ * Uses a high limit in a single call for broad compatibility across
+ * GitHub CLI versions (some versions do not support pagination flags here).
  */
 export async function getRepoLabels(): Promise<LabelInfo[]> {
-  const PAGE_SIZE = 100;
-  const allLabels: LabelInfo[] = [];
-  let page = 1;
+  const FETCH_LIMIT = 1000;
 
-  while (true) {
-    const { exitCode, stdout } = await run([
-      'label',
-      'list',
-      '--json',
-      'name,description,color',
-      '--limit',
-      String(PAGE_SIZE),
-      '--page',
-      String(page),
-    ]);
+  const { exitCode, stdout } = await run([
+    'label',
+    'list',
+    '--json',
+    'name,description,color',
+    '--limit',
+    String(FETCH_LIMIT),
+  ]);
 
-    if (exitCode !== 0) break;
-
-    let batch: Array<{ name?: unknown; description?: unknown; color?: unknown }> = [];
-    try {
-      batch = JSON.parse(stdout.trim()) as typeof batch;
-    } catch {
-      break;
-    }
-
-    if (!Array.isArray(batch) || batch.length === 0) break;
-
-    for (const item of batch) {
-      if (typeof item.name === 'string' && item.name.trim().length > 0) {
-        allLabels.push({
-          name: item.name.trim(),
-          description: typeof item.description === 'string' ? item.description.trim() : '',
-          color: typeof item.color === 'string' ? item.color.trim().replace(/^#/, '') : '',
-        });
-      }
-    }
-
-    // If the batch was smaller than the page size we've received the last page.
-    if (batch.length < PAGE_SIZE) break;
-
-    page++;
+  if (exitCode !== 0) {
+    return [];
   }
 
-  return allLabels;
+  let parsed: Array<{ name?: unknown; description?: unknown; color?: unknown }> = [];
+  try {
+    parsed = JSON.parse(stdout.trim()) as typeof parsed;
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return [];
+  }
+
+  if (parsed.length >= FETCH_LIMIT) {
+    warn(
+      `Repository has at least ${FETCH_LIMIT} labels (fetch limit). Some labels may not appear in suggestions. Consider reviewing your label set.`,
+    );
+  }
+
+  return parsed
+    .filter((item): item is { name: string; description?: unknown; color?: unknown } => {
+      return typeof item.name === 'string' && item.name.trim().length > 0;
+    })
+    .map((item) => ({
+      name: item.name.trim(),
+      description: typeof item.description === 'string' ? item.description.trim() : '',
+      color: typeof item.color === 'string' ? item.color.trim().replace(/^#/, '') : '',
+    }));
 }
 
 export interface IssueOrPRContent {
   title: string;
   body: string;
+}
+
+export interface IssueOrPRDetails extends IssueOrPRContent {
+  labels: string[];
+}
+
+export interface WorkItemSummary {
+  number: number;
+  title: string;
+  body: string;
+  labels: string[];
+}
+
+function parseLabelNames(rawLabels: unknown): string[] {
+  if (!Array.isArray(rawLabels)) {
+    return [];
+  }
+
+  const names: string[] = [];
+  for (const label of rawLabels) {
+    if (typeof label === 'object' && label !== null) {
+      const name = (label as { name?: unknown }).name;
+      if (typeof name === 'string' && name.trim()) {
+        names.push(name.trim());
+      }
+    }
+  }
+
+  return names;
 }
 
 /**
@@ -256,6 +283,35 @@ export async function getIssueContent(issueNumber: number): Promise<IssueOrPRCon
 }
 
 /**
+ * Fetch the title, body, and labels of a GitHub issue.
+ */
+export async function getIssueDetails(issueNumber: number): Promise<IssueOrPRDetails | null> {
+  const { exitCode, stdout } = await run([
+    'issue',
+    'view',
+    String(issueNumber),
+    '--json',
+    'title,body,labels',
+  ]);
+  if (exitCode !== 0) return null;
+  try {
+    const parsed = JSON.parse(stdout.trim()) as {
+      title?: unknown;
+      body?: unknown;
+      labels?: unknown;
+    };
+
+    return {
+      title: typeof parsed.title === 'string' ? parsed.title : '',
+      body: typeof parsed.body === 'string' ? parsed.body : '',
+      labels: parseLabelNames(parsed.labels),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch the title and body of a GitHub pull request.
  */
 export async function getPRContent(prNumber: number): Promise<IssueOrPRContent | null> {
@@ -269,6 +325,86 @@ export async function getPRContent(prNumber: number): Promise<IssueOrPRContent |
   } catch {
     return null;
   }
+}
+
+/**
+ * Fetch the title, body, and labels of a GitHub pull request.
+ */
+export async function getPRDetails(prNumber: number): Promise<IssueOrPRDetails | null> {
+  const { exitCode, stdout } = await run([
+    'pr',
+    'view',
+    String(prNumber),
+    '--json',
+    'title,body,labels',
+  ]);
+  if (exitCode !== 0) return null;
+  try {
+    const parsed = JSON.parse(stdout.trim()) as {
+      title?: unknown;
+      body?: unknown;
+      labels?: unknown;
+    };
+
+    return {
+      title: typeof parsed.title === 'string' ? parsed.title : '',
+      body: typeof parsed.body === 'string' ? parsed.body : '',
+      labels: parseLabelNames(parsed.labels),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function listOpenWorkItems(
+  type: 'issue' | 'pr',
+  limit: number,
+): Promise<WorkItemSummary[]> {
+  const { exitCode, stdout } = await run([
+    type,
+    'list',
+    '--state',
+    'open',
+    '--limit',
+    String(limit),
+    '--json',
+    'number,title,body,labels',
+  ]);
+  if (exitCode !== 0) return [];
+
+  let parsed: Array<{ number?: unknown; title?: unknown; body?: unknown; labels?: unknown }> = [];
+  try {
+    parsed = JSON.parse(stdout.trim()) as typeof parsed;
+  } catch {
+    return [];
+  }
+
+  return parsed
+    .filter(
+      (item): item is { number: number; title?: unknown; body?: unknown; labels?: unknown } => {
+        return typeof item.number === 'number' && Number.isInteger(item.number) && item.number > 0;
+      },
+    )
+    .map((item) => ({
+      number: item.number,
+      title: typeof item.title === 'string' ? item.title : '',
+      body: typeof item.body === 'string' ? item.body : '',
+      labels: parseLabelNames(item.labels),
+    }));
+}
+
+/**
+ * List open GitHub issues with title/body/labels for bulk label operations.
+ */
+export async function listOpenIssues(limit: number): Promise<WorkItemSummary[]> {
+  return listOpenWorkItems('issue', limit);
+}
+
+/**
+ * List open GitHub pull requests with title/body/labels for bulk label operations.
+ */
+export async function listOpenPRs(limit: number): Promise<WorkItemSummary[]> {
+  return listOpenWorkItems('pr', limit);
 }
 
 /**
