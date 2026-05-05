@@ -1010,9 +1010,7 @@ export async function generateLabelRankings(
       seen.add(key);
     }
 
-    return ranked.length > 0
-      ? ranked.sort((a, b) => b.score - a.score).slice(0, 8)
-      : null;
+    return ranked.length > 0 ? ranked.sort((a, b) => b.score - a.score).slice(0, 8) : null;
   } catch {
     return null;
   }
