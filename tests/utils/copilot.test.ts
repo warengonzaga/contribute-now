@@ -16,8 +16,8 @@ import {
   parseDiffByFile,
   prioritizeOllamaCloudModels,
   prioritizeOpenRouterModels,
-  resolveAIConfigFromSources,
   resolveAIConfig,
+  resolveAIConfigFromSources,
   sanitizeGeneratedCommitMessage,
 } from '../../src/utils/copilot.js';
 
