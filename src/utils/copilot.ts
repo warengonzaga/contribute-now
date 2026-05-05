@@ -87,6 +87,17 @@ Rules: title concise present tense, describes the PR theme not individual commit
 
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `Git merge conflict advisor. Explain each side, suggest resolution strategy. Never auto-resolve — guidance only. Be concise and actionable.`;
 
+const LABEL_SUGGESTION_SYSTEM_PROMPT = `You are a GitHub issue/PR label classifier.
+Task: rank existing repository labels by relevance to one issue or pull request.
+
+Output rules:
+- Return ONLY a JSON array (no markdown, no prose).
+- Each item must be: {"label":"<exact existing label name>","score":<integer 0-10>,"reason":"<short reason>"}
+- Use ONLY label names from the provided repository label list.
+- Prefer high precision. Do not include weak guesses.
+- Sort by score descending.
+- Return at most 8 items.`;
+
 export const DEFAULT_OLLAMA_CLOUD_MODEL = 'gpt-oss:120b';
 export const DEFAULT_OLLAMA_CLOUD_HOST = 'https://ollama.com/v1';
 
@@ -917,6 +928,91 @@ export async function suggestConflictResolution(
     const userMessage = `Help me resolve this merge conflict:\n\n${conflictDiff.slice(0, 4000)}`;
     const result = await callAI(CONFLICT_RESOLUTION_SYSTEM_PROMPT, userMessage, model);
     return result?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export interface LabelRankingCandidate {
+  label: string;
+  score: number;
+  reason?: string;
+}
+
+export async function generateLabelRankings(
+  content: { title: string; body: string },
+  labels: Array<{ name: string; description?: string }>,
+  model?: string,
+): Promise<LabelRankingCandidate[] | null> {
+  try {
+    const MAX_LABELS = 250;
+    const labelPayload = labels.slice(0, MAX_LABELS).map((label) => ({
+      name: label.name,
+      description: (label.description ?? '').slice(0, 240),
+    }));
+
+    const userMessage = [
+      'Classify this GitHub item using ONLY existing labels.',
+      '',
+      `Title: ${content.title}`,
+      '',
+      `Body: ${(content.body || '').slice(0, 6000)}`,
+      '',
+      `Available Labels (${labelPayload.length}):`,
+      JSON.stringify(labelPayload),
+    ].join('\n');
+
+    const response = await callAI(
+      LABEL_SUGGESTION_SYSTEM_PROMPT,
+      userMessage,
+      model,
+      COPILOT_LONG_TIMEOUT_MS,
+    );
+    if (!response) return null;
+
+    const cleaned = extractJson(response);
+    const parsed = JSON.parse(cleaned) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null;
+    }
+
+    const ranked: LabelRankingCandidate[] = [];
+    const seen = new Set<string>();
+
+    for (const item of parsed) {
+      if (typeof item !== 'object' || item === null) {
+        continue;
+      }
+
+      const label = (item as { label?: unknown }).label;
+      const score = (item as { score?: unknown }).score;
+      const reason = (item as { reason?: unknown }).reason;
+
+      if (typeof label !== 'string' || !label.trim()) {
+        continue;
+      }
+
+      const key = label.trim().toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+
+      const normalizedScore =
+        typeof score === 'number' && Number.isFinite(score)
+          ? Math.max(0, Math.min(10, Math.round(score)))
+          : 0;
+
+      ranked.push({
+        label: label.trim(),
+        score: normalizedScore,
+        reason: typeof reason === 'string' ? reason.trim() : undefined,
+      });
+      seen.add(key);
+    }
+
+    return ranked.length > 0
+      ? ranked.sort((a, b) => b.score - a.score).slice(0, 8)
+      : null;
   } catch {
     return null;
   }
