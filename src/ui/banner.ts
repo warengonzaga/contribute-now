@@ -35,7 +35,7 @@ export function getAuthor(): string {
 export function showBanner(variant: 'big' | 'small' = 'small'): void {
   console.log(pc.cyan(`\n${LOGO}`));
   console.log(
-    `  ${pc.dim(`v${getVersion()}`)} ${pc.dim('—')} ${pc.dim(`Built by ${getAuthor()}`)}`,
+    `  ${pc.white(`v${getVersion()}`)} ${pc.white('—')} ${pc.white(`Built by ${getAuthor()}`)}`,
   );
 
   const announcements = getActiveAnnouncements();
@@ -138,10 +138,10 @@ export function showBanner(variant: 'big' | 'small' = 'small'): void {
     console.log(`  ${pc.dim(`└${'─'.repeat(contentWidth + 2)}┘`)}`);
     console.log();
     console.log(
-      `  ${pc.dim('Star or contribute:')} ${pc.dim(linkify('gh.waren.build/contribute-now', 'https://gh.waren.build/contribute-now'))}`,
+      `  🤝 ${pc.white('Contribute:')} ${pc.dim(linkify('gh.waren.build/contribute-now', 'https://gh.waren.build/contribute-now'))}`,
     );
     console.log(
-      `  ${pc.dim('Sponsor:')} ${pc.dim(linkify('warengonzaga.com/sponsor', 'https://warengonzaga.com/sponsor'))}`,
+      `  🙏 ${pc.white('Sponsor:')} ${pc.dim(linkify('warengonzaga.com/sponsor', 'https://warengonzaga.com/sponsor'))}`,
     );
   }
 
