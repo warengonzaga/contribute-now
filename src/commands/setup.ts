@@ -40,7 +40,11 @@ import {
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
 import { parseRepoFromUrl } from '../utils/remote.js';
 import {
+  getOllamaCloudApiKey,
+  getOpenRouterApiKey,
   getSecretsStorePath,
+  hasOllamaCloudApiKey,
+  hasOpenRouterApiKey,
   setOllamaCloudApiKey,
   setOpenRouterApiKey,
 } from '../utils/secrets.js';
@@ -85,6 +89,66 @@ export async function shouldContinueSetupWithExistingConfig(
   }
 
   return true;
+}
+
+export interface SetupApiKeyResolutionOptions {
+  providerLabel: 'Ollama Cloud' | 'OpenRouter';
+  hasStoredKey: boolean;
+  getStoredKey: () => Promise<string | null>;
+  select: (message: string, options: string[]) => Promise<string>;
+  promptSecret: (message: string) => Promise<string>;
+}
+
+export interface SetupApiKeyResolution {
+  apiKey: string;
+  shouldStore: boolean;
+  reusedStoredKey: boolean;
+}
+
+export async function resolveApiKeyForSetup(
+  options: SetupApiKeyResolutionOptions,
+): Promise<SetupApiKeyResolution> {
+  const { providerLabel, hasStoredKey, getStoredKey, select, promptSecret } = options;
+
+  if (hasStoredKey) {
+    const choice = await select(`${providerLabel} API key`, [
+      'Keep existing stored key',
+      'Replace stored key',
+    ]);
+
+    if (choice === 'Keep existing stored key') {
+      const existing = (await getStoredKey())?.trim() || '';
+      if (existing) {
+        return {
+          apiKey: existing,
+          shouldStore: false,
+          reusedStoredKey: true,
+        };
+      }
+    }
+
+    const replacement = (await promptSecret(`Enter your ${providerLabel} API key`)).trim();
+    if (!replacement) {
+      throw new Error(`${providerLabel} API key is required when ${providerLabel} is selected.`);
+    }
+
+    return {
+      apiKey: replacement,
+      shouldStore: true,
+      reusedStoredKey: false,
+    };
+  }
+
+  const initial = (await promptSecret(`Enter your ${providerLabel} API key`)).trim();
+  if (!initial) {
+    throw new Error(`${providerLabel} API key is required when ${providerLabel} is selected.`);
+  }
+
+  return {
+    apiKey: initial,
+    shouldStore: true,
+    reusedStoredKey: false,
+  };
 }
 
 async function promptForOllamaCloudModel(
@@ -238,36 +302,48 @@ export default defineCommand({
       }
 
       if (aiProvider === 'ollama-cloud') {
-        const apiKey = (await passwordPrompt('Enter your Ollama Cloud API key')).trim();
-        if (!apiKey) {
-          error('Ollama Cloud API key is required when Ollama Cloud is selected.');
-          process.exit(1);
-        }
+        const resolvedKey = await resolveApiKeyForSetup({
+          providerLabel: 'Ollama Cloud',
+          hasStoredKey: await hasOllamaCloudApiKey(),
+          getStoredKey: getOllamaCloudApiKey,
+          select: selectPrompt,
+          promptSecret: passwordPrompt,
+        });
 
-        aiModel = await promptForOllamaCloudModel(apiKey);
+        aiModel = await promptForOllamaCloudModel(resolvedKey.apiKey);
 
         try {
-          await setOllamaCloudApiKey(apiKey);
-          success('Stored Ollama Cloud API key in the local secrets store.');
-          info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+          if (resolvedKey.shouldStore) {
+            await setOllamaCloudApiKey(resolvedKey.apiKey);
+            success('Stored Ollama Cloud API key in the local secrets store.');
+            info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+          } else {
+            info('Using existing Ollama Cloud API key from the local secrets store.');
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           error(`Failed to store Ollama Cloud API key: ${message}`);
           process.exit(1);
         }
       } else if (aiProvider === 'openrouter') {
-        const apiKey = (await passwordPrompt('Enter your OpenRouter API key')).trim();
-        if (!apiKey) {
-          error('OpenRouter API key is required when OpenRouter is selected.');
-          process.exit(1);
-        }
+        const resolvedKey = await resolveApiKeyForSetup({
+          providerLabel: 'OpenRouter',
+          hasStoredKey: await hasOpenRouterApiKey(),
+          getStoredKey: getOpenRouterApiKey,
+          select: selectPrompt,
+          promptSecret: passwordPrompt,
+        });
 
-        aiModel = await promptForOpenRouterModel(apiKey);
+        aiModel = await promptForOpenRouterModel(resolvedKey.apiKey);
 
         try {
-          await setOpenRouterApiKey(apiKey);
-          success('Stored OpenRouter API key in the local secrets store.');
-          info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+          if (resolvedKey.shouldStore) {
+            await setOpenRouterApiKey(resolvedKey.apiKey);
+            success('Stored OpenRouter API key in the local secrets store.');
+            info(`Secrets path: ${pc.bold(getSecretsStorePath())}`);
+          } else {
+            info('Using existing OpenRouter API key from the local secrets store.');
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           error(`Failed to store OpenRouter API key: ${message}`);
