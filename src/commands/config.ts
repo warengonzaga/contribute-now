@@ -1,14 +1,24 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
-import type { AIProvider, CommitConvention, ContributeConfig, WorkflowMode } from '../types.js';
+import type {
+  AIProvider,
+  CommitConvention,
+  ContributeConfig,
+  GlobalContributeConfig,
+  WorkflowMode,
+} from '../types.js';
 import {
   configExists,
   getConfigLocationLabel,
   getConfigSource,
+  getGlobalConfigPath,
+  globalConfigExists,
   isAIEnabled,
   readConfig,
+  readGlobalConfig,
   shouldShowTips,
   writeConfig,
+  writeGlobalConfig,
 } from '../utils/config.js';
 import { confirmPrompt, inputPrompt, passwordPrompt, selectPrompt } from '../utils/confirm.js';
 import { CONVENTION_DESCRIPTIONS } from '../utils/convention.js';
@@ -90,6 +100,10 @@ interface ConfigEditResult {
   openrouterApiKey?: string;
 }
 
+interface GlobalConfigEditResult {
+  config: GlobalContributeConfig;
+}
+
 export interface ConfigSnapshot {
   source: 'legacy' | 'local';
   location: string;
@@ -112,6 +126,17 @@ export interface ConfigSnapshot {
     ollamaCloudApiKeyPresent: boolean | null;
     openrouterApiKeyPresent: boolean | null;
     secretsPath: string | null;
+  };
+}
+
+export interface GlobalConfigSnapshot {
+  location: string;
+  exists: boolean;
+  ai: {
+    enabled: boolean;
+    provider: AIProvider;
+    providerLabel: string;
+    model: string | null;
   };
 }
 
@@ -203,6 +228,95 @@ export function buildConfigSnapshot(
       ollamaCloudApiKeyPresent: usingOllamaCloud ? meta.hasOllamaCloudApiKey : null,
       openrouterApiKeyPresent: usingOpenRouter ? meta.hasOpenRouterApiKey : null,
       secretsPath: needsSecretInfo ? meta.secretsPath : null,
+    },
+  };
+}
+
+function normalizeGlobalConfig(config: GlobalContributeConfig): GlobalContributeConfig {
+  const normalized: GlobalContributeConfig = {
+    aiEnabled: config.aiEnabled !== false,
+  };
+
+  if (normalized.aiEnabled) {
+    normalized.aiProvider = config.aiProvider ?? 'copilot';
+
+    if (normalized.aiProvider === 'ollama-cloud') {
+      normalized.aiModel = (config.aiModel?.trim() || DEFAULT_OLLAMA_CLOUD_MODEL).trim();
+    } else if (normalized.aiProvider === 'openrouter') {
+      normalized.aiModel = (config.aiModel?.trim() || DEFAULT_OPENROUTER_MODEL).trim();
+    }
+  }
+
+  return normalized;
+}
+
+function buildGlobalConfigSnapshot(config: GlobalContributeConfig): GlobalConfigSnapshot {
+  const normalized = normalizeGlobalConfig(config);
+  const aiProvider = normalized.aiProvider ?? 'copilot';
+  const aiEnabled = normalized.aiEnabled !== false;
+  const providerLabel =
+    aiProvider === 'ollama-cloud'
+      ? 'Ollama Cloud'
+      : aiProvider === 'openrouter'
+        ? 'OpenRouter'
+        : 'GitHub Copilot';
+
+  return {
+    location: getGlobalConfigPath(),
+    exists: globalConfigExists(),
+    ai: {
+      enabled: aiEnabled,
+      provider: aiProvider,
+      providerLabel,
+      model: aiEnabled ? (normalized.aiModel ?? null) : null,
+    },
+  };
+}
+
+async function promptForGlobalConfigEdits(
+  current: GlobalContributeConfig,
+): Promise<GlobalConfigEditResult> {
+  const normalized = normalizeGlobalConfig(current);
+  const aiEnabled = await selectBooleanValue(
+    'Global AI default',
+    normalized.aiEnabled !== false,
+    'Enabled',
+    'Disabled',
+  );
+
+  if (!aiEnabled) {
+    return {
+      config: {
+        aiEnabled: false,
+      },
+    };
+  }
+
+  const currentProvider = normalized.aiProvider ?? 'copilot';
+  const aiProvider = await selectCurrentValue(
+    'Global AI provider',
+    AI_PROVIDER_OPTIONS,
+    currentProvider,
+  );
+
+  let aiModel: string | undefined;
+  if (aiProvider === 'ollama-cloud') {
+    aiModel = await inputPrompt(
+      'Global Ollama Cloud model',
+      normalized.aiModel ?? DEFAULT_OLLAMA_CLOUD_MODEL,
+    );
+  } else if (aiProvider === 'openrouter') {
+    aiModel = await inputPrompt(
+      'Global OpenRouter model',
+      normalized.aiModel ?? DEFAULT_OPENROUTER_MODEL,
+    );
+  }
+
+  return {
+    config: {
+      aiEnabled: true,
+      aiProvider,
+      aiModel: aiModel?.trim() || undefined,
     },
   };
 }
@@ -609,12 +723,29 @@ function printConfigSummary(snapshot: ConfigSnapshot): void {
   }
 }
 
+function printGlobalConfigSummary(snapshot: GlobalConfigSnapshot): void {
+  info(`Global config path: ${pc.bold(snapshot.location)}`);
+  info(
+    `Global defaults file: ${pc.bold(snapshot.exists ? 'present' : 'missing (using built-ins)')}`,
+  );
+  info(`AI default: ${pc.bold(snapshot.ai.enabled ? 'enabled' : 'disabled')}`);
+  info(`AI provider: ${pc.bold(snapshot.ai.providerLabel)}`);
+  if (snapshot.ai.model) {
+    info(`AI model: ${pc.bold(snapshot.ai.model)}`);
+  }
+}
+
 export default defineCommand({
   meta: {
     name: 'config',
     description: 'Inspect or edit the repo config without rerunning setup',
   },
   args: {
+    global: {
+      type: 'boolean',
+      description: 'Read or edit global defaults instead of repo config',
+      default: false,
+    },
     json: {
       type: 'boolean',
       description: 'Print the active repo config as JSON with metadata',
@@ -627,17 +758,58 @@ export default defineCommand({
     },
   },
   async run({ args }) {
-    if (!(await isGitRepo())) {
-      error('Not inside a git repository.');
-      process.exit(1);
-    }
-
     if (args.json && args.edit) {
       error('Use either --json or --edit, not both at the same time.');
       process.exit(1);
     }
 
     await projectHeading('config', '⚙️');
+
+    if (args.global) {
+      const rawGlobal = readGlobalConfig();
+      if (rawGlobal === null && globalConfigExists()) {
+        error(
+          'Global config file exists but could not be parsed. Fix or remove ~/.contribute-now/config.json before continuing.',
+        );
+        process.exit(1);
+      }
+      const currentGlobal = rawGlobal ?? {};
+
+      if (args.edit) {
+        try {
+          const editResult = await promptForGlobalConfigEdits(currentGlobal);
+          writeGlobalConfig(normalizeGlobalConfig(editResult.config));
+          success('Updated global defaults.');
+
+          const snapshot = buildGlobalConfigSnapshot(readGlobalConfig() ?? {});
+          printGlobalConfigSummary(snapshot);
+          if (args.json) {
+            console.log(JSON.stringify(snapshot, null, 2));
+          }
+          return;
+        } catch (err) {
+          error(err instanceof Error ? err.message : String(err));
+          process.exit(1);
+        }
+      }
+
+      const snapshot = buildGlobalConfigSnapshot(currentGlobal);
+      if (args.json) {
+        console.log(JSON.stringify(snapshot, null, 2));
+        return;
+      }
+
+      printGlobalConfigSummary(snapshot);
+      console.log();
+      console.log(`  ${pc.dim('Run `cn config --global --edit` to update global defaults.')}`);
+      console.log();
+      return;
+    }
+
+    if (!(await isGitRepo())) {
+      error('Not inside a git repository.');
+      process.exit(1);
+    }
 
     if (!configExists()) {
       error('No repo config found. Run `cn setup` first.');

@@ -1,14 +1,39 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { readConfig } from '../utils/config.js';
-import { getCurrentBranch, getLocalBranches, getRemoteBranches, isGitRepo } from '../utils/git.js';
-import { error, projectHeading } from '../utils/logger.js';
-import { getProtectedBranches } from '../utils/workflow.js';
+import {
+  countCommitsAhead,
+  fetchAllPrune,
+  getCurrentBranch,
+  getLocalBranches,
+  getRemoteBranches,
+  hasUncommittedChanges,
+  isGitRepo,
+} from '../utils/git.js';
+import { error, info, projectHeading, success, warn } from '../utils/logger.js';
+import { getProtectedBranches, getSyncSource } from '../utils/workflow.js';
+
+export function shouldPruneBranchRefs(args: { prune?: boolean; sync?: boolean }): boolean {
+  return Boolean(args.prune || args.sync);
+}
+
+export function shouldWarnDeletedRemoteBranch(params: {
+  isCurrent: boolean;
+  gone: boolean;
+  hasUncommitted: boolean;
+  uniqueCommitsAheadOfBase: number;
+}): boolean {
+  return (
+    params.isCurrent &&
+    params.gone &&
+    (params.hasUncommitted || params.uniqueCommitsAheadOfBase > 0)
+  );
+}
 
 export default defineCommand({
   meta: {
     name: 'branch',
-    description: 'List branches with workflow-aware labels and status',
+    description: 'List branches with workflow-aware labels and optional remote pruning',
   },
   args: {
     all: {
@@ -23,6 +48,18 @@ export default defineCommand({
       description: 'Show only remote branches',
       default: false,
     },
+    prune: {
+      type: 'boolean',
+      alias: 'p',
+      description: 'Fetch all remotes and prune deleted remote-tracking branches first',
+      default: false,
+    },
+    sync: {
+      type: 'boolean',
+      alias: 's',
+      description: 'Sync remote branch refs before listing (alias of --prune)',
+      default: false,
+    },
   },
   async run({ args }) {
     if (!(await isGitRepo())) {
@@ -35,13 +72,61 @@ export default defineCommand({
     const currentBranch = await getCurrentBranch();
     const showRemoteOnly = args.remote;
     const showAll = args.all;
+    const shouldPrune = shouldPruneBranchRefs(args);
 
     await projectHeading('branch', '🌿');
+
+    if (shouldPrune) {
+      info('Fetching remotes and pruning stale remote-tracking branches...');
+      const pruneResult = await fetchAllPrune();
+      if (pruneResult.exitCode === 0) {
+        success('Remote refs refreshed and stale branches pruned.');
+      } else {
+        warn(`Could not fully prune remote refs: ${pruneResult.stderr.trim() || 'git fetch --all --prune failed'}`);
+      }
+    }
+
     console.log();
 
     // ── Local branches ──
     if (!showRemoteOnly) {
       const localBranches = await getLocalBranches();
+      const currentLocalBranch = localBranches.find((b) => b.isCurrent);
+
+      if (currentLocalBranch?.gone) {
+        const hasUncommitted = await hasUncommittedChanges();
+        let uniqueCommitsAheadOfBase = 0;
+
+        if (config) {
+          const syncSource = getSyncSource(config);
+          uniqueCommitsAheadOfBase = await countCommitsAhead(currentLocalBranch.name, syncSource.ref);
+        }
+
+        if (
+          shouldWarnDeletedRemoteBranch({
+            isCurrent: currentLocalBranch.isCurrent,
+            gone: currentLocalBranch.gone,
+            hasUncommitted,
+            uniqueCommitsAheadOfBase,
+          })
+        ) {
+          warn(
+            `Current branch ${pc.bold(currentLocalBranch.name)} was deleted remotely but still has local work.`,
+          );
+
+          if (hasUncommitted) {
+            info('You have uncommitted local changes.');
+          }
+          if (uniqueCommitsAheadOfBase > 0) {
+            info(
+              `You have ${uniqueCommitsAheadOfBase} local commit(s) not in the base sync branch.`,
+            );
+          }
+
+          info(`Run ${pc.bold('cn update')} to move your work to a fresh branch safely.`, '');
+          console.log();
+        }
+      }
 
       if (localBranches.length === 0) {
         console.log(pc.dim('  No local branches found.'));
