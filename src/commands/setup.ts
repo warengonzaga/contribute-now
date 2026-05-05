@@ -302,13 +302,20 @@ export default defineCommand({
       }
 
       if (aiProvider === 'ollama-cloud') {
-        const resolvedKey = await resolveApiKeyForSetup({
-          providerLabel: 'Ollama Cloud',
-          hasStoredKey: await hasOllamaCloudApiKey(),
-          getStoredKey: getOllamaCloudApiKey,
-          select: selectPrompt,
-          promptSecret: passwordPrompt,
-        });
+        let resolvedKey: SetupApiKeyResolution;
+        try {
+          resolvedKey = await resolveApiKeyForSetup({
+            providerLabel: 'Ollama Cloud',
+            hasStoredKey: await hasOllamaCloudApiKey(),
+            getStoredKey: getOllamaCloudApiKey,
+            select: selectPrompt,
+            promptSecret: passwordPrompt,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          error(message);
+          process.exit(1);
+        }
 
         aiModel = await promptForOllamaCloudModel(resolvedKey.apiKey);
 
@@ -326,13 +333,20 @@ export default defineCommand({
           process.exit(1);
         }
       } else if (aiProvider === 'openrouter') {
-        const resolvedKey = await resolveApiKeyForSetup({
-          providerLabel: 'OpenRouter',
-          hasStoredKey: await hasOpenRouterApiKey(),
-          getStoredKey: getOpenRouterApiKey,
-          select: selectPrompt,
-          promptSecret: passwordPrompt,
-        });
+        let resolvedKey: SetupApiKeyResolution;
+        try {
+          resolvedKey = await resolveApiKeyForSetup({
+            providerLabel: 'OpenRouter',
+            hasStoredKey: await hasOpenRouterApiKey(),
+            getStoredKey: getOpenRouterApiKey,
+            select: selectPrompt,
+            promptSecret: passwordPrompt,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          error(message);
+          process.exit(1);
+        }
 
         aiModel = await promptForOpenRouterModel(resolvedKey.apiKey);
 

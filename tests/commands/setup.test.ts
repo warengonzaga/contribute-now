@@ -145,4 +145,30 @@ describe('setup API key resolution', () => {
     expect(result.shouldStore).toBe(true);
     expect(result.reusedStoredKey).toBe(false);
   });
+
+  it('prompts for replacement when replace is selected', async () => {
+    const result = await resolveApiKeyForSetup({
+      providerLabel: 'OpenRouter',
+      hasStoredKey: true,
+      getStoredKey: async () => 'stored-secret',
+      select: async () => 'Replace stored key',
+      promptSecret: async () => 'replacement-secret',
+    });
+
+    expect(result.apiKey).toBe('replacement-secret');
+    expect(result.shouldStore).toBe(true);
+    expect(result.reusedStoredKey).toBe(false);
+  });
+
+  it('throws validation error when replacement key is empty', async () => {
+    await expect(
+      resolveApiKeyForSetup({
+        providerLabel: 'Ollama Cloud',
+        hasStoredKey: true,
+        getStoredKey: async () => 'stored-secret',
+        select: async () => 'Replace stored key',
+        promptSecret: async () => '   ',
+      }),
+    ).rejects.toThrow('Ollama Cloud API key is required when Ollama Cloud is selected.');
+  });
 });
