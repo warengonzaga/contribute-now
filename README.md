@@ -324,6 +324,27 @@ cn label suggest --issue 42
 
 # Get ranked label suggestions for a PR
 cn label suggest --pr 7
+
+# Auto-apply top labels to a PR
+cn label apply --pr 7
+
+# Auto-apply top labels to an issue
+cn label apply --issue 42
+
+# Bulk preview (safe default): inspect open issues and PRs
+cn label apply
+
+# Bulk apply to open issues and PRs
+cn label apply --yes
+
+# Bulk apply to PRs only with custom limits
+cn label apply --prs --yes --limit 30 --count 2 --min-score 5
+
+# Force heuristic-only ranking (no AI)
+cn label apply --pr 7 --no-ai
+
+# Use a specific AI model for ranking
+cn label apply --pr 7 --model gpt-4.1
 ```
 
 **Label source strategy:**
@@ -332,6 +353,15 @@ cn label suggest --pr 7
 3. Otherwise, repository-specific labels are used.
 4. The local cache is used by default — no repeated `gh` API calls.
 5. On label-not-found errors, the cache is automatically resynced and the operation is retried once.
+
+**Auto-apply behavior (`cn label apply`):**
+- Uses the same label scoring engine as `cn label suggest` (label names + descriptions vs issue/PR content).
+- Applies only existing repository labels (never creates labels).
+- Filters out labels that are already present on the target issue/PR.
+- In bulk mode (no `--issue`/`--pr`), defaults to dry-run unless `--yes` is provided.
+- Supports tunable controls: `--count`, `--min-score`, `--limit`, `--issues`, `--prs`, and `--dry-run`.
+- Uses AI ranking by default when AI is enabled in your config, with automatic fallback to heuristic scoring.
+- Pass `--no-ai` to force heuristic-only scoring or `--model <name>` to pick a specific AI model.
 
 **Label input format:**
 - Commas are the separator between labels.
