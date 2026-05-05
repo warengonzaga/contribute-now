@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { shouldContinueSetupWithExistingConfig } from '../../src/commands/setup.js';
+import {
+  resolveApiKeyForSetup,
+  shouldContinueSetupWithExistingConfig,
+} from '../../src/commands/setup.js';
 import type { ContributeConfig } from '../../src/types.js';
 
 function sampleConfig(): ContributeConfig {
@@ -97,5 +100,75 @@ describe('setup existing config gate', () => {
     });
 
     expect(shouldContinue).toBe(true);
+  });
+});
+
+describe('setup API key resolution', () => {
+  it('reuses stored key when keep is selected', async () => {
+    const result = await resolveApiKeyForSetup({
+      providerLabel: 'OpenRouter',
+      hasStoredKey: true,
+      getStoredKey: async () => 'stored-secret',
+      select: async () => 'Keep existing stored key',
+      promptSecret: async () => 'should-not-be-used',
+    });
+
+    expect(result.apiKey).toBe('stored-secret');
+    expect(result.shouldStore).toBe(false);
+    expect(result.reusedStoredKey).toBe(true);
+  });
+
+  it('prompts for replacement when keep is selected but stored key is missing', async () => {
+    const result = await resolveApiKeyForSetup({
+      providerLabel: 'Ollama Cloud',
+      hasStoredKey: true,
+      getStoredKey: async () => null,
+      select: async () => 'Keep existing stored key',
+      promptSecret: async () => 'new-secret',
+    });
+
+    expect(result.apiKey).toBe('new-secret');
+    expect(result.shouldStore).toBe(true);
+    expect(result.reusedStoredKey).toBe(false);
+  });
+
+  it('prompts for initial key when no stored key exists', async () => {
+    const result = await resolveApiKeyForSetup({
+      providerLabel: 'OpenRouter',
+      hasStoredKey: false,
+      getStoredKey: async () => null,
+      select: async () => 'Keep existing stored key',
+      promptSecret: async () => 'first-secret',
+    });
+
+    expect(result.apiKey).toBe('first-secret');
+    expect(result.shouldStore).toBe(true);
+    expect(result.reusedStoredKey).toBe(false);
+  });
+
+  it('prompts for replacement when replace is selected', async () => {
+    const result = await resolveApiKeyForSetup({
+      providerLabel: 'OpenRouter',
+      hasStoredKey: true,
+      getStoredKey: async () => 'stored-secret',
+      select: async () => 'Replace stored key',
+      promptSecret: async () => 'replacement-secret',
+    });
+
+    expect(result.apiKey).toBe('replacement-secret');
+    expect(result.shouldStore).toBe(true);
+    expect(result.reusedStoredKey).toBe(false);
+  });
+
+  it('throws validation error when replacement key is empty', async () => {
+    await expect(
+      resolveApiKeyForSetup({
+        providerLabel: 'Ollama Cloud',
+        hasStoredKey: true,
+        getStoredKey: async () => 'stored-secret',
+        select: async () => 'Replace stored key',
+        promptSecret: async () => '   ',
+      }),
+    ).rejects.toThrow('Ollama Cloud API key is required when Ollama Cloud is selected.');
   });
 });
