@@ -356,10 +356,7 @@ export async function getPRDetails(prNumber: number): Promise<IssueOrPRDetails |
   }
 }
 
-async function listOpenWorkItems(
-  type: 'issue' | 'pr',
-  limit: number,
-): Promise<WorkItemSummary[]> {
+async function listOpenWorkItems(type: 'issue' | 'pr', limit: number): Promise<WorkItemSummary[]> {
   const { exitCode, stdout } = await run([
     type,
     'list',
