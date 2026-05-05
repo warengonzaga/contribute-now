@@ -19,6 +19,12 @@ export interface ContributeConfig {
   showTips?: boolean;
 }
 
+export interface GlobalContributeConfig {
+  aiEnabled?: boolean;
+  aiProvider?: AIProvider;
+  aiModel?: string;
+}
+
 export interface GitResult {
   exitCode: number;
   stdout: string;

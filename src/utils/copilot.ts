@@ -1,6 +1,11 @@
 import { CopilotClient } from '@github/copilot-sdk';
-import type { AIProvider, CommitConvention, ContributeConfig } from '../types.js';
-import { readConfig } from './config.js';
+import type {
+  AIProvider,
+  CommitConvention,
+  ContributeConfig,
+  GlobalContributeConfig,
+} from '../types.js';
+import { readConfig, readGlobalConfig } from './config.js';
 import {
   getOllamaCloudApiKey,
   getOpenRouterApiKey,
@@ -93,6 +98,38 @@ export interface ResolvedAIConfig {
   providerLabel: string;
   model?: string;
   host?: string;
+}
+
+export function resolveAIConfigFromSources(
+  repoConfig?: ContributeConfig | null,
+  globalConfig?: GlobalContributeConfig | null,
+): ResolvedAIConfig {
+  const provider = repoConfig?.aiProvider ?? globalConfig?.aiProvider ?? 'copilot';
+  const useGlobalModel = !repoConfig?.aiModel && globalConfig?.aiProvider === provider;
+  const globalModel = useGlobalModel ? globalConfig?.aiModel?.trim() : undefined;
+
+  if (provider === 'ollama-cloud') {
+    return {
+      provider,
+      providerLabel: 'Ollama Cloud',
+      model: repoConfig?.aiModel?.trim() || globalModel || DEFAULT_OLLAMA_CLOUD_MODEL,
+      host: DEFAULT_OLLAMA_CLOUD_HOST,
+    };
+  }
+
+  if (provider === 'openrouter') {
+    return {
+      provider,
+      providerLabel: 'OpenRouter',
+      model: repoConfig?.aiModel?.trim() || globalModel || DEFAULT_OPENROUTER_MODEL,
+      host: DEFAULT_OPENROUTER_HOST,
+    };
+  }
+
+  return {
+    provider: 'copilot',
+    providerLabel: 'GitHub Copilot',
+  };
 }
 
 export function prioritizeOllamaCloudModels(
@@ -219,31 +256,9 @@ export function prioritizeOpenRouterModels(
 }
 
 export function resolveAIConfig(config?: ContributeConfig | null): ResolvedAIConfig {
-  const resolvedConfig = config ?? readConfig();
-  const provider = resolvedConfig?.aiProvider ?? 'copilot';
-
-  if (provider === 'ollama-cloud') {
-    return {
-      provider,
-      providerLabel: 'Ollama Cloud',
-      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OLLAMA_CLOUD_MODEL,
-      host: DEFAULT_OLLAMA_CLOUD_HOST,
-    };
-  }
-
-  if (provider === 'openrouter') {
-    return {
-      provider,
-      providerLabel: 'OpenRouter',
-      model: resolvedConfig?.aiModel?.trim() || DEFAULT_OPENROUTER_MODEL,
-      host: DEFAULT_OPENROUTER_HOST,
-    };
-  }
-
-  return {
-    provider: 'copilot',
-    providerLabel: 'GitHub Copilot',
-  };
+  const repoConfig = config ?? readConfig();
+  const globalConfig = readGlobalConfig();
+  return resolveAIConfigFromSources(repoConfig, globalConfig);
 }
 
 /** Suppress Node.js subprocess warnings once at init time. */

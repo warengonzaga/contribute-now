@@ -8,11 +8,15 @@ import {
   ensureGitignored,
   getConfigLocationLabel,
   getDefaultConfig,
+  getGlobalConfigPath,
   getLocalConfigPath,
+  globalConfigExists,
   isAIEnabled,
   isGitignored,
   readConfig,
+  readGlobalConfig,
   writeConfig,
+  writeGlobalConfig,
 } from '../../src/utils/config.js';
 
 const TEST_DIR = join(tmpdir(), 'contribute-now-config-test');
@@ -285,7 +289,7 @@ describe('config utilities', () => {
     expect(read?.devBranch).toBeUndefined();
   });
 
-  it('readConfig defaults aiEnabled to true for legacy config files', () => {
+  it('readConfig leaves aiEnabled undefined for legacy config files', () => {
     const cfg = {
       workflow: 'clean-flow',
       role: 'maintainer',
@@ -298,7 +302,7 @@ describe('config utilities', () => {
 
     writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
 
-    expect(readConfig(TEST_DIR)?.aiEnabled).toBe(true);
+    expect(readConfig(TEST_DIR)?.aiEnabled).toBeUndefined();
   });
 
   it('readConfig ignores legacy guideRotation state from older config files', () => {
@@ -323,7 +327,6 @@ describe('config utilities', () => {
       origin: 'origin',
       branchPrefixes: ['feature'],
       commitConvention: 'clean-commit',
-      aiEnabled: true,
       showTips: true,
     });
   });
@@ -334,6 +337,15 @@ describe('config utilities', () => {
     expect(isAIEnabled(cfg)).toBe(true);
     expect(isAIEnabled(cfg, true)).toBe(false);
     expect(isAIEnabled({ ...cfg, aiEnabled: false })).toBe(false);
+  });
+
+  it('isAIEnabled falls back to global aiEnabled when repo value is undefined', () => {
+    const cfg = { ...getDefaultConfig() };
+    delete cfg.aiEnabled;
+
+    expect(isAIEnabled(cfg, false, { aiEnabled: false })).toBe(false);
+    expect(isAIEnabled(cfg, false, { aiEnabled: true })).toBe(true);
+    expect(isAIEnabled(cfg, false, null)).toBe(true);
   });
 
   it('readConfig returns null for invalid workflow enum', () => {
@@ -418,5 +430,37 @@ describe('config utilities', () => {
     };
     writeFileSync(join(TEST_DIR, '.contributerc.json'), JSON.stringify(cfg));
     expect(readConfig(TEST_DIR)).toBeNull();
+  });
+
+  it('writeGlobalConfig and readGlobalConfig round-trip provider defaults', () => {
+    writeGlobalConfig(
+      {
+        aiEnabled: true,
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4o-mini',
+      },
+      TEST_DIR,
+    );
+
+    expect(globalConfigExists(TEST_DIR)).toBe(true);
+    expect(readGlobalConfig(TEST_DIR)).toEqual({
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+      aiModel: 'openai/gpt-4o-mini',
+    });
+  });
+
+  it('readGlobalConfig returns null for invalid provider', () => {
+    const globalConfigPath = getGlobalConfigPath(TEST_DIR);
+    mkdirSync(join(TEST_DIR, '.contribute-now'), { recursive: true });
+    writeFileSync(
+      globalConfigPath,
+      JSON.stringify({
+        aiEnabled: true,
+        aiProvider: 'invalid-provider',
+      }),
+    );
+
+    expect(readGlobalConfig(TEST_DIR)).toBeNull();
   });
 });

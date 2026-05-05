@@ -16,6 +16,7 @@ import {
   parseDiffByFile,
   prioritizeOllamaCloudModels,
   prioritizeOpenRouterModels,
+  resolveAIConfigFromSources,
   resolveAIConfig,
   sanitizeGeneratedCommitMessage,
 } from '../../src/utils/copilot.js';
@@ -303,6 +304,72 @@ describe('resolveAIConfig', () => {
       provider: 'openrouter',
       providerLabel: 'OpenRouter',
       model: 'anthropic/claude-3-opus',
+      host: DEFAULT_OPENROUTER_HOST,
+    });
+  });
+
+  it('inherits provider and model from global defaults when repo settings are missing', () => {
+    expect(
+      resolveAIConfigFromSources(null, {
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4.1-mini',
+      }),
+    ).toEqual({
+      provider: 'openrouter',
+      providerLabel: 'OpenRouter',
+      model: 'openai/gpt-4.1-mini',
+      host: DEFAULT_OPENROUTER_HOST,
+    });
+  });
+
+  it('keeps repo provider when global default uses a different provider', () => {
+    const repoConfig: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'ollama-cloud',
+    };
+
+    expect(
+      resolveAIConfigFromSources(repoConfig, {
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4.1-mini',
+      }),
+    ).toEqual({
+      provider: 'ollama-cloud',
+      providerLabel: 'Ollama Cloud',
+      model: DEFAULT_OLLAMA_CLOUD_MODEL,
+      host: DEFAULT_OLLAMA_CLOUD_HOST,
+    });
+  });
+
+  it('uses global model when repo provider matches but repo model is unset', () => {
+    const repoConfig: ContributeConfig = {
+      workflow: 'clean-flow',
+      role: 'maintainer',
+      mainBranch: 'main',
+      upstream: 'upstream',
+      origin: 'origin',
+      branchPrefixes: ['feature'],
+      commitConvention: 'clean-commit',
+      aiEnabled: true,
+      aiProvider: 'openrouter',
+    };
+
+    expect(
+      resolveAIConfigFromSources(repoConfig, {
+        aiProvider: 'openrouter',
+        aiModel: 'openai/gpt-4.1-mini',
+      }),
+    ).toEqual({
+      provider: 'openrouter',
+      providerLabel: 'OpenRouter',
+      model: 'openai/gpt-4.1-mini',
       host: DEFAULT_OPENROUTER_HOST,
     });
   });
