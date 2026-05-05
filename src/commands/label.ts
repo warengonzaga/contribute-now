@@ -1,6 +1,8 @@
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import { isAIEnabled, readConfig } from '../utils/config.js';
+import { confirmPrompt } from '../utils/confirm.js';
+import { generateLabelRankings } from '../utils/copilot.js';
 import {
   addLabelsToIssue,
   addLabelsToPR,
@@ -10,13 +12,11 @@ import {
   getIssueDetails,
   getPRContent,
   getPRDetails,
+  type LabelInfo,
   listOpenIssues,
   listOpenPRs,
-  type LabelInfo,
   type WorkItemSummary,
 } from '../utils/gh.js';
-import { generateLabelRankings } from '../utils/copilot.js';
-import { confirmPrompt } from '../utils/confirm.js';
 import { isGitRepo } from '../utils/git.js';
 import {
   findCloseMatches,
@@ -28,6 +28,8 @@ import {
   validateLabels,
 } from '../utils/label.js';
 import { error, info, projectHeading, success, warn } from '../utils/logger.js';
+import { createSpinner } from '../utils/spinner.js';
+import { LOADING_TIPS } from '../utils/tips.js';
 
 // ── Shared guards ──────────────────────────────────────────────────────────
 
@@ -115,7 +117,20 @@ interface ApplyPlan {
   source: 'ai' | 'heuristic';
 }
 
-function parsePositiveIntArg(value: string | undefined, fallback: number, fieldName: string): number {
+function getLabelCategory(label: LabelInfo): string | null {
+  const match = /^\s*\[([^\]]+)\]/.exec(label.description ?? '');
+  if (!match || !match[1]) {
+    return null;
+  }
+
+  return match[1].trim().toLowerCase() || null;
+}
+
+function parsePositiveIntArg(
+  value: string | undefined,
+  fallback: number,
+  fieldName: string,
+): number {
   if (value === undefined || value === null || value.trim() === '') {
     return fallback;
   }
@@ -160,9 +175,9 @@ function toApplyTarget(kind: WorkItemKind, item: WorkItemSummary): ApplyTarget {
 async function buildApplyPlan(
   targets: ApplyTarget[],
   availableLabels: LabelInfo[],
-  count: number,
+  count: number | undefined,
   minScore: number,
-  options: { useAI: boolean; model?: string },
+  options: { useAI: boolean; model?: string; defaultPerCategory: boolean },
 ): Promise<ApplyPlan[]> {
   const plans: ApplyPlan[] = [];
 
@@ -212,10 +227,30 @@ async function buildApplyPlan(
     }
 
     const existing = new Set(target.existingLabels.map((name) => normalizeLabelName(name)));
-    const selected = ranked
+    const candidates = ranked
       .filter((item) => item.score >= minScore)
-      .filter((item) => !existing.has(normalizeLabelName(item.label.name)))
-      .slice(0, count);
+      .filter((item) => !existing.has(normalizeLabelName(item.label.name)));
+
+    let selected: Array<{ label: LabelInfo; score: number }> = [];
+
+    if (options.defaultPerCategory) {
+      const seenCategories = new Set<string>();
+      for (const item of candidates) {
+        const category = getLabelCategory(item.label);
+        if (!category || seenCategories.has(category)) {
+          continue;
+        }
+
+        selected.push(item);
+        seenCategories.add(category);
+      }
+
+      if (selected.length === 0) {
+        selected = candidates.slice(0, 1);
+      }
+    } else {
+      selected = candidates.slice(0, count ?? 1);
+    }
 
     if (selected.length === 0) {
       continue;
@@ -576,7 +611,8 @@ const applyCommand = defineCommand({
     },
     count: {
       type: 'string',
-      description: 'Max labels to apply per item (default: 1)',
+      description:
+        'Max labels to apply per item (default: one per category when labels include [Category] tags, otherwise 1)',
     },
     'min-score': {
       type: 'string',
@@ -630,7 +666,7 @@ const applyCommand = defineCommand({
     }
 
     const limit = parsePositiveIntArg(args.limit, 20, 'limit');
-    const count = parsePositiveIntArg(args.count, 1, 'count');
+    const count = args.count ? parsePositiveIntArg(args.count, 1, 'count') : undefined;
     const minScore = parseNonNegativeIntArg(args['min-score'], 4, 'min-score');
     const effectiveDryRun = Boolean(args['dry-run']) || (isBulk && !args.yes);
 
@@ -663,7 +699,9 @@ const applyCommand = defineCommand({
 
       const details = await getIssueDetails(issueNumber);
       if (!details) {
-        error(`Could not fetch content for issue #${issueNumber}. Verify the number and your gh auth.`);
+        error(
+          `Could not fetch content for issue #${issueNumber}. Verify the number and your gh auth.`,
+        );
         process.exit(1);
       }
 
@@ -726,15 +764,36 @@ const applyCommand = defineCommand({
       }
     }
 
+    const planSpinner = useAI
+      ? createSpinner(
+          isBulk
+            ? `Generating AI label suggestions for ${targets.length} item(s)...`
+            : 'Generating AI label suggestions...',
+          { tips: LOADING_TIPS },
+        )
+      : null;
+
+    const defaultPerCategory = !count;
+
     const plans = await buildApplyPlan(targets, cacheRef.current.labels, count, minScore, {
       useAI,
       model: args.model,
+      defaultPerCategory,
     });
 
+    if (planSpinner) {
+      const aiBackedCount = plans.filter((plan) => plan.source === 'ai').length;
+      if (aiBackedCount > 0) {
+        planSpinner.success(`AI label suggestions ready for ${aiBackedCount} item(s).`);
+      } else {
+        planSpinner.success('Label suggestions ready (heuristic fallback used).');
+      }
+    }
+
     if (plans.length === 0) {
-      info(
-        `No labels qualified for auto-apply (count=${count}, min-score=${minScore}). Try lowering --min-score.`,
-      );
+      const selectionMode = defaultPerCategory ? 'per-category default' : `count=${count ?? 1}`;
+      info(`No labels qualified for auto-apply (${selectionMode}, min-score=${minScore}).`);
+      info('Try lowering --min-score or increasing --count.');
       return;
     }
 
