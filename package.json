@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
-    "@github/copilot-sdk": "^0.1.25",
+    "@github/copilot-sdk": "^0.3.0",
     "@wgtechlabs/log-engine": "^2.3.1",
     "citty": "^0.1.6",
     "picocolors": "^1.1.1"
