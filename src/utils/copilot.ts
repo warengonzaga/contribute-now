@@ -1,3 +1,4 @@
+import type { SessionConfig } from '@github/copilot-sdk';
 import { CopilotClient } from '@github/copilot-sdk';
 import type {
   AIProvider,
@@ -647,6 +648,20 @@ async function getManagedClient(): Promise<InstanceType<typeof CopilotClient>> {
   return _managedClient;
 }
 
+export function createCopilotSessionConfig(systemMessage: string, model?: string): SessionConfig {
+  const sessionConfig: SessionConfig = {
+    systemMessage: { mode: 'replace', content: systemMessage },
+    availableTools: [],
+    onPermissionRequest: () => ({ kind: 'reject' }),
+  };
+
+  if (model) {
+    sessionConfig.model = model;
+  }
+
+  return sessionConfig;
+}
+
 async function callCopilot(
   systemMessage: string,
   userMessage: string,
@@ -654,11 +669,7 @@ async function callCopilot(
   timeoutMs = COPILOT_TIMEOUT_MS,
 ): Promise<string | null> {
   const client = await getManagedClient();
-  const sessionConfig: Record<string, unknown> = {
-    systemMessage: { mode: 'replace', content: systemMessage },
-  };
-  if (model) sessionConfig.model = model;
-  const session = await client.createSession(sessionConfig);
+  const session = await client.createSession(createCopilotSessionConfig(systemMessage, model));
   try {
     const response = await withTimeout(session.sendAndWait({ prompt: userMessage }), timeoutMs);
     if (!response?.data?.content) return null;

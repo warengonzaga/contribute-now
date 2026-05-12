@@ -3,6 +3,7 @@ import type { ContributeConfig } from '../../src/types.js';
 import {
   BATCH_CONFIG,
   createCompactDiff,
+  createCopilotSessionConfig,
   createRecoveryCommitGroups,
   DEFAULT_OLLAMA_CLOUD_HOST,
   DEFAULT_OLLAMA_CLOUD_MODEL,
@@ -376,6 +377,19 @@ describe('resolveAIConfig', () => {
 
   it('normalizes an Ollama host without the v1 suffix', () => {
     expect(normalizeOllamaCloudHost('https://ollama.com')).toBe('https://ollama.com/v1');
+  });
+});
+
+describe('createCopilotSessionConfig', () => {
+  it('creates a text-only Copilot session config', () => {
+    const config = createCopilotSessionConfig('system prompt', 'gpt-4.1');
+
+    expect(config.systemMessage).toEqual({ mode: 'replace', content: 'system prompt' });
+    expect(config.model).toBe('gpt-4.1');
+    expect(config.availableTools).toEqual([]);
+    expect(config.onPermissionRequest({ kind: 'read' }, { sessionId: 'session-1' })).toEqual({
+      kind: 'reject',
+    });
   });
 });
 
