@@ -4,7 +4,7 @@ import pc from 'picocolors';
 import { promptForBranchName } from '../utils/branchPrompt.js';
 import { isAIEnabled, readConfig } from '../utils/config.js';
 import { confirmPrompt, selectPrompt } from '../utils/confirm.js';
-import { suggestConflictResolution } from '../utils/copilot.js';
+import { checkCopilotAvailable, suggestConflictResolution } from '../utils/copilot.js';
 import { getMergedPRForBranch } from '../utils/gh.js';
 import {
   assertCleanGitState,
