@@ -14,7 +14,7 @@ export function isBunRuntime(): boolean {
 
 export function getNodeMajorVersion(context: RuntimeContext = {}): number | null {
   const nodeVersion = context.nodeVersion ?? process.versions.node;
-  const major = Number.parseInt(nodeVersion.split('.')[0] ?? '', 10);
+  const major = Number.parseInt((nodeVersion.startsWith('v') ? nodeVersion.slice(1) : nodeVersion).split('.')[0] ?? '', 10);
 
   return Number.isFinite(major) ? major : null;
 }
@@ -75,7 +75,7 @@ export function getRuntimeGuardMessage(context: RuntimeContext = {}): string {
 
   lines.push(`Detected Node.js version: ${nodeVersion}`);
   lines.push('');
-  lines.push('Use Node.js 22, 24, or 26 for the packaged CLI.');
+  lines.push(`Use Node.js ${SUPPORTED_NODE_MAJORS.join(', ')} for the packaged CLI.`);
   lines.push('Bun remains the supported toolchain for local development, builds, and tests.');
   lines.push('');
   lines.push('Download Node.js:');

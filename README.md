@@ -38,7 +38,7 @@ contribute-now validates commit messages and guides your AI toward the right for
 ## Quick Start
 
 ```bash
- npx contribute-now setup
+npx contribute-now setup
 # or
 bunx contribute-now setup
 ```
