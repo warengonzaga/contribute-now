@@ -2,6 +2,7 @@ import { execFile as execFileCb } from 'node:child_process';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import pkg from '../../package.json';
+import { DEFAULT_NODE_MAJOR, SUPPORTED_NODE_MAJORS } from '../utils/runtime.js';
 import {
   configExists,
   getConfigLocationLabel,
@@ -105,12 +106,17 @@ async function toolSection(): Promise<SectionReport> {
     ok: true,
   });
 
-  // Runtime (Bun or Node)
+  // Active runtime and runtime policy
   const runtime =
     typeof globalThis.Bun !== 'undefined'
       ? `Bun ${(globalThis.Bun as { version?: string }).version ?? '?'}`
       : `Node ${process.version}`;
   checks.push({ label: runtime, ok: true, detail: `${process.platform}-${process.arch}` });
+  checks.push({
+    label: 'Node runtime policy',
+    ok: true,
+    detail: `default ${DEFAULT_NODE_MAJOR}; supports ${SUPPORTED_NODE_MAJORS.join(', ')}; Bun for dev/build/test`,
+  });
 
   return { title: 'Tool', checks };
 }

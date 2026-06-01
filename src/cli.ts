@@ -19,6 +19,7 @@ import sync from './commands/sync.js';
 import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
+import { ensureSupportedRuntime } from './utils/runtime.js';
 
 const CLI_SUBCOMMANDS = {
   setup,
@@ -170,6 +171,8 @@ function normalizeCliArgs(argv: string[]): string[] {
 }
 
 process.argv = normalizeCliArgs(process.argv);
+
+ensureSupportedRuntime();
 
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 const subCommands = Object.keys(CLI_SUBCOMMANDS);

@@ -2,10 +2,37 @@ type RuntimeContext = {
   argv?: string[];
   env?: Record<string, string | undefined>;
   isBun?: boolean;
+  nodeVersion?: string;
 };
+
+export const DEFAULT_NODE_MAJOR = 26;
+export const SUPPORTED_NODE_MAJORS = [22, 24, 26] as const;
 
 export function isBunRuntime(): boolean {
   return typeof globalThis.Bun !== 'undefined';
+}
+
+export function getNodeMajorVersion(context: RuntimeContext = {}): number | null {
+  const nodeVersion = context.nodeVersion ?? process.versions.node;
+  const major = Number.parseInt(nodeVersion.split('.')[0] ?? '', 10);
+
+  return Number.isFinite(major) ? major : null;
+}
+
+export function isSupportedNodeRuntime(context: RuntimeContext = {}): boolean {
+  const major = getNodeMajorVersion(context);
+
+  return major !== null && SUPPORTED_NODE_MAJORS.includes(major as (typeof SUPPORTED_NODE_MAJORS)[number]);
+}
+
+export function isSupportedRuntime(context: RuntimeContext = {}): boolean {
+  const bunRuntime = context.isBun ?? isBunRuntime();
+
+  if (bunRuntime) {
+    return true;
+  }
+
+  return isSupportedNodeRuntime(context);
 }
 
 export function isNpxExecution(context: RuntimeContext = {}): boolean {
@@ -32,34 +59,44 @@ export function isNpxExecution(context: RuntimeContext = {}): boolean {
   return false;
 }
 
-export function getBunRuntimeGuardMessage(context: RuntimeContext = {}): string {
+export function getRuntimeGuardMessage(context: RuntimeContext = {}): string {
   const detectedNpx = isNpxExecution(context);
-  const lines = ['contribute-now requires Bun at runtime.', ''];
+  const nodeVersion = context.nodeVersion ?? process.versions.node;
+  const lines = ['contribute-now runs on Node.js at runtime.', ''];
+
+  lines.push(`Default runtime target: Node.js ${DEFAULT_NODE_MAJOR}.`);
+  lines.push(`Supported Node.js versions: ${SUPPORTED_NODE_MAJORS.join(', ')}.`);
+  lines.push('');
 
   if (detectedNpx) {
-    lines.push('You are running it with Node/npx or pnpx. Use Bun instead:');
-    lines.push('  bunx contribute-now setup');
+    lines.push('npx/pnpx execution is supported, but the current Node.js runtime is outside the supported range.');
     lines.push('');
   }
 
-  lines.push('Install Bun first:');
-  lines.push('  npm install -g bun');
+  lines.push(`Detected Node.js version: ${nodeVersion}`);
   lines.push('');
-  lines.push('Then verify:');
-  lines.push('  bun --version');
+  lines.push('Use Node.js 22, 24, or 26 for the packaged CLI.');
+  lines.push('Bun remains the supported toolchain for local development, builds, and tests.');
   lines.push('');
-  lines.push('Official install guide:');
-  lines.push('  https://bun.sh/docs/installation');
+  lines.push('Download Node.js:');
+  lines.push('  https://nodejs.org/');
 
   return lines.join('\n');
 }
 
-export function ensureBunRuntime(context: RuntimeContext = {}): void {
-  const bunRuntime = context.isBun ?? isBunRuntime();
-  if (bunRuntime) {
+export function getBunRuntimeGuardMessage(context: RuntimeContext = {}): string {
+  return getRuntimeGuardMessage(context);
+}
+
+export function ensureSupportedRuntime(context: RuntimeContext = {}): void {
+  if (isSupportedRuntime(context)) {
     return;
   }
 
-  console.error(getBunRuntimeGuardMessage(context));
+  console.error(getRuntimeGuardMessage(context));
   process.exit(1);
+}
+
+export function ensureBunRuntime(context: RuntimeContext = {}): void {
+  ensureSupportedRuntime(context);
 }

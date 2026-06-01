@@ -38,17 +38,19 @@ contribute-now validates commit messages and guides your AI toward the right for
 ## Quick Start
 
 ```bash
+ npx contribute-now setup
+# or
 bunx contribute-now setup
 ```
 
 Or install globally:
 
 ```bash
-bun install -g contribute-now
+npm install -g contribute-now
 contribute setup
 ```
 
-`contribute-now` now runs on Bun at runtime. Use `bunx` for one-off execution and `bun install -g` for a global install.
+`contribute-now` runs on Node.js at runtime. Node.js 26 is the default target, with Node.js 22 and 24 LTS also supported. Bun remains the toolchain for local development, builds, tests, and `bunx` workflows.
 
 > `contribute` is the primary command; `cn` is the short alias for the same binary — use whichever you prefer.
 >
@@ -61,18 +63,20 @@ contribute setup
 ## Installation
 
 ```bash
-# one-off
+# one-off under Node.js
+npx contribute-now setup
+
+# one-off with Bun toolchain
 bunx contribute-now setup
 
 # global
-bun install -g contribute-now
+npm install -g contribute-now
 ```
 
-If you prefer to install the package from npm, install Bun first and then install `contribute-now`:
+If you prefer Bun for installation, the packaged CLI still runs on Node.js after install:
 
 ```bash
-npm install -g bun
-npm install -g contribute-now
+bun install -g contribute-now
 ```
 
 Once installed, you can use either alias:
@@ -86,6 +90,7 @@ cn setup          # short alias — even shorter than git!
 
 ## Prerequisites
 
+- **[Node.js](https://nodejs.org/)** — runtime target is Node.js 26 by default; Node.js 22 and 24 LTS are also supported
 - **[Git](https://git-scm.com/)** — required
 - **[GitHub CLI](https://cli.github.com)** (`gh`) — recommended; required for PR creation, role detection, and merge status checks
 - **[GitHub Copilot](https://github.com/features/copilot)** — optional; one of the supported AI providers
@@ -239,7 +244,7 @@ cn doctor --json   # machine-readable JSON output
 ```
 
 Checks include:
-- CLI version and runtime (Bun)
+- CLI version, active runtime, and Node.js runtime policy
 - git and GitHub CLI availability and authentication
 - active repo config validity and storage location
 - Git repo state (uncommitted changes, lock files, shallow clone)
@@ -472,12 +477,12 @@ git clone https://github.com/warengonzaga/contribute-now.git
 cd contribute-now
 bun install
 
-bun run build   # compile to dist/index.js
+bun run build   # compile to dist/cli.js
 bun test        # run tests
 bun run lint    # check code quality
 ```
 
-The CLI is Bun-first end to end: local development, tests, packaged runtime, and one-off execution all assume Bun.
+Bun powers local development, build, and test workflows. The packaged CLI runs on Node.js 22, 24, or 26, with Node.js 26 as the default runtime target.
 
 ## 🎯 Contributing
 
