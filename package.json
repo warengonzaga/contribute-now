@@ -12,7 +12,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun run scripts/add-shebang.mjs",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target node && bun run scripts/add-shebang.mjs",
     "cli": "bun run src/cli.ts --",
     "dev": "bun src/cli.ts",
     "test": "bun test",

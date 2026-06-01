@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const filePath = path.resolve(scriptDir, '../dist/cli.js');
-const shebang = '#!/usr/bin/env bun\n';
+const shebang = '#!/usr/bin/env node\n';
 
 if (!fs.existsSync(filePath)) {
   throw new Error(`Build output not found: ${filePath}. Run the build before adding the shebang.`);
