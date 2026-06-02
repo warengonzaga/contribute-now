@@ -2,7 +2,6 @@ import { execFile as execFileCb } from 'node:child_process';
 import { defineCommand } from 'citty';
 import pc from 'picocolors';
 import pkg from '../../package.json';
-import { DEFAULT_NODE_MAJOR, SUPPORTED_NODE_MAJORS } from '../utils/runtime.js';
 import {
   configExists,
   getConfigLocationLabel,
@@ -26,6 +25,11 @@ import {
 } from '../utils/git.js';
 import { projectHeading } from '../utils/logger.js';
 import { detectForkSetup, parseRepoFromUrl } from '../utils/remote.js';
+import {
+  DEFAULT_NODE_MAJOR,
+  isSupportedNodeRuntime,
+  SUPPORTED_NODE_MAJORS,
+} from '../utils/runtime.js';
 import { hasOllamaCloudApiKey, hasOpenRouterApiKey, hasSecretsStore } from '../utils/secrets.js';
 import { getLocalStateLocationLabel, hasLocalStateStore } from '../utils/state.js';
 import {
@@ -112,10 +116,14 @@ async function toolSection(): Promise<SectionReport> {
       ? `Bun ${(globalThis.Bun as { version?: string }).version ?? '?'}`
       : `Node ${process.version}`;
   checks.push({ label: runtime, ok: true, detail: `${process.platform}-${process.arch}` });
+  const nodeOk = typeof globalThis.Bun !== 'undefined' || isSupportedNodeRuntime();
   checks.push({
     label: 'Node runtime policy',
-    ok: true,
-    detail: `default ${DEFAULT_NODE_MAJOR}; supports ${SUPPORTED_NODE_MAJORS.join(', ')}; Bun for dev/build/test`,
+    ok: nodeOk,
+    warning: !nodeOk,
+    detail: nodeOk
+      ? `default ${DEFAULT_NODE_MAJOR}; supports ${SUPPORTED_NODE_MAJORS.join(', ')}; Bun for dev/build/test`
+      : `Node ${process.version} is outside supported range (${SUPPORTED_NODE_MAJORS.join(', ')})`,
   });
 
   return { title: 'Tool', checks };

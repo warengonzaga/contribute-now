@@ -172,8 +172,6 @@ function normalizeCliArgs(argv: string[]): string[] {
 
 process.argv = normalizeCliArgs(process.argv);
 
-ensureSupportedRuntime();
-
 const isVersion = process.argv.includes('--version') || process.argv.includes('-v');
 const subCommands = Object.keys(CLI_SUBCOMMANDS);
 const isHelp = process.argv.includes('--help') || process.argv.includes('-h');
@@ -194,6 +192,10 @@ if (isRootHelp) {
 if (isHelp && requestedSubCommand) {
   showCompactSubCommandHelp(requestedSubCommand);
   process.exit(0);
+}
+
+if (!isVersion && !isHelp) {
+  ensureSupportedRuntime();
 }
 
 const main = defineCommand({

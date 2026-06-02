@@ -25,7 +25,7 @@
     "landing:preview": "bun run --cwd landing preview"
   },
   "engines": {
-    "node": ">=22 <27",
+    "node": ">=22 <23 || >=24 <25 || >=26 <27",
     "bun": ">=1.0"
   },
   "keywords": [
