@@ -19,6 +19,7 @@ import sync from './commands/sync.js';
 import update from './commands/update.js';
 import validate from './commands/validate.js';
 import { getVersion, showBanner } from './ui/banner.js';
+import { ensureSupportedRuntime } from './utils/runtime.js';
 
 const CLI_SUBCOMMANDS = {
   setup,
@@ -191,6 +192,10 @@ if (isRootHelp) {
 if (isHelp && requestedSubCommand) {
   showCompactSubCommandHelp(requestedSubCommand);
   process.exit(0);
+}
+
+if (!isVersion && !isHelp) {
+  ensureSupportedRuntime();
 }
 
 const main = defineCommand({

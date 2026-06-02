@@ -12,8 +12,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun && bun run scripts/add-shebang.mjs",
-    "cli": "bun run src/cli.ts --",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target node && bun run scripts/add-shebang.mjs",
+    "cli": "node dist/cli.js",
     "dev": "bun src/cli.ts",
     "test": "bun test",
     "lint": "biome check .",
@@ -25,6 +25,7 @@
     "landing:preview": "bun run --cwd landing preview"
   },
   "engines": {
+    "node": ">=22 <23 || >=24 <25 || >=26 <27",
     "bun": ">=1.0"
   },
   "keywords": [
