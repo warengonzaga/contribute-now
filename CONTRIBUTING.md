@@ -22,7 +22,7 @@ bun install
 
 ```bash
 # Run the CLI locally
-bun src/index.ts --help
+bun src/cli.ts --help
 
 # Build for production
 bun run build
@@ -35,7 +35,7 @@ bun run lint
 bun run lint:fix
 ```
 
-`contribute-now` runs on Bun at runtime. Use `bunx contribute-now ...` for one-off local testing, or use `bun link` if you want the `contribute-now` command available globally while working on local edits. `bun install -g contribute-now` installs the published package from the registry, so it will not reflect your local changes.
+The packaged CLI runs on Node.js (22, 24, or 26). Bun remains the toolchain for local development, builds, and tests. Use `bunx contribute-now ...` for one-off local testing, or use `bun link` if you want the `contribute-now` command available globally while working on local edits. `npm install -g contribute-now` installs the published package from the registry, so it will not reflect your local changes.
 
 ## Development Workflow
 
@@ -162,7 +162,7 @@ When contributing code, please:
 - A clear, descriptive title.
 - Steps to reproduce the issue.
 - Expected vs. actual behavior.
-- Your environment (OS, Bun version, Git version).
+- Your environment (OS, Node.js version, Bun version, Git version).
 - Relevant logs or error messages.
 
 Please search [existing issues](https://github.com/warengonzaga/contribute-now/issues) first to avoid duplicates.
