@@ -43,6 +43,7 @@ jobs:
         run: bun test
 
       - name: Publish
+        id: publish
         uses: wgtechlabs/package-build-flow-action@v2.1.1
         with:
           package-manager: 'bun'
@@ -50,5 +51,21 @@ jobs:
           package-scope: '@warengonzaga'
           access: 'public'
           npm-token: "${{ secrets.NPM_TOKEN }}"
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          github-token: "${{ secrets.GH_PACKAGES_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}"
           dry-run: "${{ github.event.inputs.dry-run || 'false' }}"
+
+      - name: Verify publish outputs
+        if: "${{ (github.event.inputs.dry-run || 'false') != 'true' }}"
+        run: |
+          echo "npm-published=${{ steps.publish.outputs.npm-published }}"
+          echo "github-published=${{ steps.publish.outputs.github-published }}"
+
+          if [ "${{ steps.publish.outputs.npm-published }}" != "true" ]; then
+            echo "Expected NPM publish to succeed but got '${{ steps.publish.outputs.npm-published }}'"
+            exit 1
+          fi
+
+          if [ "${{ steps.publish.outputs.github-published }}" != "true" ]; then
+            echo "Expected GitHub Packages publish to succeed but got '${{ steps.publish.outputs.github-published }}'"
+            exit 1
+          fi
