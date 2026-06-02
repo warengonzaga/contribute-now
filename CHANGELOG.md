@@ -28,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.1] - 2026-06-02
+
+### Changed
+
+- fix engines.node range, runtime guard, and doctor validation
+- improve readability of v-prefix strip and version list formatting
+- align runtime with Node 26 policy
+- import checkCopilotAvailable in update command (#24)
+- switch build target from bun to node for cross-runtime compat (#25)
+
+### Fixed
+
+- address review comments in runtime.ts and README.md
+
 ## [0.10.0] - 2026-05-05
 
 ### Added
