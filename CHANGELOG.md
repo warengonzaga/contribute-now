@@ -26,6 +26,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+
+
+## [0.10.1] - 2026-06-02
+
+### Changed
+
+- fix engines.node range, runtime guard, and doctor validation
+- improve readability of v-prefix strip and version list formatting
+- align runtime with Node 26 policy
+- import checkCopilotAvailable in update command (#24)
+- switch build target from bun to node for cross-runtime compat (#25)
+
+### Fixed
+
+- address review comments in runtime.ts and README.md
+
+## [0.10.0] - 2026-05-05
+
+### Added
+
+- extract label utility and refactor copilot module
+- add git utility and clean up gh helper
+- add label apply command with bulk and AI support
+- add generateLabelRankings AI utility
+- add listOpenIssues, listOpenPRs, getIssueDetails, getPRDetails utils
+- add global AI defaults support (#20)
+
+### Changed
+
+- expose sync and prune flags in branch command
+- add sync and prune support to git utilities
+- enhance version display and compact help UI
+- update label command
+- add LICENSE file
+- reuse stored AI keys during setup (#21)
+
+### Security
+
+- surface error on corrupt global config file
+
+## [0.9.0] - 2026-05-04
+
+### Added
+
+- add deterministic `cn label add` / `cn label suggest` commands with cached label source strategy (#18)
+- add OpenRouter as a supported AI provider (#16)
+
 ## [0.8.0] - 2026-05-03
 
 ### Added
