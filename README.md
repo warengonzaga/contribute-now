@@ -482,6 +482,15 @@ bun test        # run tests
 bun run lint    # check code quality
 ```
 
+If you use an SSH remote and your key has a passphrase, set up an SSH agent in WSL2 before running the CLI so Git can reuse the unlocked key instead of prompting on every new shell or command. A simple option is:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+If you want the agent to come back automatically in new shells, use a helper like `keychain` and load it from `~/.bashrc`.
+
 Bun powers local development, build, and test workflows. The packaged CLI runs on Node.js 22, 24, or 26, with Node.js 26 as the default runtime target.
 
 ## 🎯 Contributing
@@ -517,7 +526,3 @@ This project is licensed under [GNU General Public License v3.0](https://opensou
 This project is created by **[Waren Gonzaga](https://github.com/warengonzaga)**, with the help of awesome [contributors](https://github.com/warengonzaga/contribute-now/graphs/contributors).
 
 [![contributors](https://cn.rocks/image?repo=warengonzaga/contribute-now)](https://github.com/warengonzaga/contribute-now/graphs/contributors)
-
----
-
-💻💖☕ by [Waren Gonzaga](https://warengonzaga.com) & [YHWH](https://www.youtube.com/watch?v=VOZbswniA-g) 🙏 — Without *Him*, none of this exists, *even me*.

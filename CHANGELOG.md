@@ -7,28 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## [0.10.1] - 2026-06-02
 
 ### Changed
@@ -327,4 +305,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add copilot instructions with clean commit convention
 - add clean commit validation and pre-commit biome hooks
 - initialize project scaffold with bun, typescript, and biome
-

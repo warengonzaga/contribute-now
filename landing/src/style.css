@@ -641,6 +641,19 @@ code {
 .prereq-card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
 .prereq-card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px; }
 .prereq-card a { font-size: 0.875rem; font-weight: 500; }
+.prereq-tip {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: rgba(88, 166, 255, 0.06);
+  border: 1px solid rgba(88, 166, 255, 0.12);
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.prereq-tip code {
+  font-size: 0.75rem;
+}
 
 /* ─── CTA ────────────────────────────────────────────────────────────── */
 .cta-section {
@@ -1117,11 +1130,20 @@ code {
   line-height: 1.7;
   margin-bottom: 32px;
 }
+.showcase-desc .inline-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.showcase-desc .inline-link:hover {
+  color: var(--accent-2);
+}
 .showcase-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 .showcase-item {
   display: flex;
