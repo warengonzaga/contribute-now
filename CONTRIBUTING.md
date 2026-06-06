@@ -18,6 +18,15 @@ git remote add upstream https://github.com/warengonzaga/contribute-now.git
 bun install
 ```
 
+If you use an SSH remote and your key has a passphrase, set up an SSH agent in WSL2 before running the CLI so Git can reuse the unlocked key instead of prompting on every new shell or command. A simple option is:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+If you want the agent to come back automatically in new shells, use a helper like `keychain` and load it from `~/.bashrc`.
+
 ## Development
 
 ```bash
