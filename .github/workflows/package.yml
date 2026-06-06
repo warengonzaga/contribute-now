@@ -55,7 +55,7 @@ jobs:
           dry-run: "${{ github.event.inputs.dry-run || 'false' }}"
 
       - name: Verify publish outputs
-        if: "${{ github.event_name != 'pull_request' && (github.event.inputs.dry-run || 'false') != 'true' }}"
+        if: "${{ (github.event.inputs.dry-run || 'false') != 'true' }}"
         run: |
           echo "npm-published=${{ steps.publish.outputs.npm-published }}"
           echo "github-published=${{ steps.publish.outputs.github-published }}"
