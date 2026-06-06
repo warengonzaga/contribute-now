@@ -60,6 +60,11 @@ jobs:
           echo "npm-published=${{ steps.publish.outputs.npm-published }}"
           echo "github-published=${{ steps.publish.outputs.github-published }}"
 
+          if [ "${{ steps.publish.outputs.npm-published }}" = "dry-run" ] || [ "${{ steps.publish.outputs.github-published }}" = "dry-run" ]; then
+            echo "Publish action ran in dry-run mode; skipping publish verification."
+            exit 0
+          fi
+
           if [ "${{ steps.publish.outputs.npm-published }}" != "true" ]; then
             echo "Expected NPM publish to succeed but got '${{ steps.publish.outputs.npm-published }}'"
             exit 1

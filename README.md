@@ -482,7 +482,7 @@ bun test        # run tests
 bun run lint    # check code quality
 ```
 
-If you use an SSH remote and your key has a passphrase, set up an SSH agent in WSL2 before cloning or running the CLI so Git can reuse the unlocked key instead of prompting on every new shell or command. A simple option is:
+If you use an SSH remote and your key has a passphrase, set up an SSH agent in WSL2 before running the CLI so Git can reuse the unlocked key instead of prompting on every new shell or command. A simple option is:
 
 ```bash
 eval "$(ssh-agent -s)"
